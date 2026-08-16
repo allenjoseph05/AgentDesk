@@ -17,7 +17,7 @@ def create_agent_card(base_url: str) -> AgentCard:
             )
         ],
         version="0.1.0",
-        capabilities=AgentCapabilities(streaming=False),
+        capabilities=AgentCapabilities(streaming=True),
         default_input_modes=["text/plain"],
         default_output_modes=["text/plain"],
         skills=[
@@ -27,6 +27,13 @@ def create_agent_card(base_url: str) -> AgentCard:
                 description="Return a deterministic greeting for the supplied text.",
                 tags=["hello", "greeting"],
                 examples=["Allen"],
-            )
+            ),
+            AgentSkill(
+                id="stream-hello",
+                name="Stream hello task",
+                description="Stream greeting progress, an artifact, and a terminal status.",
+                tags=["hello", "streaming", "task"],
+                examples=["stream: Allen"],
+            ),
         ],
     )

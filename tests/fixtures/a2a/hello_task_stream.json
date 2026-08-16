@@ -1,0 +1,31 @@
+{
+  "protocol_version": "1.0",
+  "transport": "HTTP+JSON with SSE",
+  "events": [
+    {
+      "kind": "task",
+      "state": "TASK_STATE_SUBMITTED"
+    },
+    {
+      "kind": "status_update",
+      "state": "TASK_STATE_WORKING",
+      "text": "Preparing greeting for Allen."
+    },
+    {
+      "kind": "status_update",
+      "state": "TASK_STATE_WORKING",
+      "text": "Greeting ready for Allen."
+    },
+    {
+      "kind": "artifact_update",
+      "name": "greeting",
+      "text": "Hello, Allen!",
+      "last_chunk": true
+    },
+    {
+      "kind": "status_update",
+      "state": "TASK_STATE_COMPLETED",
+      "text": "Greeting task completed."
+    }
+  ]
+}
