@@ -1,0 +1,36 @@
+{
+  "fixture_id": "postgresql-vs-mongodb-golden",
+  "kind": "good",
+  "golden": true,
+  "request": {"question": "Should the product use PostgreSQL or MongoDB?", "options": ["PostgreSQL", "MongoDB"], "constraints": ["Preserve transactional integrity"], "criteria": ["Data integrity", "Schema flexibility"], "desired_depth": "normal"},
+  "evidence_bundle": {
+    "question": "Should the product use PostgreSQL or MongoDB?",
+    "claims": [
+      {"id": "claim-pg", "statement": "PostgreSQL is stronger when relational integrity is primary.", "evidence_ids": ["evidence-pg"], "confidence": 0.92},
+      {"id": "claim-mongo", "statement": "MongoDB naturally supports flexible document structures.", "evidence_ids": ["evidence-mongo"], "confidence": 0.84}
+    ],
+    "evidence": [
+      {"id": "evidence-pg", "title": "PostgreSQL integrity fixture", "source_url": null, "source_type": "fixture", "summary": "PostgreSQL provides transactions and relational constraints.", "relevance": 0.96, "retrieved_at": "2026-08-16T12:00:00Z"},
+      {"id": "evidence-mongo", "title": "MongoDB flexibility fixture", "source_url": null, "source_type": "fixture", "summary": "MongoDB stores flexible nested documents.", "relevance": 0.88, "retrieved_at": "2026-08-16T12:00:00Z"}
+    ],
+    "unknowns": ["Production access patterns are not measured."],
+    "research_notes": ["Deterministic fixture; not a live benchmark."]
+  },
+  "decision_analysis": {
+    "recommendation": "PostgreSQL",
+    "executive_summary": "Relational integrity outweighs metadata flexibility.",
+    "criteria": [
+      {"criterion": "Data integrity", "weight": 0.65, "scores": {"PostgreSQL": 9, "MongoDB": 7}, "rationale": "The product requires related records.", "supporting_claim_ids": ["claim-pg"]},
+      {"criterion": "Schema flexibility", "weight": 0.35, "scores": {"PostgreSQL": 7.5, "MongoDB": 9}, "rationale": "MongoDB has a document-model advantage.", "supporting_claim_ids": ["claim-mongo"]}
+    ],
+    "arguments_for": ["Strong relational guarantees."],
+    "arguments_against": ["Metadata evolution needs deliberate design."],
+    "assumptions": ["Relational entities remain central."],
+    "risks": ["Unmeasured workloads could change the tradeoff."],
+    "recommendation_changes_if": ["Independent document writes become dominant."]
+  },
+  "verification_report": {"results": [
+    {"claim_id": "claim-pg", "verdict": "supported", "rationale": "Fixture evidence supports the claim.", "evidence_ids": ["evidence-pg"]},
+    {"claim_id": "claim-mongo", "verdict": "supported", "rationale": "Fixture evidence supports the claim.", "evidence_ids": ["evidence-mongo"]}
+  ]}
+}

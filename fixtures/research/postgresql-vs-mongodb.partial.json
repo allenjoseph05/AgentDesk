@@ -1,0 +1,11 @@
+{
+  "fixture_id": "postgresql-vs-mongodb-partial",
+  "kind": "partial",
+  "request": {"question": "Should the product use PostgreSQL or MongoDB?", "options": ["PostgreSQL", "MongoDB"], "criteria": ["Data integrity"], "desired_depth": "fast"},
+  "evidence_bundle": {
+    "question": "Should the product use PostgreSQL or MongoDB?",
+    "claims": [{"id": "claim-partial", "statement": "PostgreSQL supports relational constraints.", "evidence_ids": ["evidence-partial"], "confidence": 0.8}],
+    "evidence": [{"id": "evidence-partial", "title": "Partial fixture", "source_url": null, "source_type": "fixture", "summary": "Only relational requirements were evaluated.", "relevance": 0.75, "retrieved_at": "2026-08-16T12:00:00Z"}],
+    "unknowns": ["MongoDB evidence is unavailable.", "Operational cost was not evaluated."]
+  }
+}
