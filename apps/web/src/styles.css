@@ -130,6 +130,41 @@ h1 {
   box-shadow: 0 0 0 0.3rem rgb(111 166 141 / 15%);
 }
 
+.a2ui-spike {
+  margin-top: 1rem;
+  padding: 1.5rem;
+  border: 1px solid rgb(19 33 28 / 15%);
+  border-radius: 1.25rem;
+  background: rgb(255 255 255 / 62%);
+}
+
+.a2ui-spike__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.a2ui-spike__header h2 {
+  margin-bottom: 0;
+}
+
+.a2ui-spike__header button {
+  padding: 0.65rem 0.9rem;
+  border: 0;
+  border-radius: 0.75rem;
+  color: #fff;
+  background: #225b43;
+  cursor: pointer;
+}
+
+.a2ui-spike__surface {
+  padding: 1rem;
+  border-radius: 0.9rem;
+  background: #f8faf7;
+}
+
 @media (max-width: 720px) {
   .service-grid {
     grid-template-columns: 1fr;
@@ -138,5 +173,9 @@ h1 {
   .status-panel {
     align-items: flex-start;
   }
-}
 
+  .a2ui-spike__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
