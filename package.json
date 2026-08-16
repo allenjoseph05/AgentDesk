@@ -1,0 +1,22 @@
+{
+  "name": "agentdesk",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "engines": {
+    "node": ">=22.12.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "setup": "npm install --workspaces --include-workspace-root && python scripts/setup.py",
+    "dev": "python scripts/dev.py",
+    "dev:api": "python scripts/run_python.py -m uvicorn agents.coordinator.main:app --reload --host 127.0.0.1 --port 8000",
+    "dev:web": "npm run dev --workspace @agentdesk/web",
+    "lint": "python scripts/run_python.py -m ruff check . && npm run lint --workspace @agentdesk/web",
+    "typecheck": "python scripts/run_python.py -m compileall -q agents packages tests && npm run typecheck --workspace @agentdesk/web",
+    "test": "python scripts/run_python.py -m pytest && npm test --workspace @agentdesk/web",
+    "build": "npm run build --workspace @agentdesk/web"
+  }
+}

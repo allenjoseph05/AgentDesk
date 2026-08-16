@@ -1,0 +1,142 @@
+:root {
+  color: #13211c;
+  background: #f4f2ea;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 85% 10%, rgb(185 215 199 / 45%), transparent 34rem),
+    #f4f2ea;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.page-shell {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: clamp(4rem, 9vw, 8rem) 0;
+}
+
+.hero {
+  max-width: 760px;
+}
+
+.eyebrow {
+  margin: 0 0 0.65rem;
+  color: #416254;
+  font-size: 0.76rem;
+  font-weight: 760;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  margin-bottom: 1rem;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(3.8rem, 10vw, 7.2rem);
+  font-weight: 500;
+  letter-spacing: -0.07em;
+  line-height: 0.92;
+}
+
+.lede {
+  max-width: 620px;
+  color: #4a5b54;
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  line-height: 1.65;
+}
+
+.status-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 4rem;
+  padding: 1.4rem 1.5rem;
+  border: 1px solid rgb(19 33 28 / 15%);
+  border-radius: 1.25rem;
+  background: rgb(255 255 255 / 62%);
+  box-shadow: 0 1.5rem 4rem rgb(34 58 48 / 8%);
+  backdrop-filter: blur(18px);
+}
+
+.status-panel h2,
+.service-card h2 {
+  margin-bottom: 0;
+  font-size: 1rem;
+}
+
+.status-badge {
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  color: #174c36;
+  background: #d7eee3;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.service-card {
+  display: flex;
+  gap: 0.9rem;
+  min-height: 126px;
+  padding: 1.35rem;
+  border: 1px solid rgb(19 33 28 / 12%);
+  border-radius: 1.25rem;
+  background: rgb(255 255 255 / 45%);
+}
+
+.service-card p {
+  margin: 0.5rem 0 0;
+  color: #66736e;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.service-dot {
+  flex: 0 0 auto;
+  width: 0.65rem;
+  height: 0.65rem;
+  margin-top: 0.28rem;
+  border-radius: 50%;
+  background: #6fa68d;
+  box-shadow: 0 0 0 0.3rem rgb(111 166 141 / 15%);
+}
+
+@media (max-width: 720px) {
+  .service-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .status-panel {
+    align-items: flex-start;
+  }
+}
+

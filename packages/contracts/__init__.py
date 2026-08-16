@@ -1,0 +1,2 @@
+"""Versioned cross-agent contracts."""
+

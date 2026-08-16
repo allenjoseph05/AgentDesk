@@ -1,0 +1,4 @@
+# The runnable multi-service stack is introduced in AD-110 after service boundaries exist.
+name: agentdesk
+services: {}
+
