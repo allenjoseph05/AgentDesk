@@ -6,8 +6,8 @@ This repository is currently at **AD-001: monorepo foundation**. Protocol integr
 
 ## Prerequisites
 
-- Python 3.12 or newer
-- Node.js 22.12 or newer
+- Python 3.14.x (reference version: 3.14.6)
+- Node.js 24.x LTS (reference version: 24.17.0)
 - npm 10 or newer
 - Git
 
@@ -20,7 +20,7 @@ Copy-Item .env.example .env
 npm run setup
 ```
 
-The setup command creates an isolated `.venv`, installs the root Python project with development dependencies, and installs the web workspace dependencies. Root commands select the virtual environment automatically; manual activation is not required.
+The setup command creates an isolated `.venv`, installs the locked Python environment, and installs the locked web workspace dependencies. Root commands select the virtual environment automatically; manual activation is not required. Protocol and runtime decisions are recorded in [ADR 0001](./docs/adr/0001-protocol-versions.md).
 
 ## Development
 
