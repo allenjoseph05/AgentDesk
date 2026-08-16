@@ -23,6 +23,8 @@
     "setup": "npm install --workspaces --include-workspace-root && python scripts/setup.py",
     "dev": "python scripts/dev.py",
     "dev:api": "python scripts/run_python.py -m uvicorn agents.coordinator.main:app --reload --host 127.0.0.1 --port 8000",
+    "dev:hello": "python scripts/run_python.py -m uvicorn agents.hello.main:app --reload --host 127.0.0.1 --port 8004",
+    "hello": "python scripts/run_python.py -m agents.hello.client",
     "dev:web": "npm run dev --workspace @agentdesk/web",
     "lint": "python scripts/run_python.py -m ruff check . && npm run lint --workspace @agentdesk/web",
     "typecheck": "python scripts/run_python.py -m compileall -q agents packages tests && npm run typecheck --workspace @agentdesk/web",
