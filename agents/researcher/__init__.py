@@ -5,6 +5,7 @@ from agents.researcher.fake_tools import (
     FakeSourceProvider,
     create_fixture_providers,
 )
+from agents.researcher.synthesis import ResearchSynthesisError, ResearchSynthesizer
 from agents.researcher.tools import (
     ResearchToolError,
     ResearchToolFailure,
@@ -22,6 +23,8 @@ __all__ = [
     "FakeSourceProvider",
     "ResearchToolError",
     "ResearchToolFailure",
+    "ResearchSynthesisError",
+    "ResearchSynthesizer",
     "SearchProvider",
     "SearchProviderError",
     "SearchQuery",
