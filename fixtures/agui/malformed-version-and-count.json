@@ -1,0 +1,29 @@
+{
+  "fixtureId": "malformed-version-and-count",
+  "kind": "malformed",
+  "valid": false,
+  "action": {
+    "schemaVersion": "99",
+    "actionId": " ",
+    "type": "start_research",
+    "sessionId": "not-allowed-for-start",
+    "payload": {"question": " ", "options": [], "constraints": [], "criteria": [], "desiredDepth": "extreme"}
+  },
+  "state": {
+    "schemaVersion": "99",
+    "sessionId": "session-malformed",
+    "question": "Malformed state",
+    "status": "mystery",
+    "activeStep": null,
+    "agents": [],
+    "evidence": [],
+    "evidenceCount": -1,
+    "claims": [],
+    "analysis": null,
+    "verification": null,
+    "warnings": [],
+    "errors": [],
+    "availableActions": [],
+    "lastUpdatedAt": "not-a-date"
+  }
+}

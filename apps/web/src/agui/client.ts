@@ -1,5 +1,6 @@
 import { HttpAgent, type AgentSubscriber, type HttpAgentFetchFn } from "@ag-ui/client";
 
+import { createStartResearchAction, parseAgentDeskAction } from "./actions.ts";
 import {
   INITIAL_AGENTDESK_STATE,
   parseAgentDeskViewState,
@@ -42,6 +43,7 @@ export async function runResearch(
     role: "user",
     content: normalizedQuestion,
   });
+  const action = parseAgentDeskAction(createStartResearchAction(normalizedQuestion));
 
   const subscriber: AgentSubscriber = {
     onRunStartedEvent: () => observer.onRunning?.(),
@@ -52,5 +54,5 @@ export async function runResearch(
     onRunErrorEvent: ({ event }) => observer.onError?.(event.message),
   };
 
-  await agent.runAgent({}, subscriber);
+  await agent.runAgent({ forwardedProps: { agentdesk: action } }, subscriber);
 }

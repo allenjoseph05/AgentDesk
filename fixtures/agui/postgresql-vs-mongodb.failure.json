@@ -1,0 +1,16 @@
+{
+  "fixtureId": "postgresql-vs-mongodb-failure",
+  "kind": "failure",
+  "valid": true,
+  "action": {
+    "schemaVersion": "1.0", "actionId": "action-failure-1", "type": "start_research", "sessionId": null,
+    "payload": {"question": "Should the product use PostgreSQL or MongoDB?", "options": ["PostgreSQL", "MongoDB"], "constraints": [], "criteria": [], "desiredDepth": "normal"}
+  },
+  "state": {
+    "schemaVersion": "1.0", "sessionId": "session-failure", "question": "Should the product use PostgreSQL or MongoDB?", "status": "failed", "activeStep": "research",
+    "agents": [{"agentId": "research-agent", "name": "Research Agent", "skill": "web-research", "status": "failed", "remoteTaskId": "research-task-failure", "message": "The source provider is unavailable."}],
+    "evidence": [], "evidenceCount": 0, "claims": [], "analysis": null, "verification": null,
+    "warnings": [], "errors": ["Research sources are temporarily unavailable."],
+    "availableActions": ["retry_failed_agent"], "lastUpdatedAt": "2026-08-17T12:00:03Z"
+  }
+}

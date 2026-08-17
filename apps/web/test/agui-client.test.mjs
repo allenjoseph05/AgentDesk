@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createCoordinatorAgent, runResearch } from "../src/agui/client.ts";
-import { parseAgentDeskViewState } from "../src/agui/state.ts";
+import { INITIAL_AGENTDESK_STATE, parseAgentDeskViewState } from "../src/agui/state.ts";
 
 const encode = (event) => `data: ${JSON.stringify(event)}\n\n`;
 
@@ -22,9 +22,16 @@ test("official HttpAgent consumes lifecycle, state, and text events", async () =
             question: "PostgreSQL or MongoDB?",
             status: "planning",
             activeStep: "accept-research-request",
+            agents: [],
+            evidence: [],
             evidenceCount: 0,
+            claims: [],
+            analysis: null,
+            verification: null,
             warnings: [],
             errors: [],
+            availableActions: [],
+            lastUpdatedAt: "2026-08-17T12:00:00Z",
           },
         },
         { type: "TEXT_MESSAGE_START", messageId, role: "assistant" },
@@ -52,6 +59,9 @@ test("official HttpAgent consumes lifecycle, state, and text events", async () =
 
   assert.equal(request.messages.at(-1).content, "PostgreSQL or MongoDB?");
   assert.equal(request.state.schemaVersion, "1.0");
+  assert.equal(request.forwardedProps.agentdesk.type, "start_research");
+  assert.equal(request.forwardedProps.agentdesk.payload.question, "PostgreSQL or MongoDB?");
+  assert.ok(request.forwardedProps.agentdesk.actionId);
   assert.equal(states.at(-1).status, "planning");
   assert.deepEqual(messages, ["Request accepted."]);
   assert.equal(finished, true);
@@ -65,14 +75,8 @@ test("state boundary rejects unsupported schemas and malformed counts", () => {
   assert.throws(
     () =>
       parseAgentDeskViewState({
-        schemaVersion: "1.0",
-        sessionId: null,
-        question: null,
-        status: "idle",
-        activeStep: null,
+        ...INITIAL_AGENTDESK_STATE,
         evidenceCount: -1,
-        warnings: [],
-        errors: [],
       }),
     /evidenceCount/,
   );

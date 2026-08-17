@@ -1,0 +1,9 @@
+{
+  "fixtures": [
+    {"fixtureId": "postgresql-vs-mongodb-golden", "kind": "good", "file": "postgresql-vs-mongodb.golden.json", "valid": true},
+    {"fixtureId": "postgresql-vs-mongodb-partial", "kind": "partial", "file": "postgresql-vs-mongodb.partial.json", "valid": true},
+    {"fixtureId": "postgresql-vs-mongodb-contradictory", "kind": "contradictory", "file": "postgresql-vs-mongodb.contradictory.json", "valid": true},
+    {"fixtureId": "postgresql-vs-mongodb-failure", "kind": "failure", "file": "postgresql-vs-mongodb.failure.json", "valid": true},
+    {"fixtureId": "malformed-version-and-count", "kind": "malformed", "file": "malformed-version-and-count.json", "valid": false}
+  ]
+}

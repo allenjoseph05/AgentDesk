@@ -1,26 +1,177 @@
+import { z } from "zod";
+
 export const AG_UI_STATE_SCHEMA_VERSION = "1.0" as const;
 
-export type AgentDeskStatus =
-  | "idle"
-  | "planning"
-  | "researching"
-  | "analyzing"
-  | "verifying"
-  | "completed"
-  | "cancelled"
-  | "failed"
-  | "partial";
+const nonEmptyText = z.string().trim().min(1);
+const unitInterval = z.number().finite().min(0).max(1);
 
-export interface AgentDeskViewState {
-  schemaVersion: typeof AG_UI_STATE_SCHEMA_VERSION;
-  sessionId: string | null;
-  question: string | null;
-  status: AgentDeskStatus;
-  activeStep: string | null;
-  evidenceCount: number;
-  warnings: string[];
-  errors: string[];
-}
+const evidenceSchema = z
+  .object({
+    id: nonEmptyText,
+    title: nonEmptyText,
+    sourceUrl: z.string().url().nullable(),
+    sourceType: z.enum([
+      "official_documentation",
+      "primary_source",
+      "secondary_source",
+      "user_provided",
+      "fixture",
+    ]),
+    summary: nonEmptyText,
+    relevance: unitInterval,
+    retrievedAt: z.string().datetime({ offset: true }),
+  })
+  .strict();
+
+const claimSchema = z
+  .object({
+    id: nonEmptyText,
+    statement: nonEmptyText,
+    evidenceIds: z.array(nonEmptyText),
+    confidence: unitInterval.nullable(),
+    caveats: z.array(nonEmptyText),
+  })
+  .strict();
+
+const criterionScoreSchema = z
+  .object({
+    criterion: nonEmptyText,
+    weight: z.number().finite().nonnegative(),
+    scores: z.record(nonEmptyText, z.number().finite()),
+    rationale: nonEmptyText,
+    supportingClaimIds: z.array(nonEmptyText),
+  })
+  .strict();
+
+const decisionAnalysisSchema = z
+  .object({
+    recommendation: nonEmptyText,
+    executiveSummary: nonEmptyText,
+    criteria: z.array(criterionScoreSchema),
+    argumentsFor: z.array(nonEmptyText),
+    argumentsAgainst: z.array(nonEmptyText),
+    assumptions: z.array(nonEmptyText),
+    risks: z.array(nonEmptyText),
+    recommendationChangesIf: z.array(nonEmptyText),
+  })
+  .strict();
+
+const verificationReportSchema = z
+  .object({
+    results: z.array(
+      z
+        .object({
+          claimId: nonEmptyText,
+          verdict: z.enum([
+            "supported",
+            "partially_supported",
+            "contradicted",
+            "insufficient_evidence",
+          ]),
+          rationale: nonEmptyText,
+          evidenceIds: z.array(nonEmptyText),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+const specialistViewSchema = z
+  .object({
+    agentId: nonEmptyText,
+    name: nonEmptyText,
+    skill: nonEmptyText,
+    status: z.enum(["pending", "working", "waiting", "completed", "cancelled", "failed"]),
+    remoteTaskId: nonEmptyText.nullable(),
+    message: nonEmptyText.nullable(),
+  })
+  .strict();
+
+const followUpActionSchema = z.enum([
+  "challenge_recommendation",
+  "research_deeper",
+  "focus_on_criterion",
+  "retry_failed_agent",
+]);
+
+export const AgentDeskViewStateSchema = z
+  .object({
+    schemaVersion: z.literal(AG_UI_STATE_SCHEMA_VERSION),
+    sessionId: nonEmptyText.nullable(),
+    question: nonEmptyText.nullable(),
+    status: z.enum([
+      "idle",
+      "planning",
+      "researching",
+      "analyzing",
+      "verifying",
+      "cancelling",
+      "completed",
+      "cancelled",
+      "failed",
+      "partial",
+    ]),
+    activeStep: nonEmptyText.nullable(),
+    agents: z.array(specialistViewSchema),
+    evidence: z.array(evidenceSchema),
+    evidenceCount: z.number().int().nonnegative(),
+    claims: z.array(claimSchema),
+    analysis: decisionAnalysisSchema.nullable(),
+    verification: verificationReportSchema.nullable(),
+    warnings: z.array(nonEmptyText),
+    errors: z.array(nonEmptyText),
+    availableActions: z.array(followUpActionSchema),
+    lastUpdatedAt: z.string().datetime({ offset: true }).nullable(),
+  })
+  .strict()
+  .superRefine((state, context) => {
+    if (
+      state.status !== "idle" &&
+      (state.sessionId === null || state.question === null || state.lastUpdatedAt === null)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Active AG-UI state requires session, question, and update timestamp.",
+      });
+    }
+    if (state.evidenceCount !== state.evidence.length) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "evidenceCount must equal the number of evidence items.",
+      });
+    }
+    const unique = (values: string[]) => new Set(values).size === values.length;
+    if (!unique(state.agents.map((agent) => agent.agentId))) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Agent IDs must be unique." });
+    }
+    if (!unique(state.evidence.map((evidence) => evidence.id))) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Evidence IDs must be unique." });
+    }
+    if (!unique(state.claims.map((claim) => claim.id))) {
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Claim IDs must be unique." });
+    }
+    const evidenceIds = new Set(state.evidence.map((evidence) => evidence.id));
+    if (state.claims.some((claim) => claim.evidenceIds.some((id) => !evidenceIds.has(id)))) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Claims must reference evidence present in state.",
+      });
+    }
+    if (!unique(state.availableActions)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Available actions must not contain duplicates.",
+      });
+    }
+    if (state.status === "failed" && state.errors.length === 0) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Failed AG-UI state requires a user-visible error.",
+      });
+    }
+  });
+
+export type AgentDeskViewState = z.infer<typeof AgentDeskViewStateSchema>;
 
 export const INITIAL_AGENTDESK_STATE: AgentDeskViewState = {
   schemaVersion: AG_UI_STATE_SCHEMA_VERSION,
@@ -28,55 +179,35 @@ export const INITIAL_AGENTDESK_STATE: AgentDeskViewState = {
   question: null,
   status: "idle",
   activeStep: null,
+  agents: [],
+  evidence: [],
   evidenceCount: 0,
+  claims: [],
+  analysis: null,
+  verification: null,
   warnings: [],
   errors: [],
+  availableActions: [],
+  lastUpdatedAt: null,
 };
 
-const statuses = new Set<AgentDeskStatus>([
-  "idle",
-  "planning",
-  "researching",
-  "analyzing",
-  "verifying",
-  "completed",
-  "cancelled",
-  "failed",
-  "partial",
-]);
-
 export function parseAgentDeskViewState(value: unknown): AgentDeskViewState {
-  if (typeof value !== "object" || value === null) {
-    throw new Error("AG-UI state must be an object.");
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    (value as Record<string, unknown>).schemaVersion !== AG_UI_STATE_SCHEMA_VERSION
+  ) {
+    throw new Error(
+      `Unsupported AG-UI state schema: ${String((value as Record<string, unknown>).schemaVersion)}`,
+    );
   }
-  const state = value as Record<string, unknown>;
-  if (state.schemaVersion !== AG_UI_STATE_SCHEMA_VERSION) {
-    throw new Error(`Unsupported AG-UI state schema: ${String(state.schemaVersion)}`);
+  const result = AgentDeskViewStateSchema.safeParse(value);
+  if (!result.success) {
+    const issue = result.error.issues[0];
+    const location = issue?.path.join(".");
+    throw new Error(
+      `Invalid AG-UI state${location ? ` at ${location}` : ""}: ${issue?.message ?? "unknown"}`,
+    );
   }
-  if (typeof state.status !== "string" || !statuses.has(state.status as AgentDeskStatus)) {
-    throw new Error(`Unknown AgentDesk status: ${String(state.status)}`);
-  }
-  if (!Number.isInteger(state.evidenceCount) || (state.evidenceCount as number) < 0) {
-    throw new Error("AG-UI evidenceCount must be a non-negative integer.");
-  }
-  for (const key of ["warnings", "errors"] as const) {
-    if (!Array.isArray(state[key]) || !state[key].every((item) => typeof item === "string")) {
-      throw new Error(`AG-UI ${key} must be an array of strings.`);
-    }
-  }
-  for (const key of ["sessionId", "question", "activeStep"] as const) {
-    if (state[key] !== null && typeof state[key] !== "string") {
-      throw new Error(`AG-UI ${key} must be a string or null.`);
-    }
-  }
-  return {
-    schemaVersion: AG_UI_STATE_SCHEMA_VERSION,
-    sessionId: state.sessionId as string | null,
-    question: state.question as string | null,
-    status: state.status as AgentDeskStatus,
-    activeStep: state.activeStep as string | null,
-    evidenceCount: state.evidenceCount as number,
-    warnings: [...(state.warnings as string[])],
-    errors: [...(state.errors as string[])],
-  };
+  return result.data;
 }
