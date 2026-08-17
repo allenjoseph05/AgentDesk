@@ -21,7 +21,7 @@ VerificationVerdict = Literal[
     "insufficient_evidence",
 ]
 UnitInterval = Annotated[FiniteFloat, Field(ge=0, le=1)]
-NonNegativeFloat = Annotated[FiniteFloat, Field(ge=0)]
+OptionScore = Annotated[FiniteFloat, Field(ge=0, le=10)]
 
 
 class ResearchRequest(ContractModel):
@@ -110,8 +110,8 @@ class CriterionScore(ContractModel):
     """Weighted scores and their evidence-backed rationale."""
 
     criterion: NonEmptyText
-    weight: NonNegativeFloat
-    scores: dict[NonEmptyText, FiniteFloat]
+    weight: UnitInterval
+    scores: dict[NonEmptyText, OptionScore]
     rationale: NonEmptyText
     supporting_claim_ids: list[NonEmptyText]
 
@@ -121,12 +121,12 @@ class DecisionAnalysis(ContractModel):
 
     recommendation: NonEmptyText
     executive_summary: NonEmptyText
-    criteria: list[CriterionScore]
-    arguments_for: list[NonEmptyText]
-    arguments_against: list[NonEmptyText]
-    assumptions: list[NonEmptyText]
-    risks: list[NonEmptyText]
-    recommendation_changes_if: list[NonEmptyText]
+    criteria: list[CriterionScore] = Field(min_length=1)
+    arguments_for: list[NonEmptyText] = Field(min_length=1)
+    arguments_against: list[NonEmptyText] = Field(min_length=1)
+    assumptions: list[NonEmptyText] = Field(min_length=1)
+    risks: list[NonEmptyText] = Field(min_length=1)
+    recommendation_changes_if: list[NonEmptyText] = Field(min_length=1)
 
 
 class VerificationResult(ContractModel):
