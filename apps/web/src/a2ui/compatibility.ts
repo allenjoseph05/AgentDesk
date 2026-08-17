@@ -5,7 +5,8 @@
  * current packages, so protocol-facing code must import through this boundary.
  */
 export { A2uiSurface, basicCatalog } from "@a2ui/react/v0_9";
+export type { ReactComponentImplementation } from "@a2ui/react/v0_9";
 export { MessageProcessor } from "@a2ui/web_core/v0_9";
+export type { A2uiMessage, SurfaceModel } from "@a2ui/web_core/v0_9";
 
 export const A2UI_PROTOCOL_VERSION = "v0.9.1" as const;
-
