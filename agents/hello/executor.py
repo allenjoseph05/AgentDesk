@@ -19,6 +19,9 @@ STREAM_STEP_DELAY_SECONDS = 0.15
 class HelloAgentExecutor(AgentExecutor):
     """Produce one immediate, typed A2A message without an LLM."""
 
+    def __init__(self, stream_step_delay_seconds: float = STREAM_STEP_DELAY_SECONDS) -> None:
+        self._stream_step_delay_seconds = stream_step_delay_seconds
+
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         user_input = context.get_user_input().strip()
         if user_input.casefold().startswith(STREAM_PREFIX):
@@ -60,12 +63,12 @@ class HelloAgentExecutor(AgentExecutor):
         updater = TaskUpdater(event_queue, context.task_id, context.context_id)
 
         await updater.start_work(self._status_message(context, f"Preparing greeting for {name}."))
-        await asyncio.sleep(STREAM_STEP_DELAY_SECONDS)
+        await asyncio.sleep(self._stream_step_delay_seconds)
         await updater.update_status(
             TaskState.TASK_STATE_WORKING,
             message=self._status_message(context, f"Greeting ready for {name}."),
         )
-        await asyncio.sleep(STREAM_STEP_DELAY_SECONDS)
+        await asyncio.sleep(self._stream_step_delay_seconds)
         await updater.add_artifact(
             [new_text_part(f"Hello, {name}!")],
             name="greeting",

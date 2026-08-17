@@ -21,12 +21,15 @@ from agents.hello.executor import HelloAgentExecutor
 DEFAULT_BASE_URL = "http://127.0.0.1:8004"
 
 
-def create_app(base_url: str | None = None) -> FastAPI:
+def create_app(
+    base_url: str | None = None,
+    executor: HelloAgentExecutor | None = None,
+) -> FastAPI:
     """Create an independently runnable A2A hello-agent application."""
     public_url = (base_url or os.getenv("HELLO_AGENT_URL") or DEFAULT_BASE_URL).rstrip("/")
     agent_card = create_agent_card(public_url)
     request_handler = DefaultRequestHandler(
-        agent_executor=HelloAgentExecutor(),
+        agent_executor=executor or HelloAgentExecutor(),
         task_store=InMemoryTaskStore(),
         agent_card=agent_card,
     )

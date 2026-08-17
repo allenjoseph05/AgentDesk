@@ -21,6 +21,10 @@ function AgUiProtocolSpike() {
         onState: setViewState,
         onMessage: setMessage,
         onFinished: () => setRunning(false),
+        onCancelled: () => {
+          setMessage("AG-UI stream cancelled.");
+          setRunning(false);
+        },
         onError: (error) => {
           setMessage(error);
           setRunning(false);
