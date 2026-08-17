@@ -1,2 +1,1 @@
-"""Research specialist service boundary."""
-
+"""Independently deployable AgentDesk Research Agent."""
