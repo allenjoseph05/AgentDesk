@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from packages.contracts import (
     ArtifactEnvelope,
+    ArtifactProvenance,
     Claim,
     CriterionScore,
     DecisionAnalysis,
@@ -46,6 +47,14 @@ def valid_bundle() -> EvidenceBundle:
         evidence=[valid_evidence()],
         unknowns=["Production query distribution is not yet measured."],
         research_notes=["Compared primary documentation first."],
+    )
+
+
+def valid_provenance() -> ArtifactProvenance:
+    return ArtifactProvenance(
+        producer_agent="researcher",
+        remote_task_id="task-123",
+        created_at=datetime(2026, 8, 16, 12, 5, tzinfo=UTC),
     )
 
 
@@ -108,10 +117,14 @@ def test_verification_report_accepts_supported_verdict() -> None:
 
 
 def test_artifact_envelope_serializes_schema_version_and_typed_payload() -> None:
-    envelope = ArtifactEnvelope[EvidenceBundle](payload=valid_bundle())
+    envelope = ArtifactEnvelope[EvidenceBundle](
+        provenance=valid_provenance(),
+        payload=valid_bundle(),
+    )
     dumped = envelope.model_dump(mode="json")
 
     assert dumped["schema_version"] == "1.0"
+    assert dumped["provenance"]["producer_agent"] == "researcher"
     assert dumped["payload"]["claims"][0]["id"] == "claim-1"
 
 
@@ -168,5 +181,9 @@ def test_evidence_rejects_non_http_url_and_naive_timestamp() -> None:
 def test_artifact_envelope_rejects_unsupported_schema_version() -> None:
     with pytest.raises(ValidationError):
         ArtifactEnvelope[EvidenceBundle].model_validate(
-            {"schema_version": "2.0", "payload": valid_bundle().model_dump()}
+            {
+                "schema_version": "2.0",
+                "provenance": valid_provenance().model_dump(),
+                "payload": valid_bundle().model_dump(),
+            }
         )
