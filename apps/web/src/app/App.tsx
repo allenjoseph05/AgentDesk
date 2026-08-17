@@ -1,36 +1,78 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
-import { A2uiSurface } from "../a2ui/compatibility";
-import {
-  createFixtureRuntime,
-  type FixtureRuntime,
-  updateFixtureSummary,
-} from "../a2ui/fixture-surface";
+import { createCoordinatorAgent, runResearch } from "../agui/client";
+import { INITIAL_AGENTDESK_STATE, type AgentDeskViewState } from "../agui/state";
 
 const plannedServices = ["Research", "Analyst", "Verifier"] as const;
 
-function A2uiRendererSpike() {
-  const runtimeRef = useRef<FixtureRuntime | null>(null);
-  runtimeRef.current ??= createFixtureRuntime();
-  const runtime = runtimeRef.current;
+function AgUiProtocolSpike() {
+  const agentRef = useRef<ReturnType<typeof createCoordinatorAgent> | null>(null);
+  agentRef.current ??= createCoordinatorAgent();
+  const [question, setQuestion] = useState("Should we use PostgreSQL or MongoDB?");
+  const [viewState, setViewState] = useState<AgentDeskViewState>(INITIAL_AGENTDESK_STATE);
+  const [message, setMessage] = useState("Ready to start an AG-UI run.");
+  const [running, setRunning] = useState(false);
 
-  const applyDataUpdate = () => {
-    updateFixtureSummary(runtime.processor, "Data model updated without remounting AgentDesk.");
+  const submit = async () => {
+    setRunning(true);
+    setMessage("Connecting to the Coordinator...");
+    try {
+      await runResearch(agentRef.current!, question, {
+        onState: setViewState,
+        onMessage: setMessage,
+        onFinished: () => setRunning(false),
+        onError: (error) => {
+          setMessage(error);
+          setRunning(false);
+        },
+      });
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "AG-UI run failed.");
+      setRunning(false);
+    }
   };
 
   return (
-    <section className="a2ui-spike" aria-labelledby="a2ui-title">
-      <div className="a2ui-spike__header">
+    <section className="agui-spike" aria-labelledby="agui-title">
+      <div className="agui-spike__header">
         <div>
-          <p className="eyebrow">AD-005 · A2UI v0.9.1</p>
-          <h2 id="a2ui-title">Local renderer proof</h2>
+          <p className="eyebrow">AD-006 · AG-UI vertical slice</p>
+          <h2 id="agui-title">Browser-to-Coordinator event stream</h2>
         </div>
-        <button type="button" onClick={applyDataUpdate}>
-          Update data model
+        <span className="status-badge">{viewState.status}</span>
+      </div>
+      <label className="research-input">
+        Research question
+        <input value={question} onChange={(event) => setQuestion(event.target.value)} />
+      </label>
+      <div className="agui-spike__actions">
+        <button type="button" onClick={() => void submit()} disabled={running}>
+          {running ? "Running…" : "Start AG-UI run"}
+        </button>
+        <button
+          type="button"
+          onClick={() => agentRef.current?.abortRun()}
+          disabled={!running}
+        >
+          Cancel stream
         </button>
       </div>
-      <div className="a2ui-spike__surface" data-surface-id={runtime.surface.id}>
-        <A2uiSurface surface={runtime.surface} />
+      <div className="agui-spike__state" aria-live="polite">
+        <p>{message}</p>
+        <dl>
+          <div>
+            <dt>Thread</dt>
+            <dd>{agentRef.current.threadId}</dd>
+          </div>
+          <div>
+            <dt>Run/session</dt>
+            <dd>{viewState.sessionId ?? "Not started"}</dd>
+          </div>
+          <div>
+            <dt>Active step</dt>
+            <dd>{viewState.activeStep ?? "None"}</dd>
+          </div>
+        </dl>
       </div>
     </section>
   );
@@ -43,17 +85,17 @@ export function App() {
         <p className="eyebrow">Adaptive research workspace</p>
         <h1 id="page-title">AgentDesk</h1>
         <p className="lede">
-          The development foundation is ready. A2A protocol discovery and streaming are the
-          next gated implementation step.
+          AG-UI connects this workspace to the Coordinator; A2A connects the Coordinator to
+          independently deployed specialist agents.
         </p>
       </section>
 
       <section className="status-panel" aria-labelledby="status-title">
         <div>
-          <p className="eyebrow">AD-001</p>
-          <h2 id="status-title">Workspace initialized</h2>
+          <p className="eyebrow">Protocol foundation</p>
+          <h2 id="status-title">AG-UI + A2A</h2>
         </div>
-        <span className="status-badge">Foundation</span>
+        <span className="status-badge">Connected architecture</span>
       </section>
 
       <section className="service-grid" aria-label="Planned specialist services">
@@ -62,13 +104,13 @@ export function App() {
             <span className="service-dot" aria-hidden="true" />
             <div>
               <h2>{service} Agent</h2>
-              <p>Independent service boundary reserved.</p>
+              <p>Independent A2A service boundary.</p>
             </div>
           </article>
         ))}
       </section>
 
-      <A2uiRendererSpike />
+      <AgUiProtocolSpike />
     </main>
   );
 }
