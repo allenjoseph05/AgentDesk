@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from pydantic import AnyHttpUrl, AwareDatetime, Field, FiniteFloat
+from pydantic import AnyHttpUrl, AwareDatetime, Field, FiniteFloat, model_validator
 
 from packages.contracts.base import ContractModel, NonEmptyText
 
@@ -51,7 +51,7 @@ class Claim(ContractModel):
 
     id: NonEmptyText
     statement: NonEmptyText
-    evidence_ids: list[NonEmptyText]
+    evidence_ids: list[NonEmptyText] = Field(min_length=1)
     confidence: UnitInterval | None = None
     caveats: list[NonEmptyText] = Field(default_factory=list)
 
@@ -64,6 +64,22 @@ class EvidenceBundle(ContractModel):
     evidence: list[Evidence]
     unknowns: list[NonEmptyText]
     research_notes: list[NonEmptyText] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_evidence_links(self) -> "EvidenceBundle":
+        evidence_ids = [item.id for item in self.evidence]
+        if len(evidence_ids) != len(set(evidence_ids)):
+            raise ValueError("Evidence IDs must be unique within a bundle.")
+
+        claim_ids = [claim.id for claim in self.claims]
+        if len(claim_ids) != len(set(claim_ids)):
+            raise ValueError("Claim IDs must be unique within a bundle.")
+
+        known_evidence = set(evidence_ids)
+        for claim in self.claims:
+            if unknown := set(claim.evidence_ids) - known_evidence:
+                raise ValueError(f"Claim {claim.id} references unknown evidence: {sorted(unknown)}")
+        return self
 
 
 class CriterionScore(ContractModel):

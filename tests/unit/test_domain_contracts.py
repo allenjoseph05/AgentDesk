@@ -178,6 +178,28 @@ def test_evidence_rejects_non_http_url_and_naive_timestamp() -> None:
         Evidence.model_validate({**base, "retrieved_at": datetime(2026, 8, 16, 12, 0)})
 
 
+def test_evidence_bundle_rejects_duplicate_ids_and_unlinked_claims() -> None:
+    bundle = valid_bundle().model_dump(mode="python")
+
+    with pytest.raises(ValidationError, match="Evidence IDs must be unique"):
+        EvidenceBundle.model_validate(
+            {**bundle, "evidence": [bundle["evidence"][0], bundle["evidence"][0]]}
+        )
+    with pytest.raises(ValidationError, match="Claim IDs must be unique"):
+        EvidenceBundle.model_validate(
+            {**bundle, "claims": [bundle["claims"][0], bundle["claims"][0]]}
+        )
+    with pytest.raises(ValidationError, match="unknown evidence"):
+        EvidenceBundle.model_validate(
+            {
+                **bundle,
+                "claims": [{**bundle["claims"][0], "evidence_ids": ["not-collected"]}],
+            }
+        )
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        EvidenceBundle.model_validate({**bundle, "recommendation": "PostgreSQL"})
+
+
 def test_artifact_envelope_rejects_unsupported_schema_version() -> None:
     with pytest.raises(ValidationError):
         ArtifactEnvelope[EvidenceBundle].model_validate(
