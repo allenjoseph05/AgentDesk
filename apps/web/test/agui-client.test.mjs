@@ -34,6 +34,18 @@ test("official HttpAgent consumes lifecycle, state, and text events", async () =
             lastUpdatedAt: "2026-08-17T12:00:00Z",
           },
         },
+        {
+          type: "STATE_DELTA",
+          delta: [
+            { op: "replace", path: "/status", value: "researching" },
+            { op: "replace", path: "/activeStep", value: "research" },
+            {
+              op: "replace",
+              path: "/lastUpdatedAt",
+              value: "2026-08-17T12:00:01Z",
+            },
+          ],
+        },
         { type: "TEXT_MESSAGE_START", messageId, role: "assistant" },
         { type: "TEXT_MESSAGE_CONTENT", messageId, delta: "Request accepted." },
         { type: "TEXT_MESSAGE_END", messageId },
@@ -62,7 +74,8 @@ test("official HttpAgent consumes lifecycle, state, and text events", async () =
   assert.equal(request.forwardedProps.agentdesk.type, "start_research");
   assert.equal(request.forwardedProps.agentdesk.payload.question, "PostgreSQL or MongoDB?");
   assert.ok(request.forwardedProps.agentdesk.actionId);
-  assert.equal(states.at(-1).status, "planning");
+  assert.equal(states.at(-1).status, "researching");
+  assert.equal(states.at(-1).activeStep, "research");
   assert.deepEqual(messages, ["Request accepted."]);
   assert.equal(finished, true);
 });

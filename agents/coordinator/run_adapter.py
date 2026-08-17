@@ -16,7 +16,6 @@ from ag_ui.core import (
     RunErrorEvent,
     RunFinishedEvent,
     RunStartedEvent,
-    StateSnapshotEvent,
     StepFinishedEvent,
     StepStartedEvent,
     TextMessageContentEvent,
@@ -26,6 +25,7 @@ from ag_ui.core import (
 from ag_ui.encoder import EventEncoder
 from pydantic import ValidationError
 
+from agents.coordinator.projection import AgUiEventProjection
 from agents.coordinator.run_tasks import A2ATaskFactory, ActiveA2ATask
 from packages.contracts import AgentDeskAction, AgentDeskViewState, ResearchRequest, SpecialistView
 from packages.contracts.agui import (
@@ -122,6 +122,11 @@ class CoordinatorStateUpdate:
     """A complete state committed by an executor during one run."""
 
     snapshot: AgentDeskViewState
+    sequence: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.sequence is not None and self.sequence < 1:
+            raise ValueError("Coordinator state update sequence must be positive.")
 
 
 @dataclass(frozen=True)
@@ -282,8 +287,9 @@ class CoordinatorRunAdapter:
             return
 
         step_name = _step_name(command)
+        projection = AgUiEventProjection(initial_state)
         yield encoder.encode(StepStartedEvent(stepName=step_name))
-        yield encoder.encode(StateSnapshotEvent(snapshot=initial_state.to_ag_ui()))
+        yield encoder.encode(projection.snapshot_event())
 
         terminal_seen = False
         try:
@@ -291,10 +297,12 @@ class CoordinatorRunAdapter:
                 if terminal_seen:
                     raise RuntimeError("Executor emitted data after its terminal outcome.")
                 if isinstance(update, CoordinatorStateUpdate):
-                    _validate_update_correlation(update.snapshot, correlation)
-                    yield encoder.encode(
-                        StateSnapshotEvent(snapshot=update.snapshot.to_ag_ui())
+                    event = projection.project(
+                        update.snapshot,
+                        sequence=update.sequence,
                     )
+                    if event is not None:
+                        yield encoder.encode(event)
                     continue
 
                 terminal_seen = True
@@ -517,14 +525,6 @@ def _step_name(command: CoordinatorCommand) -> str:
     if isinstance(command, FocusOnCriterionCommand):
         return "focus-on-criterion"
     return "retry-failed-agent"
-
-
-def _validate_update_correlation(
-    snapshot: AgentDeskViewState,
-    correlation: RunCorrelation,
-) -> None:
-    if snapshot.session_id != correlation.session_id:
-        raise ValueError("Executor state belongs to another Coordinator session.")
 
 
 def _finished_result(

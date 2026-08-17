@@ -216,6 +216,7 @@ def test_cancelled_ag_ui_stream_cancels_one_live_a2a_task() -> None:
     with _running_slow_hello_agent() as base_url:
         events, task = asyncio.run(_cancel_coordinator_stream(base_url))
 
-    assert events[-1]["type"] == "STATE_SNAPSHOT"
-    assert events[-1]["snapshot"]["agents"][0]["remoteTaskId"] == task.remote_task_id
+    assert events[-1]["type"] == "STATE_DELTA"
+    changes = {operation["path"]: operation["value"] for operation in events[-1]["delta"]}
+    assert changes["/agents"][0]["remoteTaskId"] == task.remote_task_id
     assert task.cancel_result_state == TaskState.TASK_STATE_CANCELED

@@ -207,10 +207,11 @@ def test_stream_cancellation_invokes_active_a2a_task_hook_once() -> None:
         "RUN_STARTED",
         "STEP_STARTED",
         "STATE_SNAPSHOT",
-        "STATE_SNAPSHOT",
+        "STATE_DELTA",
     ]
-    assert events[-1]["snapshot"]["status"] == "researching"
-    assert events[-1]["snapshot"]["agents"][0]["remoteTaskId"] == "remote-task-1"
+    changes = {operation["path"]: operation["value"] for operation in events[-1]["delta"]}
+    assert changes["/status"] == "researching"
+    assert changes["/agents"][0]["remoteTaskId"] == "remote-task-1"
     assert task.cancel_calls == 1
     assert task.close_calls == 1
 
