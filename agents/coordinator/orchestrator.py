@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -22,7 +23,16 @@ class RemoteAgentClient(Protocol):
         artifact_name: str,
         payload_model: type[PayloadT],
         timeout_seconds: float,
+        on_task_started: Callable[[str], Awaitable[None]] | None = None,
     ) -> RemoteTaskResult[PayloadT]: ...
+
+    async def cancel(
+        self,
+        *,
+        agent: RegisteredAgent,
+        remote_task_id: str,
+        timeout_seconds: float,
+    ) -> None: ...
 
 
 class OrchestrationPlanError(RuntimeError):
@@ -35,6 +45,9 @@ class WorkflowExecution:
 
     research: RemoteTaskResult[EvidenceBundle]
     analysis: RemoteTaskResult[DecisionAnalysis]
+
+
+RemoteTaskLifecycleHandler = Callable[[RegisteredAgent, str], Awaitable[None]]
 
 
 class WorkflowOrchestrator:
@@ -57,6 +70,9 @@ class WorkflowOrchestrator:
         self,
         request: ResearchRequest,
         plan: WorkflowPlan,
+        *,
+        on_remote_task_started: RemoteTaskLifecycleHandler | None = None,
+        on_remote_task_finished: RemoteTaskLifecycleHandler | None = None,
     ) -> WorkflowExecution:
         """Run research to completion before constructing the analysis request."""
         steps = {step.skill: step for step in plan.steps}
@@ -71,12 +87,13 @@ class WorkflowOrchestrator:
         research_agent = self._registered_provider(research_step)
         analysis_agent = self._registered_provider(analysis_step)
         research_request = request.model_copy(update={"criteria": plan.criteria}, deep=True)
-        research_result = await self._remote_client.execute(
+        research_result = await self._execute_remote(
             agent=research_agent,
             request=research_request,
             artifact_name="evidence-bundle",
             payload_model=EvidenceBundle,
-            timeout_seconds=self._step_timeout_seconds,
+            on_remote_task_started=on_remote_task_started,
+            on_remote_task_finished=on_remote_task_finished,
         )
         analysis_request = AnalysisRequest(
             question=request.question,
@@ -85,14 +102,46 @@ class WorkflowOrchestrator:
             criteria=plan.criteria,
             evidence_bundle=research_result.artifact.payload,
         )
-        analysis_result = await self._remote_client.execute(
+        analysis_result = await self._execute_remote(
             agent=analysis_agent,
             request=analysis_request,
             artifact_name="decision-analysis",
             payload_model=DecisionAnalysis,
-            timeout_seconds=self._step_timeout_seconds,
+            on_remote_task_started=on_remote_task_started,
+            on_remote_task_finished=on_remote_task_finished,
         )
         return WorkflowExecution(research=research_result, analysis=analysis_result)
+
+    async def _execute_remote[PayloadT: BaseModel](
+        self,
+        *,
+        agent: RegisteredAgent,
+        request: BaseModel,
+        artifact_name: str,
+        payload_model: type[PayloadT],
+        on_remote_task_started: RemoteTaskLifecycleHandler | None,
+        on_remote_task_finished: RemoteTaskLifecycleHandler | None,
+    ) -> RemoteTaskResult[PayloadT]:
+        remote_task_id: str | None = None
+
+        async def task_started(task_id: str) -> None:
+            nonlocal remote_task_id
+            remote_task_id = task_id
+            if on_remote_task_started is not None:
+                await on_remote_task_started(agent, task_id)
+
+        try:
+            return await self._remote_client.execute(
+                agent=agent,
+                request=request,
+                artifact_name=artifact_name,
+                payload_model=payload_model,
+                timeout_seconds=self._step_timeout_seconds,
+                on_task_started=task_started,
+            )
+        finally:
+            if remote_task_id is not None and on_remote_task_finished is not None:
+                await on_remote_task_finished(agent, remote_task_id)
 
     def _registered_provider(self, step: PlannedStep) -> RegisteredAgent:
         provider = self._registry.get(step.provider_agent_id)
