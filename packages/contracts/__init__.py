@@ -14,6 +14,7 @@ from packages.contracts.artifacts import (
     ArtifactProvenance,
 )
 from packages.contracts.domain import (
+    AnalysisRequest,
     Claim,
     CriterionScore,
     DecisionAnalysis,
@@ -33,6 +34,7 @@ __all__ = [
     "DOMAIN_SCHEMA_VERSION",
     "ArtifactEnvelope",
     "ArtifactProvenance",
+    "AnalysisRequest",
     "Claim",
     "CriterionScore",
     "DecisionAnalysis",

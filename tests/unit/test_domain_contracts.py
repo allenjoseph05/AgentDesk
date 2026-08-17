@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from packages.contracts import (
+    AnalysisRequest,
     ArtifactEnvelope,
     ArtifactProvenance,
     Claim,
@@ -99,6 +100,50 @@ def test_decision_analysis_accepts_weighted_scores() -> None:
     )
 
     assert analysis.criteria[0].scores["PostgreSQL"] == 9
+
+
+def test_analysis_request_carries_bounded_options_criteria_and_evidence() -> None:
+    request = AnalysisRequest(
+        question="Should this workload use PostgreSQL or MongoDB?",
+        options=["PostgreSQL", "MongoDB"],
+        constraints=["Preserve relational integrity"],
+        criteria=["Data integrity"],
+        evidence_bundle=valid_bundle(),
+    )
+
+    assert request.options == ["PostgreSQL", "MongoDB"]
+    assert request.evidence_bundle.claims[0].id == "claim-1"
+
+
+@pytest.mark.parametrize("options", [[], ["PostgreSQL"], ["A", "B", "C", "D", "E"]])
+def test_analysis_request_requires_two_to_four_options(options: list[str]) -> None:
+    with pytest.raises(ValidationError):
+        AnalysisRequest(
+            question="Which option should be selected?",
+            options=options,
+            criteria=["Fit"],
+            evidence_bundle=valid_bundle(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("options", "criteria", "question"),
+    [
+        (["PostgreSQL", "postgresql"], ["Fit"], valid_bundle().question),
+        (["PostgreSQL", "MongoDB"], ["Fit", "fit"], valid_bundle().question),
+        (["PostgreSQL", "MongoDB"], ["Fit"], "Which database is fastest?"),
+    ],
+)
+def test_analysis_request_rejects_ambiguous_or_mismatched_context(
+    options: list[str], criteria: list[str], question: str
+) -> None:
+    with pytest.raises(ValidationError):
+        AnalysisRequest(
+            question=question,
+            options=options,
+            criteria=criteria,
+            evidence_bundle=valid_bundle(),
+        )
 
 
 def test_verification_report_accepts_supported_verdict() -> None:
