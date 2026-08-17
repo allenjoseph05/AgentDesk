@@ -1,0 +1,6 @@
+{
+  "fixture_id": "postgresql-vs-mongodb-failure",
+  "kind": "failure",
+  "request": {"question": "Should the product use PostgreSQL or MongoDB?", "options": ["PostgreSQL", "MongoDB"]},
+  "failure": {"code": "fixture_source_unavailable", "message": "The deterministic research source is unavailable.", "retryable": true}
+}

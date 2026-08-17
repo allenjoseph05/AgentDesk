@@ -1,0 +1,22 @@
+{
+  "fixture_id": "postgresql-vs-mongodb-contradictory",
+  "kind": "contradictory",
+  "request": {"question": "Which database has lower latency?", "options": ["PostgreSQL", "MongoDB"], "constraints": ["Sources are unverified"], "criteria": ["Latency"], "desired_depth": "deep"},
+  "evidence_bundle": {
+    "question": "Which database has lower latency?",
+    "claims": [
+      {"id": "claim-pg-fast", "statement": "PostgreSQL has lower p95 latency.", "evidence_ids": ["benchmark-a"], "confidence": 0.55},
+      {"id": "claim-mongo-fast", "statement": "MongoDB has lower p95 latency.", "evidence_ids": ["benchmark-b"], "confidence": 0.55}
+    ],
+    "evidence": [
+      {"id": "benchmark-a", "title": "Synthetic benchmark A", "source_url": null, "source_type": "fixture", "summary": "Reports lower PostgreSQL latency.", "relevance": 0.7, "retrieved_at": "2026-08-16T12:00:00Z"},
+      {"id": "benchmark-b", "title": "Synthetic benchmark B", "source_url": null, "source_type": "fixture", "summary": "Reports lower MongoDB latency.", "relevance": 0.7, "retrieved_at": "2026-08-16T12:00:00Z"}
+    ],
+    "unknowns": ["Benchmark environments cannot be reconciled."],
+    "research_notes": ["The sources contradict each other."]
+  },
+  "verification_report": {"results": [
+    {"claim_id": "claim-pg-fast", "verdict": "insufficient_evidence", "rationale": "The competing benchmark prevents a verdict.", "evidence_ids": ["benchmark-a", "benchmark-b"]},
+    {"claim_id": "claim-mongo-fast", "verdict": "insufficient_evidence", "rationale": "The competing benchmark prevents a verdict.", "evidence_ids": ["benchmark-a", "benchmark-b"]}
+  ]}
+}
