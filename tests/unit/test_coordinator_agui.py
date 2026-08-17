@@ -9,7 +9,23 @@ from httpx import ASGITransport, AsyncClient
 from agents.coordinator.main import app
 
 
-def _input(messages: list[dict[str, str]]) -> dict[str, Any]:
+def _start_action() -> dict[str, Any]:
+    return {
+        "schemaVersion": "1.0",
+        "actionId": "action-1",
+        "type": "start_research",
+        "sessionId": None,
+        "payload": {
+            "question": "Should we use PostgreSQL or MongoDB?",
+            "options": [],
+            "constraints": [],
+            "criteria": [],
+            "desiredDepth": "normal",
+        },
+    }
+
+
+def _input(messages: list[dict[str, str]], action: dict[str, Any] | None = None) -> dict[str, Any]:
     return {
         "threadId": "thread-1",
         "runId": "run-1",
@@ -17,7 +33,7 @@ def _input(messages: list[dict[str, str]]) -> dict[str, Any]:
         "messages": messages,
         "tools": [],
         "context": [],
-        "forwardedProps": {},
+        "forwardedProps": {"agentdesk": action or _start_action()},
     }
 
 
@@ -65,23 +81,35 @@ def test_ag_ui_endpoint_streams_lifecycle_state_step_and_message_events() -> Non
         "RUN_FINISHED",
     ]
     assert events[0] == {"type": "RUN_STARTED", "threadId": "thread-1", "runId": "run-1"}
-    assert events[2]["snapshot"] == {
-        "schemaVersion": "1.0",
-        "sessionId": "run-1",
-        "question": "Should we use PostgreSQL or MongoDB?",
-        "status": "planning",
-        "activeStep": "accept-research-request",
-        "evidenceCount": 0,
-        "warnings": [],
-        "errors": [],
-    }
+    snapshot = events[2]["snapshot"]
+    assert snapshot["schemaVersion"] == "1.0"
+    assert snapshot["sessionId"] == "run-1"
+    assert snapshot["question"] == "Should we use PostgreSQL or MongoDB?"
+    assert snapshot["status"] == "planning"
+    assert snapshot["activeStep"] == "accept-research-request"
+    assert snapshot["agents"] == snapshot["evidence"] == snapshot["claims"] == []
+    assert snapshot["evidenceCount"] == 0
+    assert snapshot["analysis"] is snapshot["verification"] is None
+    assert snapshot["warnings"] == snapshot["errors"] == snapshot["availableActions"] == []
+    assert snapshot["lastUpdatedAt"].endswith("Z")
     assert events[3]["messageId"] == events[4]["messageId"] == events[5]["messageId"]
-    assert events[-1]["result"] == {"sessionId": "run-1"}
+    assert events[-1]["result"] == {"sessionId": "run-1", "actionId": "action-1"}
 
 
-def test_ag_ui_endpoint_terminates_invalid_input_with_run_error() -> None:
+def test_ag_ui_endpoint_rejects_message_action_disagreement() -> None:
     status, _, events = asyncio.run(_post_events(_input([])))
 
     assert status == 200
     assert [event["type"] for event in events] == ["RUN_STARTED", "RUN_ERROR"]
-    assert events[-1]["code"] == "invalid_research_request"
+    assert events[-1]["code"] == "action_message_mismatch"
+
+
+def test_ag_ui_endpoint_rejects_invalid_action_envelope() -> None:
+    payload = _input(
+        [{"id": "message-1", "role": "user", "content": "Question"}],
+        action={"schemaVersion": "99"},
+    )
+    _, _, events = asyncio.run(_post_events(payload))
+
+    assert [event["type"] for event in events] == ["RUN_STARTED", "RUN_ERROR"]
+    assert events[-1]["code"] == "invalid_agentdesk_action"

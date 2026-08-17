@@ -1,0 +1,22 @@
+{
+  "fixtureId": "postgresql-vs-mongodb-partial",
+  "kind": "partial",
+  "valid": true,
+  "action": {
+    "schemaVersion": "1.0", "actionId": "action-partial-1", "type": "start_research", "sessionId": null,
+    "payload": {"question": "Should the product use PostgreSQL or MongoDB?", "options": ["PostgreSQL", "MongoDB"], "constraints": [], "criteria": ["Data integrity"], "desiredDepth": "fast"}
+  },
+  "state": {
+    "schemaVersion": "1.0", "sessionId": "session-partial", "question": "Should the product use PostgreSQL or MongoDB?", "status": "partial", "activeStep": "research",
+    "agents": [
+      {"agentId": "research-agent", "name": "Research Agent", "skill": "web-research", "status": "completed", "remoteTaskId": "research-task-partial", "message": "Only one source was available."},
+      {"agentId": "analyst-agent", "name": "Analyst Agent", "skill": "decision-analysis", "status": "waiting", "remoteTaskId": null, "message": "Waiting for sufficient evidence."}
+    ],
+    "evidence": [{"id": "evidence-partial", "title": "Partial fixture", "sourceUrl": null, "sourceType": "fixture", "summary": "Only relational requirements were evaluated.", "relevance": 0.75, "retrievedAt": "2026-08-17T12:00:00Z"}],
+    "evidenceCount": 1,
+    "claims": [{"id": "claim-partial", "statement": "PostgreSQL supports relational constraints.", "evidenceIds": ["evidence-partial"], "confidence": 0.8, "caveats": ["MongoDB evidence is unavailable."]}],
+    "analysis": null, "verification": null,
+    "warnings": ["MongoDB evidence and operational cost data are unavailable."], "errors": [],
+    "availableActions": ["research_deeper", "retry_failed_agent"], "lastUpdatedAt": "2026-08-17T12:00:05Z"
+  }
+}

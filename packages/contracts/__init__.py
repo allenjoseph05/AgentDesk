@@ -1,6 +1,13 @@
 """Versioned cross-agent contracts."""
 
-from packages.contracts.agui import AG_UI_STATE_SCHEMA_VERSION, AgentDeskViewState
+from packages.contracts.agui import (
+    AG_UI_ACTION_SCHEMA_VERSION,
+    AG_UI_STATE_SCHEMA_VERSION,
+    ActionType,
+    AgentDeskAction,
+    AgentDeskViewState,
+    SpecialistView,
+)
 from packages.contracts.artifacts import (
     DOMAIN_SCHEMA_VERSION,
     ArtifactEnvelope,
@@ -18,7 +25,10 @@ from packages.contracts.domain import (
 )
 
 __all__ = [
+    "AG_UI_ACTION_SCHEMA_VERSION",
     "AG_UI_STATE_SCHEMA_VERSION",
+    "ActionType",
+    "AgentDeskAction",
     "AgentDeskViewState",
     "DOMAIN_SCHEMA_VERSION",
     "ArtifactEnvelope",
@@ -29,6 +39,7 @@ __all__ = [
     "Evidence",
     "EvidenceBundle",
     "ResearchRequest",
+    "SpecialistView",
     "VerificationReport",
     "VerificationResult",
 ]

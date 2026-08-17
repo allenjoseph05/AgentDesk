@@ -1,0 +1,29 @@
+{
+  "fixtureId": "postgresql-vs-mongodb-contradictory",
+  "kind": "contradictory",
+  "valid": true,
+  "action": {
+    "schemaVersion": "1.0", "actionId": "action-contradictory-1", "type": "research_deeper", "sessionId": "session-contradictory",
+    "payload": {"focusAreas": ["Latency"], "desiredDepth": "deep"}
+  },
+  "state": {
+    "schemaVersion": "1.0", "sessionId": "session-contradictory", "question": "Which database has lower latency?", "status": "partial", "activeStep": "verification",
+    "agents": [{"agentId": "verifier-agent", "name": "Verifier Agent", "skill": "fact-verification", "status": "completed", "remoteTaskId": "verify-task-contradictory", "message": "Benchmarks could not be reconciled."}],
+    "evidence": [
+      {"id": "benchmark-a", "title": "Synthetic benchmark A", "sourceUrl": null, "sourceType": "fixture", "summary": "Reports lower PostgreSQL latency.", "relevance": 0.7, "retrievedAt": "2026-08-17T12:00:00Z"},
+      {"id": "benchmark-b", "title": "Synthetic benchmark B", "sourceUrl": null, "sourceType": "fixture", "summary": "Reports lower MongoDB latency.", "relevance": 0.7, "retrievedAt": "2026-08-17T12:00:00Z"}
+    ],
+    "evidenceCount": 2,
+    "claims": [
+      {"id": "claim-pg-fast", "statement": "PostgreSQL has lower p95 latency.", "evidenceIds": ["benchmark-a"], "confidence": 0.55, "caveats": ["The benchmark environment is not controlled."]},
+      {"id": "claim-mongo-fast", "statement": "MongoDB has lower p95 latency.", "evidenceIds": ["benchmark-b"], "confidence": 0.55, "caveats": ["The benchmark environment is not controlled."]}
+    ],
+    "analysis": null,
+    "verification": {"results": [
+      {"claimId": "claim-pg-fast", "verdict": "insufficient_evidence", "rationale": "The competing benchmark prevents a verdict.", "evidenceIds": ["benchmark-a", "benchmark-b"]},
+      {"claimId": "claim-mongo-fast", "verdict": "insufficient_evidence", "rationale": "The competing benchmark prevents a verdict.", "evidenceIds": ["benchmark-a", "benchmark-b"]}
+    ]},
+    "warnings": ["The available sources contradict each other."], "errors": [],
+    "availableActions": ["research_deeper", "focus_on_criterion"], "lastUpdatedAt": "2026-08-17T12:00:06Z"
+  }
+}

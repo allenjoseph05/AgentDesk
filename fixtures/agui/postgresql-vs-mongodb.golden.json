@@ -1,0 +1,60 @@
+{
+  "fixtureId": "postgresql-vs-mongodb-golden",
+  "kind": "good",
+  "valid": true,
+  "action": {
+    "schemaVersion": "1.0",
+    "actionId": "action-golden-1",
+    "type": "start_research",
+    "sessionId": null,
+    "payload": {
+      "question": "Should the product use PostgreSQL or MongoDB?",
+      "options": ["PostgreSQL", "MongoDB"],
+      "constraints": ["Preserve transactional integrity"],
+      "criteria": ["Data integrity", "Schema flexibility"],
+      "desiredDepth": "normal"
+    }
+  },
+  "state": {
+    "schemaVersion": "1.0",
+    "sessionId": "session-golden",
+    "question": "Should the product use PostgreSQL or MongoDB?",
+    "status": "completed",
+    "activeStep": "final-synthesis",
+    "agents": [
+      {"agentId": "research-agent", "name": "Research Agent", "skill": "web-research", "status": "completed", "remoteTaskId": "research-task-1", "message": "Two fixture sources accepted."},
+      {"agentId": "analyst-agent", "name": "Analyst Agent", "skill": "decision-analysis", "status": "completed", "remoteTaskId": "analysis-task-1", "message": "Comparison complete."},
+      {"agentId": "verifier-agent", "name": "Verifier Agent", "skill": "fact-verification", "status": "completed", "remoteTaskId": "verify-task-1", "message": "Claims verified."}
+    ],
+    "evidence": [
+      {"id": "evidence-pg", "title": "PostgreSQL integrity fixture", "sourceUrl": null, "sourceType": "fixture", "summary": "PostgreSQL provides transactions and relational constraints.", "relevance": 0.96, "retrievedAt": "2026-08-17T12:00:00Z"},
+      {"id": "evidence-mongo", "title": "MongoDB flexibility fixture", "sourceUrl": null, "sourceType": "fixture", "summary": "MongoDB stores flexible nested documents.", "relevance": 0.88, "retrievedAt": "2026-08-17T12:00:00Z"}
+    ],
+    "evidenceCount": 2,
+    "claims": [
+      {"id": "claim-pg", "statement": "PostgreSQL is stronger when relational integrity is primary.", "evidenceIds": ["evidence-pg"], "confidence": 0.92, "caveats": []},
+      {"id": "claim-mongo", "statement": "MongoDB naturally supports flexible document structures.", "evidenceIds": ["evidence-mongo"], "confidence": 0.84, "caveats": []}
+    ],
+    "analysis": {
+      "recommendation": "PostgreSQL",
+      "executiveSummary": "Relational integrity outweighs metadata flexibility.",
+      "criteria": [
+        {"criterion": "Data integrity", "weight": 0.65, "scores": {"PostgreSQL": 9, "MongoDB": 7}, "rationale": "The product requires related records.", "supportingClaimIds": ["claim-pg"]},
+        {"criterion": "Schema flexibility", "weight": 0.35, "scores": {"PostgreSQL": 7.5, "MongoDB": 9}, "rationale": "MongoDB has a document-model advantage.", "supportingClaimIds": ["claim-mongo"]}
+      ],
+      "argumentsFor": ["Strong relational guarantees."],
+      "argumentsAgainst": ["Metadata evolution needs deliberate design."],
+      "assumptions": ["Relational entities remain central."],
+      "risks": ["Unmeasured workloads could change the tradeoff."],
+      "recommendationChangesIf": ["Independent document writes become dominant."]
+    },
+    "verification": {"results": [
+      {"claimId": "claim-pg", "verdict": "supported", "rationale": "Fixture evidence supports the claim.", "evidenceIds": ["evidence-pg"]},
+      {"claimId": "claim-mongo", "verdict": "supported", "rationale": "Fixture evidence supports the claim.", "evidenceIds": ["evidence-mongo"]}
+    ]},
+    "warnings": [],
+    "errors": [],
+    "availableActions": ["challenge_recommendation", "research_deeper", "focus_on_criterion"],
+    "lastUpdatedAt": "2026-08-17T12:00:10Z"
+  }
+}

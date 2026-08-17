@@ -1,0 +1,105 @@
+import { z } from "zod";
+
+export const AG_UI_ACTION_SCHEMA_VERSION = "1.0" as const;
+
+const nonEmptyText = z.string().trim().min(1);
+const startResearchPayloadSchema = z
+  .object({
+    question: nonEmptyText,
+    options: z.array(nonEmptyText),
+    constraints: z.array(nonEmptyText),
+    criteria: z.array(nonEmptyText),
+    desiredDepth: z.enum(["fast", "normal", "deep"]),
+  })
+  .strict();
+
+const common = {
+  schemaVersion: z.literal(AG_UI_ACTION_SCHEMA_VERSION),
+  actionId: nonEmptyText,
+};
+
+export const AgentDeskActionSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      ...common,
+      type: z.literal("start_research"),
+      sessionId: z.null(),
+      payload: startResearchPayloadSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      type: z.literal("challenge_recommendation"),
+      sessionId: nonEmptyText,
+      payload: z.object({ challenge: nonEmptyText.nullable() }).strict(),
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      type: z.literal("research_deeper"),
+      sessionId: nonEmptyText,
+      payload: z
+        .object({
+          focusAreas: z.array(nonEmptyText),
+          desiredDepth: z.enum(["normal", "deep"]),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      type: z.literal("focus_on_criterion"),
+      sessionId: nonEmptyText,
+      payload: z.object({ criterion: nonEmptyText }).strict(),
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      type: z.literal("retry_failed_agent"),
+      sessionId: nonEmptyText,
+      payload: z
+        .object({ agentId: nonEmptyText, remoteTaskId: nonEmptyText.nullable() })
+        .strict(),
+    })
+    .strict(),
+]);
+
+export type AgentDeskAction = z.infer<typeof AgentDeskActionSchema>;
+export type StartResearchAction = Extract<AgentDeskAction, { type: "start_research" }>;
+
+export function parseAgentDeskAction(value: unknown): AgentDeskAction {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    (value as Record<string, unknown>).schemaVersion !== AG_UI_ACTION_SCHEMA_VERSION
+  ) {
+    throw new Error(
+      `Unsupported AG-UI action schema: ${String((value as Record<string, unknown>).schemaVersion)}`,
+    );
+  }
+  const result = AgentDeskActionSchema.safeParse(value);
+  if (!result.success) {
+    throw new Error(`Invalid AgentDesk action: ${result.error.issues[0]?.message ?? "unknown"}`);
+  }
+  return result.data;
+}
+
+export function createStartResearchAction(question: string): StartResearchAction {
+  return {
+    schemaVersion: AG_UI_ACTION_SCHEMA_VERSION,
+    actionId: crypto.randomUUID(),
+    type: "start_research",
+    sessionId: null,
+    payload: {
+      question: question.trim(),
+      options: [],
+      constraints: [],
+      criteria: [],
+      desiredDepth: "normal",
+    },
+  };
+}
