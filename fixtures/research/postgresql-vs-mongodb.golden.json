@@ -29,6 +29,15 @@
     "risks": ["Unmeasured workloads could change the tradeoff."],
     "recommendation_changes_if": ["Independent document writes become dominant."]
   },
+  "recommendation_challenge": {
+    "current_recommendation": "PostgreSQL",
+    "strongest_alternative": "MongoDB",
+    "strongest_counterargument": "MongoDB becomes the stronger choice when flexible document structures outweigh relational integrity.",
+    "supporting_claim_ids": ["claim-mongo"],
+    "assumptions": ["Independent document writes become the dominant workload."],
+    "evidence_gaps": ["Production access patterns are not measured."],
+    "recommendation_changes_if": ["Schema flexibility becomes more important than relational integrity."]
+  },
   "verification_report": {"results": [
     {"claim_id": "claim-pg", "verdict": "supported", "rationale": "Fixture evidence supports the claim.", "evidence_ids": ["evidence-pg"]},
     {"claim_id": "claim-mongo", "verdict": "supported", "rationale": "Fixture evidence supports the claim.", "evidence_ids": ["evidence-mongo"]}

@@ -19,8 +19,17 @@ from a2a.types import (
 from google.protobuf.json_format import MessageToDict
 
 from agents.analyst import DecisionAnalyzer
-from agents.analyst.executor import FINAL_ANALYSIS_ARTIFACT, AnalystAgentExecutor
-from packages.contracts import AnalysisRequest, ArtifactEnvelope, DecisionAnalysis
+from agents.analyst.executor import (
+    FINAL_ANALYSIS_ARTIFACT,
+    FINAL_CHALLENGE_ARTIFACT,
+    AnalystAgentExecutor,
+)
+from packages.contracts import (
+    AnalysisRequest,
+    ArtifactEnvelope,
+    DecisionAnalysis,
+    RecommendationChallenge,
+)
 from packages.llm import FakeLLMProvider
 from packages.testing import load_research_fixture
 
@@ -69,6 +78,29 @@ def _artifact_data(event: TaskArtifactUpdateEvent) -> dict[str, Any]:
     return value
 
 
+def _configured_challenge_executor() -> tuple[AnalystAgentExecutor, AnalysisRequest]:
+    fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+    if (
+        fixture.evidence_bundle is None
+        or fixture.decision_analysis is None
+        or fixture.recommendation_challenge is None
+    ):
+        raise AssertionError("Golden fixture must contain evidence, analysis, and challenge.")
+    request = AnalysisRequest(
+        question=fixture.request.question,
+        options=fixture.request.options,
+        constraints=fixture.request.constraints,
+        criteria=fixture.request.criteria,
+        evidence_bundle=fixture.evidence_bundle,
+        mode="challenge_current_recommendation",
+        current_recommendation=fixture.decision_analysis.recommendation,
+    )
+    analyzer = DecisionAnalyzer(
+        FakeLLMProvider({RecommendationChallenge: fixture.recommendation_challenge})
+    )
+    return AnalystAgentExecutor(analyzer), request
+
+
 def test_executor_emits_working_status_validated_artifact_and_completion() -> None:
     executor, request = _configured_executor()
     queue = RecordingEventQueue()
@@ -98,6 +130,32 @@ def test_executor_emits_working_status_validated_artifact_and_completion() -> No
     assert envelope.provenance.producer_agent == "analyst"
     assert envelope.provenance.remote_task_id == "analyst-task-1"
     assert envelope.payload.recommendation == "PostgreSQL"
+
+
+def test_executor_emits_challenge_as_a_separate_typed_artifact() -> None:
+    executor, request = _configured_challenge_executor()
+    queue = RecordingEventQueue()
+
+    asyncio.run(executor.execute(_context(request.model_dump(mode="json")), queue))
+
+    statuses = [event for event in queue.events if isinstance(event, TaskStatusUpdateEvent)]
+    artifacts = [event for event in queue.events if isinstance(event, TaskArtifactUpdateEvent)]
+    assert [get_message_text(event.status.message) for event in statuses] == [
+        "Challenging the current recommendation using supplied evidence.",
+        "Recommendation challenge completed.",
+    ]
+    assert [event.status.state for event in statuses] == [
+        TaskState.TASK_STATE_WORKING,
+        TaskState.TASK_STATE_COMPLETED,
+    ]
+    assert len(artifacts) == 1
+    assert artifacts[0].artifact.name == FINAL_CHALLENGE_ARTIFACT
+    envelope = ArtifactEnvelope[RecommendationChallenge].model_validate(
+        _artifact_data(artifacts[0])
+    )
+    assert envelope.provenance.producer_agent == "analyst"
+    assert envelope.payload.current_recommendation == "PostgreSQL"
+    assert envelope.payload.strongest_alternative == "MongoDB"
 
 
 def test_executor_rejects_invalid_analysis_request() -> None:

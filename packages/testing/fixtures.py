@@ -9,6 +9,7 @@ from pydantic import model_validator
 from packages.contracts import (
     DecisionAnalysis,
     EvidenceBundle,
+    RecommendationChallenge,
     ResearchRequest,
     VerificationReport,
 )
@@ -39,6 +40,7 @@ class ResearchFixture(ContractModel):
     request: ResearchRequest
     evidence_bundle: EvidenceBundle | None = None
     decision_analysis: DecisionAnalysis | None = None
+    recommendation_challenge: RecommendationChallenge | None = None
     verification_report: VerificationReport | None = None
     failure: FixtureFailure | None = None
 
