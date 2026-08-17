@@ -82,6 +82,30 @@ class EvidenceBundle(ContractModel):
         return self
 
 
+class AnalysisRequest(ContractModel):
+    """Evidence and decision context supplied to the Analyst Agent."""
+
+    question: NonEmptyText
+    options: list[NonEmptyText] = Field(min_length=2, max_length=4)
+    constraints: list[NonEmptyText] = Field(default_factory=list)
+    criteria: list[NonEmptyText] = Field(min_length=1)
+    evidence_bundle: EvidenceBundle
+
+    @model_validator(mode="after")
+    def validate_decision_context(self) -> "AnalysisRequest":
+        normalized_options = [option.casefold() for option in self.options]
+        if len(normalized_options) != len(set(normalized_options)):
+            raise ValueError("Analysis options must be unique.")
+
+        normalized_criteria = [criterion.casefold() for criterion in self.criteria]
+        if len(normalized_criteria) != len(set(normalized_criteria)):
+            raise ValueError("Analysis criteria must be unique.")
+
+        if self.question.casefold() != self.evidence_bundle.question.casefold():
+            raise ValueError("Analysis question must match the evidence bundle question.")
+        return self
+
+
 class CriterionScore(ContractModel):
     """Weighted scores and their evidence-backed rationale."""
 

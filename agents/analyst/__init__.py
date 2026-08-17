@@ -1,2 +1,1 @@
-"""Analysis specialist service boundary."""
-
+"""Independently deployable AgentDesk Analyst Agent."""
