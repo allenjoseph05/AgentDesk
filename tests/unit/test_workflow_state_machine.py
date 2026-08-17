@@ -8,7 +8,9 @@ from agents.coordinator.workflow_state import (
     LEGAL_TRANSITIONS,
     TERMINAL_STATUSES,
     InvalidWorkflowTransition,
+    WorkflowSnapshot,
     WorkflowStateMachine,
+    WorkflowTransition,
 )
 
 
@@ -144,3 +146,20 @@ def test_returned_snapshots_and_history_cannot_mutate_machine_state() -> None:
 
     assert machine.snapshot.completed_steps == []
     assert machine.history[0].reason is None
+
+
+def test_transition_observer_commits_before_in_memory_state_is_published() -> None:
+    observed: list[tuple[str, int]] = []
+
+    def persist(snapshot: WorkflowSnapshot, transition: WorkflowTransition) -> None:
+        observed.append((snapshot.status, transition.sequence))
+        raise RuntimeError("database unavailable")
+
+    machine = WorkflowStateMachine("session-durable", on_transition=persist)
+
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        machine.transition("planning", active_step="plan")
+
+    assert observed == [("planning", 1)]
+    assert machine.snapshot.status == "created"
+    assert machine.history == ()

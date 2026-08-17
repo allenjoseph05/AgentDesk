@@ -70,6 +70,16 @@ class SessionRecord(ContractModel):
         return self
 
 
+class WorkflowTransitionRecord(ContractModel):
+    session_id: NonEmptyText
+    sequence: int = Field(ge=1)
+    from_status: SessionPersistenceStatus
+    to_status: SessionPersistenceStatus
+    active_step: NonEmptyText | None = None
+    reason: NonEmptyText | None = None
+    occurred_at: AwareDatetime
+
+
 class CoordinatorRunRecord(ContractModel):
     run_id: NonEmptyText
     session_id: NonEmptyText

@@ -38,6 +38,29 @@ sessions = sa.Table(
 sa.Index("ix_sessions_thread_updated", sessions.c.ag_ui_thread_id, sessions.c.updated_at)
 sa.Index("ix_sessions_status_updated", sessions.c.status, sessions.c.updated_at)
 
+workflow_transitions = sa.Table(
+    "workflow_transitions",
+    metadata,
+    sa.Column(
+        "session_id",
+        sa.String(255),
+        sa.ForeignKey("sessions.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("sequence", sa.Integer(), primary_key=True),
+    sa.Column("from_status", sa.String(32), nullable=False),
+    sa.Column("to_status", sa.String(32), nullable=False),
+    sa.Column("active_step", sa.String(255)),
+    sa.Column("reason", sa.Text()),
+    sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint("sequence >= 1", name="positive_sequence"),
+)
+sa.Index(
+    "ix_workflow_transitions_session_occurred",
+    workflow_transitions.c.session_id,
+    workflow_transitions.c.occurred_at,
+)
+
 coordinator_runs = sa.Table(
     "coordinator_runs",
     metadata,

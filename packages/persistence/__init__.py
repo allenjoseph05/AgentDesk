@@ -8,6 +8,7 @@ from packages.persistence.records import (
     CoordinatorRunRecord,
     EvidenceRecord,
     SessionRecord,
+    WorkflowTransitionRecord,
 )
 from packages.persistence.repositories import (
     RecordNotFoundError,
@@ -29,6 +30,7 @@ __all__ = [
     "RepositoryError",
     "RepositoryUnitOfWork",
     "SessionRecord",
+    "WorkflowTransitionRecord",
     "create_database_engine",
     "metadata",
 ]

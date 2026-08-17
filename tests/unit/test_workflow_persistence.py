@@ -1,0 +1,246 @@
+"""Durable Coordinator state, correlation, and artifact commit-point tests."""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
+
+import pytest
+import sqlalchemy as sa
+from sqlalchemy.pool import StaticPool
+
+from agents.coordinator.persistence import (
+    ArtifactProvenanceError,
+    WorkflowPersistenceService,
+)
+from agents.coordinator.workflow_state import WorkflowStateMachine
+from packages.contracts import ArtifactEnvelope, ArtifactProvenance
+from packages.persistence import (
+    AgentTaskRecord,
+    Database,
+    RepositoryConflictError,
+    metadata,
+)
+from packages.testing import load_research_fixture
+
+
+class AdvancingClock:
+    def __init__(self) -> None:
+        self.current = datetime(2026, 8, 17, 12, 0, tzinfo=UTC)
+
+    def __call__(self) -> datetime:
+        value = self.current
+        self.current += timedelta(seconds=1)
+        return value
+
+
+@pytest.fixture
+def database() -> Iterator[Database]:
+    engine = sa.create_engine(
+        "sqlite+pysqlite:///:memory:",
+        poolclass=StaticPool,
+    )
+    metadata.create_all(engine)
+    database = Database(engine)
+    try:
+        yield database
+    finally:
+        database.dispose()
+
+
+def _initialized_service(
+    database: Database,
+) -> tuple[WorkflowPersistenceService, WorkflowStateMachine]:
+    service = WorkflowPersistenceService(database)
+    machine = WorkflowStateMachine(
+        "session-1",
+        clock=AdvancingClock(),
+        on_transition=service.persist_transition,
+    )
+    service.initialize(
+        snapshot=machine.snapshot,
+        ag_ui_thread_id="thread-1",
+        run_id="run-1",
+        action_id="action-1",
+        action_type="start_research",
+        question="Should we use PostgreSQL or MongoDB?",
+    )
+    return service, machine
+
+
+def _task(
+    agent_id: str,
+    task_id: str,
+    *,
+    skill: str,
+    started_at: datetime,
+) -> AgentTaskRecord:
+    return AgentTaskRecord(
+        id=task_id,
+        session_id="session-1",
+        run_id="run-1",
+        agent_id=agent_id,
+        skill=skill,
+        started_at=started_at,
+    )
+
+
+def test_state_machine_transitions_are_committed_in_order(database: Database) -> None:
+    _, machine = _initialized_service(database)
+
+    machine.transition("planning", active_step="plan")
+    machine.transition("researching", active_step="research", completed_steps=["plan"])
+    machine.transition(
+        "analyzing",
+        active_step="analysis",
+        completed_steps=["research"],
+    )
+    machine.transition("completed", completed_steps=["analysis"])
+
+    with database.transaction() as repositories:
+        session = repositories.sessions.require("session-1")
+        history = repositories.transitions.list_by_session("session-1")
+
+    assert session.status == "completed"
+    assert session.completed_steps == ["plan", "research", "analysis"]
+    assert [item.sequence for item in history] == [1, 2, 3, 4]
+    assert [(item.from_status, item.to_status) for item in history] == [
+        ("created", "planning"),
+        ("planning", "researching"),
+        ("researching", "analyzing"),
+        ("analyzing", "completed"),
+    ]
+
+
+def test_remote_a2a_identity_is_durable_and_cannot_be_rebound(
+    database: Database,
+) -> None:
+    service, machine = _initialized_service(database)
+    service.create_agent_task(
+        _task(
+            "researcher",
+            "research-task",
+            skill="web-research",
+            started_at=machine.snapshot.updated_at,
+        )
+    )
+
+    assert service.register_remote_task(
+        "research-task",
+        remote_task_id="remote-42",
+        a2a_context_id="context-42",
+    )
+    assert not WorkflowPersistenceService(database).register_remote_task(
+        "research-task",
+        remote_task_id="remote-42",
+        a2a_context_id="context-42",
+    )
+
+    with pytest.raises(RepositoryConflictError):
+        service.register_remote_task(
+            "research-task",
+            remote_task_id="remote-other",
+            a2a_context_id="context-42",
+        )
+
+    with database.transaction() as repositories:
+        task = repositories.agent_tasks.require("research-task")
+    assert task.remote_task_id == "remote-42"
+    assert task.a2a_context_id == "context-42"
+    assert task.status == "submitted"
+
+
+def test_evidence_and_analysis_replay_is_exactly_once(database: Database) -> None:
+    fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+    assert fixture.evidence_bundle is not None
+    assert fixture.decision_analysis is not None
+    service, machine = _initialized_service(database)
+    service.create_agent_task(
+        _task(
+            "researcher",
+            "research-task",
+            skill="web-research",
+            started_at=machine.snapshot.updated_at,
+        )
+    )
+    service.create_agent_task(
+        _task(
+            "analyst",
+            "analysis-task",
+            skill="decision-analysis",
+            started_at=machine.snapshot.updated_at,
+        )
+    )
+    service.register_remote_task("research-task", remote_task_id="remote-research")
+    service.register_remote_task("analysis-task", remote_task_id="remote-analysis")
+    evidence_envelope = ArtifactEnvelope(
+        provenance=ArtifactProvenance(
+            producer_agent="researcher",
+            remote_task_id="remote-research",
+            created_at=machine.snapshot.updated_at,
+        ),
+        payload=fixture.evidence_bundle,
+    )
+    analysis_envelope = ArtifactEnvelope(
+        provenance=ArtifactProvenance(
+            producer_agent="analyst",
+            remote_task_id="remote-analysis",
+            created_at=machine.snapshot.updated_at,
+        ),
+        payload=fixture.decision_analysis,
+    )
+
+    first = service.persist_evidence("session-1", "research-task", evidence_envelope)
+    replay = service.persist_evidence("session-1", "research-task", evidence_envelope)
+    assert first.evidence_inserted == len(fixture.evidence_bundle.evidence)
+    assert first.claims_inserted == len(fixture.evidence_bundle.claims)
+    assert replay.evidence_inserted == 0
+    assert replay.claims_inserted == 0
+    assert service.persist_analysis("session-1", "analysis-task", analysis_envelope)
+    assert not service.persist_analysis("session-1", "analysis-task", analysis_envelope)
+
+    changed_bundle = fixture.evidence_bundle.model_copy(deep=True)
+    changed_bundle.evidence[0].summary = "Conflicting replay content."
+    conflicting_envelope = evidence_envelope.model_copy(
+        update={"payload": changed_bundle}
+    )
+    with pytest.raises(RepositoryConflictError):
+        service.persist_evidence("session-1", "research-task", conflicting_envelope)
+
+    with database.transaction() as repositories:
+        evidence = repositories.artifacts.list_evidence("session-1")
+        claims = repositories.artifacts.list_claims("session-1")
+        analyses = repositories.artifacts.list_analysis("session-1")
+    assert len(evidence) == len(fixture.evidence_bundle.evidence)
+    assert len(claims) == len(fixture.evidence_bundle.claims)
+    assert len(analyses) == 1
+    assert evidence[0].evidence.summary != "Conflicting replay content."
+
+
+def test_artifact_provenance_must_match_durable_task(database: Database) -> None:
+    fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+    assert fixture.evidence_bundle is not None
+    service, machine = _initialized_service(database)
+    service.create_agent_task(
+        _task(
+            "researcher",
+            "research-task",
+            skill="web-research",
+            started_at=machine.snapshot.updated_at,
+        )
+    )
+    service.register_remote_task("research-task", remote_task_id="remote-research")
+    envelope = ArtifactEnvelope(
+        provenance=ArtifactProvenance(
+            producer_agent="researcher",
+            remote_task_id="different-remote-task",
+            created_at=machine.snapshot.updated_at,
+        ),
+        payload=fixture.evidence_bundle,
+    )
+
+    with pytest.raises(ArtifactProvenanceError, match="remote task identity"):
+        service.persist_evidence("session-1", "research-task", envelope)
+
+    with database.transaction() as repositories:
+        assert repositories.artifacts.list_evidence("session-1") == ()

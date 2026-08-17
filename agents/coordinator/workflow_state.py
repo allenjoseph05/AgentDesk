@@ -22,6 +22,7 @@ WorkflowStatus = Literal[
     "failed",
     "cancelled",
 ]
+TransitionObserver = Callable[["WorkflowSnapshot", "WorkflowTransition"], object]
 
 TERMINAL_STATUSES: frozenset[WorkflowStatus] = frozenset(
     {"completed", "partial", "failed", "cancelled"}
@@ -106,8 +107,10 @@ class WorkflowStateMachine:
         session_id: str,
         *,
         clock: Callable[[], datetime] | None = None,
+        on_transition: TransitionObserver | None = None,
     ) -> None:
         self._clock = clock or (lambda: datetime.now(UTC))
+        self._on_transition = on_transition
         self._snapshot = WorkflowSnapshot(
             session_id=session_id,
             updated_at=self._clock(),
@@ -181,6 +184,11 @@ class WorkflowStateMachine:
             reason=reason,
             occurred_at=timestamp,
         )
+        if self._on_transition is not None:
+            self._on_transition(
+                candidate.model_copy(deep=True),
+                transition.model_copy(deep=True),
+            )
         self._snapshot = candidate
         self._history.append(transition)
         return candidate.model_copy(deep=True)

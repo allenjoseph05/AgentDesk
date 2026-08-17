@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection, RowMapping
 from sqlalchemy.exc import IntegrityError
 
@@ -17,6 +19,7 @@ from packages.persistence.records import (
     CoordinatorRunRecord,
     EvidenceRecord,
     SessionRecord,
+    WorkflowTransitionRecord,
 )
 from packages.persistence.schema import (
     agent_tasks,
@@ -25,6 +28,7 @@ from packages.persistence.schema import (
     coordinator_runs,
     evidence,
     sessions,
+    workflow_transitions,
 )
 
 
@@ -73,6 +77,34 @@ class _Repository:
         result = self._connection.execute(statement)
         if result.rowcount != 1:
             raise RecordNotFoundError(entity, record_id)
+
+    def _insert_if_absent(
+        self,
+        table: sa.Table,
+        values: dict[str, Any],
+        *,
+        conflict_columns: tuple[str, ...],
+    ) -> bool:
+        dialect = self._connection.dialect.name
+        if dialect == "sqlite":
+            sqlite_statement = sqlite_insert(table).values(**values).on_conflict_do_nothing(
+                index_elements=list(conflict_columns)
+            )
+            return self._connection.execute(sqlite_statement).rowcount == 1
+        if dialect == "postgresql":
+            postgresql_statement = (
+                postgresql_insert(table)
+                .values(**values)
+                .on_conflict_do_nothing(index_elements=list(conflict_columns))
+            )
+            return self._connection.execute(postgresql_statement).rowcount == 1
+
+        try:
+            with self._connection.begin_nested():
+                self._connection.execute(sa.insert(table).values(**values))
+            return True
+        except IntegrityError:
+            return False
 
 
 class SessionRepository(_Repository):
@@ -186,6 +218,54 @@ class CoordinatorRunRepository(_Repository):
         )
 
 
+class WorkflowTransitionRepository(_Repository):
+    def put(self, record: WorkflowTransitionRecord) -> bool:
+        validated = WorkflowTransitionRecord.model_validate(
+            record.model_dump(mode="python")
+        )
+        existing = self.get(validated.session_id, validated.sequence)
+        if existing is not None:
+            _assert_same(
+                "workflow transition", _transition_id(validated), existing, validated
+            )
+            return False
+        inserted = self._insert_if_absent(
+            workflow_transitions,
+            validated.model_dump(mode="python"),
+            conflict_columns=("session_id", "sequence"),
+        )
+        if not inserted:
+            existing = self.get(validated.session_id, validated.sequence)
+            if existing is None:
+                raise RepositoryConflictError(
+                    "workflow transition", _transition_id(validated)
+                )
+            _assert_same(
+                "workflow transition", _transition_id(validated), existing, validated
+            )
+        return inserted
+
+    def get(
+        self,
+        session_id: str,
+        sequence: int,
+    ) -> WorkflowTransitionRecord | None:
+        row = self._connection.execute(
+            sa.select(workflow_transitions).where(
+                workflow_transitions.c.session_id == session_id,
+                workflow_transitions.c.sequence == sequence,
+            )
+        ).mappings().one_or_none()
+        return _workflow_transition_record(row) if row is not None else None
+
+    def list_by_session(self, session_id: str) -> tuple[WorkflowTransitionRecord, ...]:
+        rows = self._connection.execute(
+            sa.select(workflow_transitions)
+            .where(workflow_transitions.c.session_id == session_id)
+            .order_by(workflow_transitions.c.sequence)
+        ).mappings()
+        return tuple(_workflow_transition_record(row) for row in rows)
+
 class AgentTaskRepository(_Repository):
     def add(self, record: AgentTaskRecord) -> None:
         validated = AgentTaskRecord.model_validate(record.model_dump(mode="python"))
@@ -201,6 +281,12 @@ class AgentTaskRepository(_Repository):
             sa.select(agent_tasks).where(agent_tasks.c.id == task_id)
         ).mappings().one_or_none()
         return _agent_task_record(row) if row is not None else None
+
+    def require(self, task_id: str) -> AgentTaskRecord:
+        record = self.get(task_id)
+        if record is None:
+            raise RecordNotFoundError("agent task", task_id)
+        return record
 
     def get_by_remote(
         self,
@@ -252,26 +338,43 @@ class AgentTaskRepository(_Repository):
 class ArtifactRepository(_Repository):
     def add_evidence(self, record: EvidenceRecord) -> None:
         validated = EvidenceRecord.model_validate(record.model_dump(mode="python"))
-        item = validated.evidence
-        values = {
-            "id": validated.id,
-            "session_id": validated.session_id,
-            "agent_task_id": validated.agent_task_id,
-            "evidence_id": item.id,
-            "title": item.title,
-            "source_url": str(item.source_url) if item.source_url is not None else None,
-            "source_type": item.source_type,
-            "summary": item.summary,
-            "relevance": item.relevance,
-            "retrieved_at": item.retrieved_at,
-            "artifact_schema_version": validated.artifact_schema_version,
-        }
         self._insert(
             evidence,
-            values,
+            _evidence_values(validated),
             entity="evidence",
             record_id=validated.id,
         )
+
+    def put_evidence(self, record: EvidenceRecord) -> bool:
+        validated = EvidenceRecord.model_validate(record.model_dump(mode="python"))
+        existing = self.get_evidence(validated.session_id, validated.evidence.id)
+        if existing is not None:
+            _assert_same("evidence", validated.id, existing, validated)
+            return False
+        inserted = self._insert_if_absent(
+            evidence,
+            _evidence_values(validated),
+            conflict_columns=("session_id", "evidence_id"),
+        )
+        if not inserted:
+            existing = self.get_evidence(validated.session_id, validated.evidence.id)
+            if existing is None:
+                raise RepositoryConflictError("evidence", validated.id)
+            _assert_same("evidence", validated.id, existing, validated)
+        return inserted
+
+    def get_evidence(
+        self,
+        session_id: str,
+        evidence_id: str,
+    ) -> EvidenceRecord | None:
+        row = self._connection.execute(
+            sa.select(evidence).where(
+                evidence.c.session_id == session_id,
+                evidence.c.evidence_id == evidence_id,
+            )
+        ).mappings().one_or_none()
+        return _evidence_record(row) if row is not None else None
 
     def list_evidence(self, session_id: str) -> tuple[EvidenceRecord, ...]:
         rows = self._connection.execute(
@@ -283,24 +386,39 @@ class ArtifactRepository(_Repository):
 
     def add_claim(self, record: ClaimRecord) -> None:
         validated = ClaimRecord.model_validate(record.model_dump(mode="python"))
-        item = validated.claim
-        values = {
-            "id": validated.id,
-            "session_id": validated.session_id,
-            "agent_task_id": validated.agent_task_id,
-            "claim_id": item.id,
-            "statement": item.statement,
-            "evidence_ids": item.evidence_ids,
-            "confidence": item.confidence,
-            "caveats": item.caveats,
-            "artifact_schema_version": validated.artifact_schema_version,
-        }
         self._insert(
             claims,
-            values,
+            _claim_values(validated),
             entity="claim",
             record_id=validated.id,
         )
+
+    def put_claim(self, record: ClaimRecord) -> bool:
+        validated = ClaimRecord.model_validate(record.model_dump(mode="python"))
+        existing = self.get_claim(validated.session_id, validated.claim.id)
+        if existing is not None:
+            _assert_same("claim", validated.id, existing, validated)
+            return False
+        inserted = self._insert_if_absent(
+            claims,
+            _claim_values(validated),
+            conflict_columns=("session_id", "claim_id"),
+        )
+        if not inserted:
+            existing = self.get_claim(validated.session_id, validated.claim.id)
+            if existing is None:
+                raise RepositoryConflictError("claim", validated.id)
+            _assert_same("claim", validated.id, existing, validated)
+        return inserted
+
+    def get_claim(self, session_id: str, claim_id: str) -> ClaimRecord | None:
+        row = self._connection.execute(
+            sa.select(claims).where(
+                claims.c.session_id == session_id,
+                claims.c.claim_id == claim_id,
+            )
+        ).mappings().one_or_none()
+        return _claim_record(row) if row is not None else None
 
     def list_claims(self, session_id: str) -> tuple[ClaimRecord, ...]:
         rows = self._connection.execute(
@@ -312,21 +430,38 @@ class ArtifactRepository(_Repository):
 
     def add_analysis(self, record: AnalysisRecord) -> None:
         validated = AnalysisRecord.model_validate(record.model_dump(mode="python"))
-        values = {
-            "id": validated.id,
-            "session_id": validated.session_id,
-            "agent_task_id": validated.agent_task_id,
-            "recommendation": validated.analysis.recommendation,
-            "payload": validated.analysis.model_dump(mode="json"),
-            "artifact_schema_version": validated.artifact_schema_version,
-            "created_at": validated.created_at,
-        }
         self._insert(
             analysis,
-            values,
+            _analysis_values(validated),
             entity="analysis",
             record_id=validated.id,
         )
+
+    def put_analysis(self, record: AnalysisRecord) -> bool:
+        validated = AnalysisRecord.model_validate(record.model_dump(mode="python"))
+        if validated.agent_task_id is None:
+            raise RepositoryConflictError("analysis", validated.id)
+        existing = self.get_analysis_by_task(validated.agent_task_id)
+        if existing is not None:
+            _assert_same("analysis", validated.id, existing, validated)
+            return False
+        inserted = self._insert_if_absent(
+            analysis,
+            _analysis_values(validated),
+            conflict_columns=("agent_task_id",),
+        )
+        if not inserted:
+            existing = self.get_analysis_by_task(validated.agent_task_id)
+            if existing is None:
+                raise RepositoryConflictError("analysis", validated.id)
+            _assert_same("analysis", validated.id, existing, validated)
+        return inserted
+
+    def get_analysis_by_task(self, agent_task_id: str) -> AnalysisRecord | None:
+        row = self._connection.execute(
+            sa.select(analysis).where(analysis.c.agent_task_id == agent_task_id)
+        ).mappings().one_or_none()
+        return _analysis_record(row) if row is not None else None
 
     def list_analysis(self, session_id: str) -> tuple[AnalysisRecord, ...]:
         rows = self._connection.execute(
@@ -343,6 +478,7 @@ class RepositoryUnitOfWork:
     def __init__(self, connection: Connection) -> None:
         self.sessions = SessionRepository(connection)
         self.runs = CoordinatorRunRepository(connection)
+        self.transitions = WorkflowTransitionRepository(connection)
         self.agent_tasks = AgentTaskRepository(connection)
         self.artifacts = ArtifactRepository(connection)
 
@@ -356,6 +492,15 @@ def _assert_immutable(
 ) -> None:
     if any(getattr(current, field) != getattr(replacement, field) for field in fields):
         raise RepositoryConflictError(entity, record_id)
+
+
+def _assert_same(entity: str, record_id: str, current: Any, replay: Any) -> None:
+    if current.model_dump(mode="json") != replay.model_dump(mode="json"):
+        raise RepositoryConflictError(entity, record_id)
+
+
+def _transition_id(record: WorkflowTransitionRecord) -> str:
+    return f"{record.session_id}:{record.sequence}"
 
 
 def _aware(value: datetime) -> datetime:
@@ -375,6 +520,12 @@ def _run_record(row: RowMapping) -> CoordinatorRunRecord:
     if values["finished_at"] is not None:
         values["finished_at"] = _aware(values["finished_at"])
     return CoordinatorRunRecord.model_validate(values)
+
+
+def _workflow_transition_record(row: RowMapping) -> WorkflowTransitionRecord:
+    values = dict(row)
+    values["occurred_at"] = _aware(values["occurred_at"])
+    return WorkflowTransitionRecord.model_validate(values)
 
 
 def _agent_task_record(row: RowMapping) -> AgentTaskRecord:
@@ -403,6 +554,23 @@ def _evidence_record(row: RowMapping) -> EvidenceRecord:
     )
 
 
+def _evidence_values(record: EvidenceRecord) -> dict[str, Any]:
+    item = record.evidence
+    return {
+        "id": record.id,
+        "session_id": record.session_id,
+        "agent_task_id": record.agent_task_id,
+        "evidence_id": item.id,
+        "title": item.title,
+        "source_url": str(item.source_url) if item.source_url is not None else None,
+        "source_type": item.source_type,
+        "summary": item.summary,
+        "relevance": item.relevance,
+        "retrieved_at": item.retrieved_at,
+        "artifact_schema_version": record.artifact_schema_version,
+    }
+
+
 def _claim_record(row: RowMapping) -> ClaimRecord:
     return ClaimRecord(
         id=row["id"],
@@ -419,6 +587,21 @@ def _claim_record(row: RowMapping) -> ClaimRecord:
     )
 
 
+def _claim_values(record: ClaimRecord) -> dict[str, Any]:
+    item = record.claim
+    return {
+        "id": record.id,
+        "session_id": record.session_id,
+        "agent_task_id": record.agent_task_id,
+        "claim_id": item.id,
+        "statement": item.statement,
+        "evidence_ids": item.evidence_ids,
+        "confidence": item.confidence,
+        "caveats": item.caveats,
+        "artifact_schema_version": record.artifact_schema_version,
+    }
+
+
 def _analysis_record(row: RowMapping) -> AnalysisRecord:
     return AnalysisRecord(
         id=row["id"],
@@ -428,3 +611,15 @@ def _analysis_record(row: RowMapping) -> AnalysisRecord:
         artifact_schema_version=row["artifact_schema_version"],
         created_at=_aware(row["created_at"]),
     )
+
+
+def _analysis_values(record: AnalysisRecord) -> dict[str, Any]:
+    return {
+        "id": record.id,
+        "session_id": record.session_id,
+        "agent_task_id": record.agent_task_id,
+        "recommendation": record.analysis.recommendation,
+        "payload": record.analysis.model_dump(mode="json"),
+        "artifact_schema_version": record.artifact_schema_version,
+        "created_at": record.created_at,
+    }
