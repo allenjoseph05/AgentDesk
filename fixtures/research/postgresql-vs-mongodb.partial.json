@@ -7,5 +7,17 @@
     "claims": [{"id": "claim-partial", "statement": "PostgreSQL supports relational constraints.", "evidence_ids": ["evidence-partial"], "confidence": 0.8}],
     "evidence": [{"id": "evidence-partial", "title": "Partial fixture", "source_url": null, "source_type": "fixture", "summary": "Only relational requirements were evaluated.", "relevance": 0.75, "retrieved_at": "2026-08-16T12:00:00Z"}],
     "unknowns": ["MongoDB evidence is unavailable.", "Operational cost was not evaluated."]
+  },
+  "decision_analysis": {
+    "recommendation": "PostgreSQL",
+    "executive_summary": "PostgreSQL is the provisional choice because it is the only option with supplied integrity evidence.",
+    "criteria": [
+      {"criterion": "Data integrity", "weight": 1.0, "scores": {"PostgreSQL": 6, "MongoDB": 5}, "rationale": "The supplied evidence supports PostgreSQL constraints, while MongoDB evidence is unavailable.", "supporting_claim_ids": ["claim-partial"]}
+    ],
+    "arguments_for": ["Only PostgreSQL has supplied evidence for the requested criterion."],
+    "arguments_against": ["MongoDB evidence is unavailable, so the comparison is incomplete."],
+    "assumptions": ["The missing MongoDB evidence does not reverse the observed integrity advantage."],
+    "risks": ["The recommendation may change when missing evidence is collected."],
+    "recommendation_changes_if": ["MongoDB evidence demonstrates equal or stronger integrity support."]
   }
 }
