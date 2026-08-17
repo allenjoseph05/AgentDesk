@@ -14,15 +14,19 @@ export interface AgentDeskRunObserver {
   onState?(state: AgentDeskViewState): void;
   onMessage?(message: string): void;
   onFinished?(): void;
+  onCancelled?(): void;
   onError?(message: string): void;
 }
 
-export function createCoordinatorAgent(fetch?: HttpAgentFetchFn): HttpAgent {
+export function createCoordinatorAgent(
+  fetch?: HttpAgentFetchFn,
+  threadId = crypto.randomUUID(),
+): HttpAgent {
   return new HttpAgent({
     agentId: "agentdesk-coordinator",
     description: "AgentDesk browser-to-Coordinator AG-UI connection",
     url: AG_UI_ENDPOINT,
-    threadId: crypto.randomUUID(),
+    threadId,
     initialState: structuredClone(INITIAL_AGENTDESK_STATE),
     ...(fetch ? { fetch } : {}),
   });
@@ -44,6 +48,7 @@ export async function runResearch(
     content: normalizedQuestion,
   });
   const action = parseAgentDeskAction(createStartResearchAction(normalizedQuestion));
+  const abortController = new AbortController();
 
   const subscriber: AgentSubscriber = {
     onRunStartedEvent: () => observer.onRunning?.(),
@@ -54,5 +59,11 @@ export async function runResearch(
     onRunErrorEvent: ({ event }) => observer.onError?.(event.message),
   };
 
-  await agent.runAgent({ forwardedProps: { agentdesk: action } }, subscriber);
+  await agent.runAgent(
+    { abortController, forwardedProps: { agentdesk: action } },
+    subscriber,
+  );
+  if (abortController.signal.aborted) {
+    observer.onCancelled?.();
+  }
 }

@@ -4,9 +4,14 @@ import asyncio
 import json
 from typing import Any
 
+import pytest
+from ag_ui.core import RunAgentInput
+from ag_ui.encoder import EventEncoder
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from agents.coordinator.main import app
+from agents.coordinator.agui import stream_run_events
+from agents.coordinator.main import app, create_app
 
 
 def _start_action() -> dict[str, Any]:
@@ -25,10 +30,16 @@ def _start_action() -> dict[str, Any]:
     }
 
 
-def _input(messages: list[dict[str, str]], action: dict[str, Any] | None = None) -> dict[str, Any]:
+def _input(
+    messages: list[dict[str, str]],
+    action: dict[str, Any] | None = None,
+    *,
+    thread_id: str = "thread-1",
+    run_id: str = "run-1",
+) -> dict[str, Any]:
     return {
-        "threadId": "thread-1",
-        "runId": "run-1",
+        "threadId": thread_id,
+        "runId": run_id,
         "state": {},
         "messages": messages,
         "tools": [],
@@ -37,8 +48,10 @@ def _input(messages: list[dict[str, str]], action: dict[str, Any] | None = None)
     }
 
 
-async def _post_events(payload: dict[str, Any]) -> tuple[int, str, list[dict[str, Any]]]:
-    transport = ASGITransport(app=app)
+async def _post_events(
+    payload: dict[str, Any], application: FastAPI = app
+) -> tuple[int, str, list[dict[str, Any]]]:
+    transport = ASGITransport(app=application)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
             "/ag-ui",
@@ -51,6 +64,41 @@ async def _post_events(payload: dict[str, Any]) -> tuple[int, str, list[dict[str
         if line.startswith("data: ")
     ]
     return response.status_code, response.headers["content-type"], events
+
+
+class BlockingTask:
+    remote_task_id = "remote-task-1"
+
+    def __init__(self) -> None:
+        self.waiting = asyncio.Event()
+        self.release = asyncio.Event()
+        self.cancel_calls = 0
+        self.close_calls = 0
+
+    async def wait(self) -> None:
+        self.waiting.set()
+        await self.release.wait()
+
+    async def cancel(self) -> None:
+        self.cancel_calls += 1
+        self.release.set()
+
+    async def aclose(self) -> None:
+        self.close_calls += 1
+
+
+class BlockingTaskFactory:
+    def __init__(self, task: BlockingTask) -> None:
+        self.task = task
+
+    async def start(self, question: str) -> BlockingTask:
+        assert question == "Should we use PostgreSQL or MongoDB?"
+        return self.task
+
+
+class FailingTaskFactory:
+    async def start(self, question: str) -> BlockingTask:
+        raise RuntimeError(f"Remote task failed for: {question}")
 
 
 def test_ag_ui_endpoint_streams_lifecycle_state_step_and_message_events() -> None:
@@ -113,3 +161,90 @@ def test_ag_ui_endpoint_rejects_invalid_action_envelope() -> None:
 
     assert [event["type"] for event in events] == ["RUN_STARTED", "RUN_ERROR"]
     assert events[-1]["code"] == "invalid_agentdesk_action"
+
+
+def test_stream_cancellation_invokes_active_a2a_task_hook_once() -> None:
+    async def cancel_while_waiting() -> tuple[list[dict[str, Any]], BlockingTask]:
+        task = BlockingTask()
+        input_data = RunAgentInput.model_validate(
+            _input(
+                [
+                    {
+                        "id": "message-1",
+                        "role": "user",
+                        "content": "Should we use PostgreSQL or MongoDB?",
+                    }
+                ]
+            )
+        )
+        stream = stream_run_events(
+            input_data,
+            EventEncoder(accept="text/event-stream"),
+            BlockingTaskFactory(task),
+        )
+        observed = []
+        for _ in range(4):
+            observed.append(json.loads((await anext(stream)).removeprefix("data: ")))
+
+        pending_event = asyncio.create_task(anext(stream))
+        await task.waiting.wait()
+        pending_event.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await pending_event
+        return observed, task
+
+    events, task = asyncio.run(cancel_while_waiting())
+
+    assert [event["type"] for event in events] == [
+        "RUN_STARTED",
+        "STEP_STARTED",
+        "STATE_SNAPSHOT",
+        "STATE_SNAPSHOT",
+    ]
+    assert events[-1]["snapshot"]["status"] == "researching"
+    assert events[-1]["snapshot"]["agents"][0]["remoteTaskId"] == "remote-task-1"
+    assert task.cancel_calls == 1
+    assert task.close_calls == 1
+
+
+def test_runtime_failure_emits_one_terminal_run_error_and_stops() -> None:
+    payload = _input(
+        [
+            {
+                "id": "message-1",
+                "role": "user",
+                "content": "Should we use PostgreSQL or MongoDB?",
+            }
+        ]
+    )
+    _, _, events = asyncio.run(_post_events(payload, create_app(FailingTaskFactory())))
+
+    assert [event["type"] for event in events] == [
+        "RUN_STARTED",
+        "STEP_STARTED",
+        "STATE_SNAPSHOT",
+        "RUN_ERROR",
+    ]
+    assert events[-1]["code"] == "coordinator_run_failed"
+    assert sum(event["type"] in {"RUN_ERROR", "RUN_FINISHED"} for event in events) == 1
+
+
+def test_reconnect_uses_new_run_on_same_thread_and_gets_fresh_snapshot() -> None:
+    message = {
+        "id": "message-1",
+        "role": "user",
+        "content": "Should we use PostgreSQL or MongoDB?",
+    }
+
+    _, _, first = asyncio.run(_post_events(_input([message], run_id="run-before-abort")))
+    _, _, second = asyncio.run(_post_events(_input([message], run_id="run-after-reconnect")))
+
+    first_snapshot = next(event["snapshot"] for event in first if event["type"] == "STATE_SNAPSHOT")
+    second_snapshot = next(
+        event["snapshot"] for event in second if event["type"] == "STATE_SNAPSHOT"
+    )
+    assert first[0]["threadId"] == second[0]["threadId"] == "thread-1"
+    assert first[0]["runId"] != second[0]["runId"]
+    assert first_snapshot["sessionId"] == "run-before-abort"
+    assert second_snapshot["sessionId"] == "run-after-reconnect"
+    assert second_snapshot["schemaVersion"] == "1.0"

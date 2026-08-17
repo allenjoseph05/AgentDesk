@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from datetime import UTC, datetime
+from typing import cast
 from uuid import uuid4
 
 from ag_ui.core import (
@@ -23,7 +26,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 
-from packages.contracts import AgentDeskAction, AgentDeskViewState
+from agents.coordinator.run_tasks import A2ATaskFactory, ActiveA2ATask
+from packages.contracts import AgentDeskAction, AgentDeskViewState, SpecialistView
 from packages.contracts.agui import StartResearchAction
 
 router = APIRouter(prefix="/ag-ui", tags=["ag-ui"])
@@ -48,12 +52,15 @@ def _start_action(input_data: RunAgentInput) -> StartResearchAction:
     return action
 
 
-@router.post("")
-async def run_agent(input_data: RunAgentInput, request: Request) -> StreamingResponse:
-    """Accept one AG-UI run and stream a deterministic protocol proof."""
-    encoder = EventEncoder(accept=request.headers.get("accept"))
-
-    async def events() -> AsyncIterator[str]:
+async def stream_run_events(
+    input_data: RunAgentInput,
+    encoder: EventEncoder,
+    task_factory: A2ATaskFactory | None = None,
+) -> AsyncIterator[str]:
+    """Encode one run, propagating stream cancellation to its active A2A task."""
+    active_task: ActiveA2ATask | None = None
+    active_task_finished = False
+    try:
         yield encoder.encode(
             RunStartedEvent(threadId=input_data.thread_id, runId=input_data.run_id)
         )
@@ -90,6 +97,27 @@ async def run_agent(input_data: RunAgentInput, request: Request) -> StreamingRes
         )
         yield encoder.encode(StateSnapshotEvent(snapshot=state.to_ag_ui()))
 
+        if task_factory is not None:
+            active_task = await task_factory.start(question)
+            state = state.model_copy(
+                update={
+                    "status": "researching",
+                    "agents": [
+                        SpecialistView(
+                            agent_id="cancellation-spike-agent",
+                            name="A2A cancellation spike",
+                            skill="research",
+                            status="working",
+                            remote_task_id=active_task.remote_task_id,
+                        )
+                    ],
+                    "last_updated_at": datetime.now(UTC),
+                }
+            )
+            yield encoder.encode(StateSnapshotEvent(snapshot=state.to_ag_ui()))
+            await active_task.wait()
+            active_task_finished = True
+
         message_id = str(uuid4())
         yield encoder.encode(TextMessageStartEvent(messageId=message_id, role="assistant"))
         yield encoder.encode(
@@ -107,5 +135,33 @@ async def run_agent(input_data: RunAgentInput, request: Request) -> StreamingRes
                 result={"sessionId": input_data.run_id, "actionId": action.action_id},
             )
         )
+    except asyncio.CancelledError:
+        if active_task is not None and not active_task_finished:
+            await active_task.cancel()
+        raise
+    except Exception:
+        yield encoder.encode(
+            RunErrorEvent(
+                message="The Coordinator could not complete this run.",
+                code="coordinator_run_failed",
+            )
+        )
+    finally:
+        if active_task is not None:
+            with suppress(Exception):
+                await active_task.aclose()
 
-    return StreamingResponse(events(), media_type=encoder.get_content_type())
+
+@router.post("")
+async def run_agent(input_data: RunAgentInput, request: Request) -> StreamingResponse:
+    """Accept one AG-UI run and stream a deterministic protocol proof."""
+    encoder = EventEncoder(accept=request.headers.get("accept"))
+    task_factory = cast(
+        A2ATaskFactory | None,
+        getattr(request.app.state, "ag_ui_task_factory", None),
+    )
+
+    return StreamingResponse(
+        stream_run_events(input_data, encoder, task_factory),
+        media_type=encoder.get_content_type(),
+    )
