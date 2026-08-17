@@ -21,12 +21,15 @@ from agents.researcher.executor import ResearchAgentExecutor
 DEFAULT_BASE_URL = "http://127.0.0.1:8005"
 
 
-def create_app(base_url: str | None = None) -> FastAPI:
+def create_app(
+    base_url: str | None = None,
+    executor: ResearchAgentExecutor | None = None,
+) -> FastAPI:
     """Create a Research Agent instance with operations and A2A routes."""
     public_url = (base_url or os.getenv("RESEARCH_AGENT_URL") or DEFAULT_BASE_URL).rstrip("/")
     agent_card = create_agent_card(public_url)
     request_handler = DefaultRequestHandler(
-        agent_executor=ResearchAgentExecutor(),
+        agent_executor=executor or ResearchAgentExecutor(),
         task_store=InMemoryTaskStore(),
         agent_card=agent_card,
     )

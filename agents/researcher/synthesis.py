@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Awaitable, Callable
+from typing import Literal
+
+from pydantic import Field
 
 from agents.researcher.tools import (
     ResearchToolFailure,
@@ -13,6 +17,7 @@ from agents.researcher.tools import (
     SourceProviderError,
 )
 from packages.contracts import Evidence, EvidenceBundle, ResearchRequest
+from packages.contracts.base import ContractModel, NonEmptyText
 from packages.llm import LLMProvider, Message
 
 RESEARCH_SYNTHESIS_PROMPT = """You are the evidence-synthesis stage of a research agent.
@@ -23,6 +28,20 @@ a final recommendation, or produce decision analysis; a separate Analyst Agent o
 """
 
 _SEARCH_LIMIT_BY_DEPTH = {"fast": 3, "normal": 5, "deep": 10}
+
+ResearchPhase = Literal["searching", "fetching", "synthesizing"]
+
+
+class ResearchProgress(ContractModel):
+    """One observable transition in the evidence-synthesis workflow."""
+
+    phase: ResearchPhase
+    message: NonEmptyText
+    source_ids: list[NonEmptyText] = Field(default_factory=list)
+    failed_source_ids: list[NonEmptyText] = Field(default_factory=list)
+
+
+ResearchProgressHandler = Callable[[ResearchProgress], Awaitable[None]]
 
 
 class ResearchSynthesisError(RuntimeError):
@@ -47,9 +66,21 @@ class ResearchSynthesizer:
         self._source_provider = source_provider
         self._llm_provider = llm_provider
 
-    async def synthesize(self, request: ResearchRequest) -> EvidenceBundle:
+    async def synthesize(
+        self,
+        request: ResearchRequest,
+        *,
+        on_progress: ResearchProgressHandler | None = None,
+    ) -> EvidenceBundle:
         """Produce a validated bundle grounded exclusively in fetched sources."""
         validated_request = ResearchRequest.model_validate(request.model_dump(mode="python"))
+        await _report_progress(
+            on_progress,
+            ResearchProgress(
+                phase="searching",
+                message="Searching for relevant sources.",
+            ),
+        )
         results = await self._search_provider.search(
             SearchQuery(
                 text=_search_text(validated_request),
@@ -68,6 +99,14 @@ class ResearchSynthesizer:
                 "duplicate_search_results",
                 "Research returned duplicate source identifiers.",
             )
+        await _report_progress(
+            on_progress,
+            ResearchProgress(
+                phase="fetching",
+                message=f"Fetching {len(results)} relevant source(s).",
+                source_ids=result_ids,
+            ),
+        )
 
         documents: list[SourceDocument] = []
         failures: list[ResearchToolFailure] = []
@@ -92,6 +131,18 @@ class ResearchSynthesizer:
                 "Research could not fetch any source documents to synthesize.",
             )
 
+        await _report_progress(
+            on_progress,
+            ResearchProgress(
+                phase="synthesizing",
+                message=f"Synthesizing evidence from {len(documents)} retrieved source(s).",
+                source_ids=[document.source_id for document in documents],
+                failed_source_ids=[
+                    failure.source_id for failure in failures if failure.source_id is not None
+                ],
+            ),
+        )
+
         candidate = await self._llm_provider.generate_structured(
             system_prompt=RESEARCH_SYNTHESIS_PROMPT,
             messages=[
@@ -100,6 +151,14 @@ class ResearchSynthesizer:
             response_model=EvidenceBundle,
         )
         return _ground_bundle(validated_request, documents, failures, candidate)
+
+
+async def _report_progress(
+    handler: ResearchProgressHandler | None,
+    progress: ResearchProgress,
+) -> None:
+    if handler is not None:
+        await handler(progress)
 
 
 def _search_text(request: ResearchRequest) -> str:
