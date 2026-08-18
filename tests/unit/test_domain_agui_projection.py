@@ -173,6 +173,8 @@ def test_projection_whitelists_artifacts_and_hides_internal_task_errors(
     assert state.agents[1].message == "Specialist task failed."
     assert state.evidence_count == len(fixture.evidence_bundle.evidence)
     assert state.analysis == fixture.decision_analysis
+    assert "Evidence gap: Production access patterns are not measured." in state.warnings
+    assert "Research note: Deterministic fixture; not a live benchmark." in state.warnings
     assert internal_detail not in serialized
     assert "chain of thought" not in serialized
 

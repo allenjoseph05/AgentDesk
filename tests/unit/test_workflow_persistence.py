@@ -150,6 +150,86 @@ def test_remote_a2a_identity_is_durable_and_cannot_be_rebound(
     assert task.status == "submitted"
 
 
+def test_remote_a2a_context_can_enrich_an_existing_task_identity(
+    database: Database,
+) -> None:
+    service, machine = _initialized_service(database)
+    service.create_agent_task(
+        _task(
+            "researcher",
+            "research-task",
+            skill="web-research",
+            started_at=machine.snapshot.updated_at,
+        )
+    )
+
+    assert service.register_remote_task(
+        "research-task",
+        remote_task_id="remote-42",
+    )
+    assert service.register_remote_task(
+        "research-task",
+        remote_task_id="remote-42",
+        a2a_context_id="context-42",
+    )
+    assert not service.register_remote_task(
+        "research-task",
+        remote_task_id="remote-42",
+    )
+    assert not service.register_remote_task(
+        "research-task",
+        remote_task_id="remote-42",
+        a2a_context_id="context-42",
+    )
+    with pytest.raises(RepositoryConflictError):
+        service.register_remote_task(
+            "research-task",
+            remote_task_id="remote-42",
+            a2a_context_id="different-context",
+        )
+
+    with database.transaction() as repositories:
+        task = repositories.agent_tasks.require("research-task")
+    assert task.a2a_context_id == "context-42"
+
+
+def test_agent_task_terminal_outcome_is_durable_and_idempotent(
+    database: Database,
+) -> None:
+    service, machine = _initialized_service(database)
+    service.create_agent_task(
+        _task(
+            "researcher",
+            "research-task",
+            skill="web-research",
+            started_at=machine.snapshot.updated_at,
+        )
+    )
+    finished_at = machine.snapshot.updated_at + timedelta(seconds=1)
+
+    assert service.finish_agent_task(
+        "research-task",
+        status="completed",
+        finished_at=finished_at,
+    )
+    assert not service.finish_agent_task(
+        "research-task",
+        status="completed",
+        finished_at=finished_at,
+    )
+    with pytest.raises(RepositoryConflictError):
+        service.finish_agent_task(
+            "research-task",
+            status="cancelled",
+            finished_at=finished_at,
+        )
+
+    with database.transaction() as repositories:
+        task = repositories.agent_tasks.require("research-task")
+    assert task.status == "completed"
+    assert task.finished_at == finished_at
+
+
 def test_evidence_and_analysis_replay_is_exactly_once(database: Database) -> None:
     fixture = load_research_fixture("postgresql-vs-mongodb-golden")
     assert fixture.evidence_bundle is not None
@@ -194,8 +274,10 @@ def test_evidence_and_analysis_replay_is_exactly_once(database: Database) -> Non
     replay = service.persist_evidence("session-1", "research-task", evidence_envelope)
     assert first.evidence_inserted == len(fixture.evidence_bundle.evidence)
     assert first.claims_inserted == len(fixture.evidence_bundle.claims)
+    assert first.bundle_inserted
     assert replay.evidence_inserted == 0
     assert replay.claims_inserted == 0
+    assert not replay.bundle_inserted
     assert service.persist_analysis("session-1", "analysis-task", analysis_envelope)
     assert not service.persist_analysis("session-1", "analysis-task", analysis_envelope)
 
@@ -211,10 +293,47 @@ def test_evidence_and_analysis_replay_is_exactly_once(database: Database) -> Non
         evidence = repositories.artifacts.list_evidence("session-1")
         claims = repositories.artifacts.list_claims("session-1")
         analyses = repositories.artifacts.list_analysis("session-1")
+        research_artifact = repositories.artifacts.get_research_artifact_by_task(
+            "research-task"
+        )
     assert len(evidence) == len(fixture.evidence_bundle.evidence)
     assert len(claims) == len(fixture.evidence_bundle.claims)
     assert len(analyses) == 1
+    assert research_artifact is not None
+    assert research_artifact.envelope == evidence_envelope
     assert evidence[0].evidence.summary != "Conflicting replay content."
+
+
+def test_bundle_level_research_context_is_durable(database: Database) -> None:
+    fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+    assert fixture.evidence_bundle is not None
+    service, machine = _initialized_service(database)
+    service.create_agent_task(
+        _task(
+            "researcher",
+            "research-task",
+            skill="web-research",
+            started_at=machine.snapshot.updated_at,
+        )
+    )
+    service.register_remote_task("research-task", remote_task_id="remote-research")
+    envelope = ArtifactEnvelope(
+        provenance=ArtifactProvenance(
+            producer_agent="researcher",
+            remote_task_id="remote-research",
+            created_at=machine.snapshot.updated_at,
+        ),
+        payload=fixture.evidence_bundle,
+    )
+
+    service.persist_evidence("session-1", "research-task", envelope)
+
+    with database.transaction() as repositories:
+        stored = repositories.artifacts.get_research_artifact_by_task("research-task")
+    assert stored is not None
+    assert stored.envelope.payload.unknowns == fixture.evidence_bundle.unknowns
+    assert stored.envelope.payload.research_notes == fixture.evidence_bundle.research_notes
+    assert stored.envelope.provenance == envelope.provenance
 
 
 def test_artifact_provenance_must_match_durable_task(database: Database) -> None:

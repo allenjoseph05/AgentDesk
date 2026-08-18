@@ -186,6 +186,35 @@ claims = sa.Table(
 sa.Index("ix_claims_session", claims.c.session_id)
 sa.Index("ix_claims_agent_task", claims.c.agent_task_id)
 
+research_artifacts = sa.Table(
+    "research_artifacts",
+    metadata,
+    sa.Column("id", sa.String(255), primary_key=True),
+    sa.Column(
+        "session_id",
+        sa.String(255),
+        sa.ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column(
+        "agent_task_id",
+        sa.String(255),
+        sa.ForeignKey("agent_tasks.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    ),
+    sa.Column("payload", sa.JSON(), nullable=False),
+    sa.Column("artifact_schema_version", sa.String(16), nullable=False),
+    sa.Column("producer_agent", sa.String(255), nullable=False),
+    sa.Column("remote_task_id", sa.String(255), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+)
+sa.Index(
+    "ix_research_artifacts_session_created",
+    research_artifacts.c.session_id,
+    research_artifacts.c.created_at,
+)
+
 analysis = sa.Table(
     "analysis",
     metadata,

@@ -11,13 +11,21 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Connection, RowMapping
 from sqlalchemy.exc import IntegrityError
 
-from packages.contracts import Claim, DecisionAnalysis, Evidence
+from packages.contracts import (
+    ArtifactEnvelope,
+    ArtifactProvenance,
+    Claim,
+    DecisionAnalysis,
+    Evidence,
+    EvidenceBundle,
+)
 from packages.persistence.records import (
     AgentTaskRecord,
     AnalysisRecord,
     ClaimRecord,
     CoordinatorRunRecord,
     EvidenceRecord,
+    ResearchArtifactRecord,
     SessionRecord,
     WorkflowTransitionRecord,
 )
@@ -27,6 +35,7 @@ from packages.persistence.schema import (
     claims,
     coordinator_runs,
     evidence,
+    research_artifacts,
     sessions,
     workflow_transitions,
 )
@@ -336,6 +345,46 @@ class AgentTaskRepository(_Repository):
 
 
 class ArtifactRepository(_Repository):
+    def put_research_artifact(self, record: ResearchArtifactRecord) -> bool:
+        validated = ResearchArtifactRecord.model_validate(record.model_dump(mode="python"))
+        existing = self.get_research_artifact_by_task(validated.agent_task_id)
+        if existing is not None:
+            _assert_same("research artifact", validated.id, existing, validated)
+            return False
+        inserted = self._insert_if_absent(
+            research_artifacts,
+            _research_artifact_values(validated),
+            conflict_columns=("agent_task_id",),
+        )
+        if not inserted:
+            existing = self.get_research_artifact_by_task(validated.agent_task_id)
+            if existing is None:
+                raise RepositoryConflictError("research artifact", validated.id)
+            _assert_same("research artifact", validated.id, existing, validated)
+        return inserted
+
+    def get_research_artifact_by_task(
+        self,
+        agent_task_id: str,
+    ) -> ResearchArtifactRecord | None:
+        row = self._connection.execute(
+            sa.select(research_artifacts).where(
+                research_artifacts.c.agent_task_id == agent_task_id
+            )
+        ).mappings().one_or_none()
+        return _research_artifact_record(row) if row is not None else None
+
+    def list_research_artifacts(
+        self,
+        session_id: str,
+    ) -> tuple[ResearchArtifactRecord, ...]:
+        rows = self._connection.execute(
+            sa.select(research_artifacts)
+            .where(research_artifacts.c.session_id == session_id)
+            .order_by(research_artifacts.c.created_at, research_artifacts.c.id)
+        ).mappings()
+        return tuple(_research_artifact_record(row) for row in rows)
+
     def add_evidence(self, record: EvidenceRecord) -> None:
         validated = EvidenceRecord.model_validate(record.model_dump(mode="python"))
         self._insert(
@@ -599,6 +648,36 @@ def _claim_values(record: ClaimRecord) -> dict[str, Any]:
         "confidence": item.confidence,
         "caveats": item.caveats,
         "artifact_schema_version": record.artifact_schema_version,
+    }
+
+
+def _research_artifact_record(row: RowMapping) -> ResearchArtifactRecord:
+    return ResearchArtifactRecord(
+        id=row["id"],
+        session_id=row["session_id"],
+        agent_task_id=row["agent_task_id"],
+        envelope=ArtifactEnvelope[EvidenceBundle](
+            schema_version=row["artifact_schema_version"],
+            provenance=ArtifactProvenance(
+                producer_agent=row["producer_agent"],
+                remote_task_id=row["remote_task_id"],
+                created_at=_aware(row["created_at"]),
+            ),
+            payload=EvidenceBundle.model_validate(row["payload"]),
+        ),
+    )
+
+
+def _research_artifact_values(record: ResearchArtifactRecord) -> dict[str, Any]:
+    return {
+        "id": record.id,
+        "session_id": record.session_id,
+        "agent_task_id": record.agent_task_id,
+        "payload": record.envelope.payload.model_dump(mode="json"),
+        "artifact_schema_version": record.envelope.schema_version,
+        "producer_agent": record.envelope.provenance.producer_agent,
+        "remote_task_id": record.envelope.provenance.remote_task_id,
+        "created_at": record.envelope.provenance.created_at,
     }
 
 

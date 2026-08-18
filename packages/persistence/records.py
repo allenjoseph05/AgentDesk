@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import AwareDatetime, Field, model_validator
 
-from packages.contracts import Claim, DecisionAnalysis, Evidence
+from packages.contracts import ArtifactEnvelope, Claim, DecisionAnalysis, Evidence, EvidenceBundle
 from packages.contracts.base import ContractModel, NonEmptyText
 
 SessionPersistenceStatus = Literal[
@@ -118,8 +118,16 @@ class AgentTaskRecord(ContractModel):
     def validate_terminal_fields(self) -> AgentTaskRecord:
         if self.status == "failed" and self.error_code is None:
             raise ValueError("Failed agent task requires an error code.")
+        if self.status != "failed" and (
+            self.error_code is not None or self.error_message is not None
+        ):
+            raise ValueError("Only failed agent tasks may retain error details.")
         if self.status in {"completed", "failed", "cancelled"} and self.finished_at is None:
             raise ValueError("Terminal agent task requires a finish timestamp.")
+        if self.status not in {"completed", "failed", "cancelled"} and self.finished_at is not None:
+            raise ValueError("Active agent task cannot have a finish timestamp.")
+        if self.finished_at is not None and self.finished_at < self.started_at:
+            raise ValueError("Agent task finish timestamp cannot precede its start.")
         return self
 
 
@@ -137,6 +145,13 @@ class ClaimRecord(ContractModel):
     agent_task_id: NonEmptyText | None = None
     claim: Claim
     artifact_schema_version: NonEmptyText
+
+
+class ResearchArtifactRecord(ContractModel):
+    id: NonEmptyText
+    session_id: NonEmptyText
+    agent_task_id: NonEmptyText
+    envelope: ArtifactEnvelope[EvidenceBundle]
 
 
 class AnalysisRecord(ContractModel):

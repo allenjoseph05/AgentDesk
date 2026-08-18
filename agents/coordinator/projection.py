@@ -69,6 +69,7 @@ class DurableAgUiProjector:
             tasks = repositories.agent_tasks.list_by_session(session_id)
             evidence = repositories.artifacts.list_evidence(session_id)
             claims = repositories.artifacts.list_claims(session_id)
+            research_artifacts = repositories.artifacts.list_research_artifacts(session_id)
             analyses = repositories.artifacts.list_analysis(session_id)
 
         agents = _latest_agent_views(tasks)
@@ -79,6 +80,15 @@ class DurableAgUiProjector:
             if status == "partial" or (failed_agents and status != "failed")
             else []
         )
+        for record in research_artifacts:
+            warnings.extend(
+                f"Evidence gap: {unknown}" for unknown in record.envelope.payload.unknowns
+            )
+            warnings.extend(
+                f"Research note: {note}"
+                for note in record.envelope.payload.research_notes
+            )
+        warnings = list(dict.fromkeys(warnings))
         errors = ["The workflow could not be completed."] if status == "failed" else []
         return AgentDeskViewState(
             session_id=session.id,
