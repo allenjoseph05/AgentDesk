@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -10,7 +11,7 @@ from typing import Any, Literal
 import httpx
 from a2a.client import ClientConfig, ClientFactory
 from a2a.helpers.proto_helpers import get_message_text, new_text_message
-from a2a.types import Role, SendMessageRequest, TaskState
+from a2a.types import CancelTaskRequest, Role, SendMessageRequest, TaskState
 from a2a.utils.constants import TransportProtocol
 from a2a.utils.errors import A2AError
 from google.protobuf.json_format import MessageToDict
@@ -55,11 +56,12 @@ class RemoteTimeoutError(RemoteCallError):
 
 
 class RemoteTransportError(RemoteCallError):
-    def __init__(self, *, agent_id: str) -> None:
+    def __init__(self, *, agent_id: str, remote_task_id: str | None = None) -> None:
         super().__init__(
             "transport_failure",
             f"Remote agent {agent_id} could not be reached over A2A.",
             agent_id=agent_id,
+            remote_task_id=remote_task_id,
         )
 
 
@@ -73,6 +75,9 @@ class RemoteTaskResult[PayloadT: BaseModel]:
     artifact: ArtifactEnvelope[PayloadT]
 
 
+RemoteTaskStartedHandler = Callable[[str], Awaitable[None]]
+
+
 class A2AClientAdapter:
     """Execute one typed request through the official A2A SDK."""
 
@@ -84,11 +89,20 @@ class A2AClientAdapter:
         artifact_name: str,
         payload_model: type[PayloadT],
         timeout_seconds: float,
+        on_task_started: RemoteTaskStartedHandler | None = None,
     ) -> RemoteTaskResult[PayloadT]:
         if timeout_seconds <= 0:
             raise ValueError("Remote execution timeout must be positive.")
         http_client = httpx.AsyncClient(timeout=None)
         client = None
+        started_task_id: str | None = None
+
+        async def report_task_started(remote_task_id: str) -> None:
+            nonlocal started_task_id
+            started_task_id = remote_task_id
+            if on_task_started is not None:
+                await on_task_started(remote_task_id)
+
         try:
             client = ClientFactory(
                 ClientConfig(
@@ -104,13 +118,68 @@ class A2AClientAdapter:
                     request=request,
                     artifact_name=artifact_name,
                     payload_model=payload_model,
+                    on_task_started=report_task_started,
                 )
         except RemoteCallError:
             raise
         except TimeoutError as error:
-            raise RemoteTimeoutError(agent_id=agent.agent_id) from error
+            raise RemoteTimeoutError(
+                agent_id=agent.agent_id, remote_task_id=started_task_id
+            ) from error
         except (A2AError, httpx.HTTPError, OSError, ValueError) as error:
-            raise RemoteTransportError(agent_id=agent.agent_id) from error
+            raise RemoteTransportError(
+                agent_id=agent.agent_id, remote_task_id=started_task_id
+            ) from error
+        finally:
+            if client is not None:
+                with suppress(Exception):
+                    await client.close()
+            elif not http_client.is_closed:
+                await http_client.aclose()
+
+    async def cancel(
+        self,
+        *,
+        agent: RegisteredAgent,
+        remote_task_id: str,
+        timeout_seconds: float,
+    ) -> None:
+        """Request cancellation of one known remote A2A task."""
+        if timeout_seconds <= 0:
+            raise ValueError("Remote cancellation timeout must be positive.")
+        if not remote_task_id.strip():
+            raise ValueError("Remote task ID cannot be blank.")
+        http_client = httpx.AsyncClient(timeout=None)
+        client = None
+        try:
+            client = ClientFactory(
+                ClientConfig(
+                    streaming=True,
+                    httpx_client=http_client,
+                    supported_protocol_bindings=[TransportProtocol.HTTP_JSON],
+                )
+            ).create(agent.card)
+            async with asyncio.timeout(timeout_seconds):
+                cancelled_task = await client.cancel_task(
+                    CancelTaskRequest(id=remote_task_id)
+                )
+            if cancelled_task.status.state != TaskState.TASK_STATE_CANCELED:
+                raise RemoteCallError(
+                    "remote_task_failed",
+                    f"Remote agent {agent.agent_id} did not cancel task {remote_task_id}.",
+                    agent_id=agent.agent_id,
+                    remote_task_id=remote_task_id,
+                )
+        except RemoteCallError:
+            raise
+        except TimeoutError as error:
+            raise RemoteTimeoutError(
+                agent_id=agent.agent_id, remote_task_id=remote_task_id
+            ) from error
+        except (A2AError, httpx.HTTPError, OSError, ValueError) as error:
+            raise RemoteTransportError(
+                agent_id=agent.agent_id, remote_task_id=remote_task_id
+            ) from error
         finally:
             if client is not None:
                 with suppress(Exception):
@@ -126,11 +195,13 @@ class A2AClientAdapter:
         request: BaseModel,
         artifact_name: str,
         payload_model: type[PayloadT],
+        on_task_started: RemoteTaskStartedHandler | None = None,
     ) -> RemoteTaskResult[PayloadT]:
         remote_task_id: str | None = None
         remote_context_id: str | None = None
         artifact: ArtifactEnvelope[PayloadT] | None = None
         completed = False
+        task_started_notified = False
         send_request = SendMessageRequest(
             message=new_text_message(
                 request.model_dump_json(),
@@ -142,6 +213,9 @@ class A2AClientAdapter:
             if response.HasField("task"):
                 remote_task_id = response.task.id
                 remote_context_id = response.task.context_id
+                if not task_started_notified and on_task_started is not None:
+                    await on_task_started(remote_task_id)
+                    task_started_notified = True
                 continue
             if response.HasField("artifact_update"):
                 update = response.artifact_update

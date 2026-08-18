@@ -138,8 +138,10 @@ class RecordingRemoteClient:
     async def execute(self, **kwargs: Any):
         self.calls.append(kwargs)
         if kwargs["payload_model"] is EvidenceBundle:
+            await kwargs["on_task_started"]("research-task-42")
             return _result("researcher", "research-task-42", self._evidence)
         if kwargs["payload_model"] is DecisionAnalysis:
+            await kwargs["on_task_started"]("analysis-task-42")
             request = kwargs["request"]
             assert isinstance(request, AnalysisRequest)
             assert request.evidence_bundle == self._evidence
@@ -176,6 +178,34 @@ def test_orchestrator_runs_research_before_analysis_and_preserves_remote_ids() -
     assert execution.analysis.remote_task_id == "analysis-task-42"
     assert execution.research.artifact.payload == evidence
     assert execution.analysis.artifact.payload == analysis
+
+
+def test_orchestrator_reports_remote_task_lifecycle() -> None:
+    request, evidence, analysis = _fixture_values()
+    remote = RecordingRemoteClient(evidence, analysis)
+    lifecycle: list[tuple[str, str, str]] = []
+
+    async def started(agent: RegisteredAgent, task_id: str) -> None:
+        lifecycle.append(("started", agent.agent_id, task_id))
+
+    async def finished(agent: RegisteredAgent, task_id: str) -> None:
+        lifecycle.append(("finished", agent.agent_id, task_id))
+
+    asyncio.run(
+        WorkflowOrchestrator(registry=_registry(), remote_client=remote).execute(
+            request,
+            _plan(),
+            on_remote_task_started=started,
+            on_remote_task_finished=finished,
+        )
+    )
+
+    assert lifecycle == [
+        ("started", "researcher", "research-task-42"),
+        ("finished", "researcher", "research-task-42"),
+        ("started", "analyst", "analysis-task-42"),
+        ("finished", "analyst", "analysis-task-42"),
+    ]
 
 
 def test_research_failure_prevents_analysis_from_starting() -> None:
@@ -257,19 +287,71 @@ def test_adapter_validates_artifact_and_captures_task_and_context_ids() -> None:
         card=create_research_card("https://research.example"),
     )
 
-    result = asyncio.run(
-        A2AClientAdapter()._consume_stream(
+    started_task_ids: list[str] = []
+
+    async def task_started(started_task_id: str) -> None:
+        started_task_ids.append(started_task_id)
+
+    async def consume():
+        return await A2AClientAdapter()._consume_stream(
             FakeStreamClient(responses),
             agent=agent,
             request=request,
             artifact_name="evidence-bundle",
             payload_model=EvidenceBundle,
+            on_task_started=task_started,
         )
-    )
+
+    result = asyncio.run(consume())
 
     assert result.remote_task_id == task_id
     assert result.remote_context_id == context_id
     assert result.artifact.payload == evidence
+    assert started_task_ids == [task_id]
+
+
+def test_adapter_sends_official_a2a_cancellation_request(monkeypatch: pytest.MonkeyPatch) -> None:
+    requests: list[Any] = []
+
+    class FakeCancelClient:
+        def __init__(self, http_client: httpx.AsyncClient) -> None:
+            self._http_client = http_client
+
+        async def cancel_task(self, request: Any) -> Task:
+            requests.append(request)
+            return Task(
+                id=request.id,
+                context_id="workflow-context",
+                status=TaskStatus(state=TaskState.TASK_STATE_CANCELED),
+            )
+
+        async def close(self) -> None:
+            await self._http_client.aclose()
+
+    class FakeClientFactory:
+        def __init__(self, config: Any) -> None:
+            self._config = config
+
+        def create(self, _: Any) -> FakeCancelClient:
+            return FakeCancelClient(self._config.httpx_client)
+
+    monkeypatch.setattr("agents.coordinator.a2a_client.ClientFactory", FakeClientFactory)
+    agent = RegisteredAgent(
+        agent_id="researcher",
+        base_url="https://research.example",
+        card=create_research_card("https://research.example"),
+    )
+
+    asyncio.run(
+        A2AClientAdapter().cancel(
+            agent=agent,
+            remote_task_id="research-task-cancel",
+            timeout_seconds=1,
+        )
+    )
+
+    assert len(requests) == 1
+    assert requests[0].id == "research-task-cancel"
 
 
 class SlowAdapter(A2AClientAdapter):
