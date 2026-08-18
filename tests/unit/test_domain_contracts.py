@@ -102,6 +102,51 @@ def test_decision_analysis_accepts_weighted_scores() -> None:
     assert analysis.criteria[0].scores["PostgreSQL"] == 9
 
 
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"arguments_against": []},
+        {"assumptions": []},
+        {"risks": []},
+        {"recommendation_changes_if": []},
+    ],
+)
+def test_decision_analysis_requires_safety_critical_sections(change: dict) -> None:
+    baseline = {
+        "recommendation": "PostgreSQL",
+        "executive_summary": "Integrity is decisive.",
+        "criteria": [
+            {
+                "criterion": "Data integrity",
+                "weight": 1,
+                "scores": {"PostgreSQL": 9, "MongoDB": 7},
+                "rationale": "The supplied claim supports relational integrity.",
+                "supporting_claim_ids": ["claim-1"],
+            }
+        ],
+        "arguments_for": ["Strong relational constraints."],
+        "arguments_against": ["Schema evolution needs care."],
+        "assumptions": ["The workload remains relational."],
+        "risks": ["Workload patterns may change."],
+        "recommendation_changes_if": ["Document writes dominate."],
+    }
+
+    with pytest.raises(ValidationError):
+        DecisionAnalysis.model_validate({**baseline, **change})
+
+
+@pytest.mark.parametrize("score", [-0.1, 10.1])
+def test_decision_analysis_rejects_scores_outside_zero_to_ten(score: float) -> None:
+    with pytest.raises(ValidationError):
+        CriterionScore(
+            criterion="Data integrity",
+            weight=1,
+            scores={"PostgreSQL": score},
+            rationale="Evidence-bound rationale.",
+            supporting_claim_ids=["claim-1"],
+        )
+
+
 def test_analysis_request_carries_bounded_options_criteria_and_evidence() -> None:
     request = AnalysisRequest(
         question="Should this workload use PostgreSQL or MongoDB?",

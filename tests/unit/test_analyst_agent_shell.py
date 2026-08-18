@@ -11,7 +11,7 @@ from a2a.helpers.proto_helpers import get_message_text, new_text_message
 from a2a.server.agent_execution import RequestContext
 from a2a.server.context import ServerCallContext
 from a2a.server.events.event_queue import Event, EventQueue
-from a2a.types import Message, Role, SendMessageRequest
+from a2a.types import Role, SendMessageRequest, Task, TaskState, TaskStatusUpdateEvent
 from httpx import ASGITransport, AsyncClient
 
 from agents.analyst.agent_card import create_agent_card
@@ -90,12 +90,12 @@ def test_service_accepts_a_structured_evidence_request() -> None:
         AnalystAgentExecutor().execute(_context(_analysis_request().model_dump_json()), queue)
     )
 
-    assert len(queue.events) == 1
-    response = queue.events[0]
-    assert isinstance(response, Message)
-    assert get_message_text(response) == (
-        "Structured evidence accepted; analysis is not configured yet."
-    )
+    assert len(queue.events) == 2
+    assert isinstance(queue.events[0], Task)
+    status = queue.events[1]
+    assert isinstance(status, TaskStatusUpdateEvent)
+    assert status.status.state == TaskState.TASK_STATE_FAILED
+    assert get_message_text(status.status.message) == "Decision analysis is not configured."
 
 
 def test_service_rejects_malformed_evidence_input_at_the_contract_boundary() -> None:
@@ -107,10 +107,12 @@ def test_service_rejects_malformed_evidence_input_at_the_contract_boundary() -> 
         )
     )
 
-    assert len(queue.events) == 1
-    response = queue.events[0]
-    assert isinstance(response, Message)
-    assert "AnalysisRequest schema" in get_message_text(response)
+    assert len(queue.events) == 2
+    assert isinstance(queue.events[0], Task)
+    status = queue.events[1]
+    assert isinstance(status, TaskStatusUpdateEvent)
+    assert status.status.state == TaskState.TASK_STATE_REJECTED
+    assert "AnalysisRequest schema" in get_message_text(status.status.message)
 
 
 def test_operations_endpoints_and_agent_card_are_available() -> None:
