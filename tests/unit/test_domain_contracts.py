@@ -14,6 +14,7 @@ from packages.contracts import (
     DecisionAnalysis,
     Evidence,
     EvidenceBundle,
+    RecommendationChallenge,
     ResearchRequest,
     VerificationReport,
     VerificationResult,
@@ -188,6 +189,61 @@ def test_analysis_request_rejects_ambiguous_or_mismatched_context(
             options=options,
             criteria=criteria,
             evidence_bundle=valid_bundle(),
+        )
+
+
+def test_analysis_request_accepts_challenge_mode_with_current_recommendation() -> None:
+    request = AnalysisRequest(
+        question=valid_bundle().question,
+        options=["PostgreSQL", "MongoDB"],
+        criteria=["Data integrity"],
+        evidence_bundle=valid_bundle(),
+        mode="challenge_current_recommendation",
+        current_recommendation="PostgreSQL",
+    )
+
+    assert request.mode == "challenge_current_recommendation"
+    assert request.current_recommendation == "PostgreSQL"
+
+
+@pytest.mark.parametrize(
+    ("mode", "current_recommendation"),
+    [
+        ("challenge_current_recommendation", None),
+        ("challenge_current_recommendation", "Redis"),
+        ("compare_options", "PostgreSQL"),
+    ],
+)
+def test_analysis_request_rejects_invalid_mode_context(
+    mode: str, current_recommendation: str | None
+) -> None:
+    with pytest.raises(ValidationError):
+        AnalysisRequest(
+            question=valid_bundle().question,
+            options=["PostgreSQL", "MongoDB"],
+            criteria=["Data integrity"],
+            evidence_bundle=valid_bundle(),
+            mode=mode,
+            current_recommendation=current_recommendation,
+        )
+
+
+def test_recommendation_challenge_requires_a_complete_counterargument() -> None:
+    challenge = RecommendationChallenge(
+        current_recommendation="PostgreSQL",
+        strongest_alternative="MongoDB",
+        strongest_counterargument="Document flexibility could dominate the decision.",
+        supporting_claim_ids=["claim-1"],
+        assumptions=["Document writes become dominant."],
+        evidence_gaps=["Production access patterns are unknown."],
+        recommendation_changes_if=["Relational integrity becomes secondary."],
+    )
+
+    assert challenge.strongest_alternative == "MongoDB"
+
+    with pytest.raises(ValidationError):
+        RecommendationChallenge.model_validate(
+            {**challenge.model_dump(), "supporting_claim_ids": []}
         )
 
 

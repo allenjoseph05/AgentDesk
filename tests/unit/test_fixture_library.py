@@ -27,6 +27,7 @@ def test_every_shared_fixture_loads_as_strict_domain_models() -> None:
     golden = fixtures[0]
     assert golden.evidence_bundle is not None
     assert golden.decision_analysis is not None
+    assert golden.recommendation_challenge is not None
     assert golden.verification_report is not None
 
 

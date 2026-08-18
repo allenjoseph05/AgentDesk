@@ -7,6 +7,7 @@ from pydantic import AnyHttpUrl, AwareDatetime, Field, FiniteFloat, model_valida
 from packages.contracts.base import ContractModel, NonEmptyText
 
 Depth = Literal["fast", "normal", "deep"]
+AnalysisMode = Literal["compare_options", "challenge_current_recommendation"]
 SourceType = Literal[
     "official_documentation",
     "primary_source",
@@ -90,6 +91,8 @@ class AnalysisRequest(ContractModel):
     constraints: list[NonEmptyText] = Field(default_factory=list)
     criteria: list[NonEmptyText] = Field(min_length=1)
     evidence_bundle: EvidenceBundle
+    mode: AnalysisMode = "compare_options"
+    current_recommendation: NonEmptyText | None = None
 
     @model_validator(mode="after")
     def validate_decision_context(self) -> "AnalysisRequest":
@@ -103,6 +106,13 @@ class AnalysisRequest(ContractModel):
 
         if self.question.casefold() != self.evidence_bundle.question.casefold():
             raise ValueError("Analysis question must match the evidence bundle question.")
+        if self.mode == "challenge_current_recommendation":
+            if self.current_recommendation is None:
+                raise ValueError("Challenge mode requires the current recommendation.")
+            if self.current_recommendation not in self.options:
+                raise ValueError("Current recommendation must be one of the supplied options.")
+        elif self.current_recommendation is not None:
+            raise ValueError("Current recommendation is only valid in challenge mode.")
         return self
 
 
@@ -126,6 +136,18 @@ class DecisionAnalysis(ContractModel):
     arguments_against: list[NonEmptyText] = Field(min_length=1)
     assumptions: list[NonEmptyText] = Field(min_length=1)
     risks: list[NonEmptyText] = Field(min_length=1)
+    recommendation_changes_if: list[NonEmptyText] = Field(min_length=1)
+
+
+class RecommendationChallenge(ContractModel):
+    """Evidence-bound strongest case against an existing recommendation."""
+
+    current_recommendation: NonEmptyText
+    strongest_alternative: NonEmptyText
+    strongest_counterargument: NonEmptyText
+    supporting_claim_ids: list[NonEmptyText] = Field(min_length=1)
+    assumptions: list[NonEmptyText] = Field(min_length=1)
+    evidence_gaps: list[NonEmptyText] = Field(default_factory=list)
     recommendation_changes_if: list[NonEmptyText] = Field(min_length=1)
 
 

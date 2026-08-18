@@ -30,9 +30,9 @@ def create_agent_card(base_url: str) -> AgentCard:
                 name="Decision analysis",
                 description=(
                     "Score named options against supplied criteria using only the provided "
-                    "evidence, constraints, and decision context."
+                    "evidence and challenge an existing recommendation when requested."
                 ),
-                tags=["analysis", "decisions", "scoring", "evidence"],
+                tags=["analysis", "decisions", "scoring", "evidence", "challenge"],
                 examples=[
                     "Compare PostgreSQL and MongoDB using the supplied evidence bundle."
                 ],

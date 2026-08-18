@@ -12,16 +12,22 @@ from a2a.server.events.event_queue import EventQueue
 from a2a.server.tasks import TaskUpdater
 from pydantic import ValidationError
 
-from agents.analyst.analysis import DecisionAnalysisError, DecisionAnalyzer
+from agents.analyst.analysis import (
+    DecisionAnalysisError,
+    DecisionAnalyzer,
+    RecommendationChallengeError,
+)
 from packages.contracts import (
     AnalysisRequest,
     ArtifactEnvelope,
     ArtifactProvenance,
     DecisionAnalysis,
+    RecommendationChallenge,
 )
 from packages.llm import LLMProviderError
 
 FINAL_ANALYSIS_ARTIFACT = "decision-analysis"
+FINAL_CHALLENGE_ARTIFACT = "recommendation-challenge"
 
 
 class AnalystAgentExecutor(AgentExecutor):
@@ -53,34 +59,47 @@ class AnalystAgentExecutor(AgentExecutor):
             )
             return
 
-        await updater.start_work(
-            self._status_message(context, "Analyzing options against supplied evidence.")
+        challenge_mode = request.mode == "challenge_current_recommendation"
+        working_message = (
+            "Challenging the current recommendation using supplied evidence."
+            if challenge_mode
+            else "Analyzing options against supplied evidence."
         )
+        await updater.start_work(self._status_message(context, working_message))
         try:
-            analysis = await self._analyzer.analyze(request)
-        except DecisionAnalysisError as error:
+            output = (
+                await self._analyzer.challenge(request)
+                if challenge_mode
+                else await self._analyzer.analyze(request)
+            )
+        except (DecisionAnalysisError, RecommendationChallengeError) as error:
             await updater.failed(
-                self._status_message(context, f"Decision analysis failed ({error.code}).")
+                self._status_message(context, f"Analyst output failed ({error.code}).")
             )
             return
         except LLMProviderError:
             await updater.failed(
-                self._status_message(context, "The decision analysis provider failed.")
+                self._status_message(context, "The Analyst provider failed.")
             )
             return
         except Exception:
             await updater.failed(
-                self._status_message(context, "Decision analysis failed unexpectedly.")
+                self._status_message(context, "Analysis failed unexpectedly.")
             )
             return
 
         await updater.add_artifact(
-            [new_data_part(self._envelope(context, analysis), media_type="application/json")],
-            name=FINAL_ANALYSIS_ARTIFACT,
+            [new_data_part(self._envelope(context, output), media_type="application/json")],
+            name=FINAL_CHALLENGE_ARTIFACT if challenge_mode else FINAL_ANALYSIS_ARTIFACT,
             metadata={"partial": False, "schemaVersion": "1.0"},
             last_chunk=True,
         )
-        await updater.complete(self._status_message(context, "Decision analysis completed."))
+        completion_message = (
+            "Recommendation challenge completed."
+            if challenge_mode
+            else "Decision analysis completed."
+        )
+        await updater.complete(self._status_message(context, completion_message))
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.task_id is None or context.context_id is None:
@@ -97,15 +116,25 @@ class AnalystAgentExecutor(AgentExecutor):
         )
 
     @staticmethod
-    def _envelope(context: RequestContext, analysis: DecisionAnalysis) -> dict[str, object]:
+    def _envelope(
+        context: RequestContext,
+        output: DecisionAnalysis | RecommendationChallenge,
+    ) -> dict[str, object]:
         if context.task_id is None:  # pragma: no cover - guarded by execute
             raise ValueError("Artifact provenance requires a task ID.")
-        envelope = ArtifactEnvelope[DecisionAnalysis](
-            provenance=ArtifactProvenance(
-                producer_agent="analyst",
-                remote_task_id=context.task_id,
-                created_at=datetime.now(UTC),
-            ),
-            payload=analysis,
+        provenance = ArtifactProvenance(
+            producer_agent="analyst",
+            remote_task_id=context.task_id,
+            created_at=datetime.now(UTC),
         )
+        if isinstance(output, DecisionAnalysis):
+            envelope = ArtifactEnvelope[DecisionAnalysis](
+                provenance=provenance,
+                payload=output,
+            )
+        else:
+            envelope = ArtifactEnvelope[RecommendationChallenge](
+                provenance=provenance,
+                payload=output,
+            )
         return envelope.model_dump(mode="json")
