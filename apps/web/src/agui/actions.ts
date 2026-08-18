@@ -6,10 +6,10 @@ const nonEmptyText = z.string().trim().min(1);
 const startResearchPayloadSchema = z
   .object({
     question: nonEmptyText,
-    options: z.array(nonEmptyText),
-    constraints: z.array(nonEmptyText),
-    criteria: z.array(nonEmptyText),
-    desiredDepth: z.enum(["fast", "normal", "deep"]),
+    options: z.array(nonEmptyText).default([]),
+    constraints: z.array(nonEmptyText).default([]),
+    criteria: z.array(nonEmptyText).default([]),
+    desiredDepth: z.enum(["fast", "normal", "deep"]).default("normal"),
   })
   .strict();
 
@@ -32,7 +32,7 @@ export const AgentDeskActionSchema = z.discriminatedUnion("type", [
       ...common,
       type: z.literal("challenge_recommendation"),
       sessionId: nonEmptyText,
-      payload: z.object({ challenge: nonEmptyText.nullable() }).strict(),
+      payload: z.object({ challenge: nonEmptyText.nullable().default(null) }).strict(),
     })
     .strict(),
   z
@@ -42,8 +42,8 @@ export const AgentDeskActionSchema = z.discriminatedUnion("type", [
       sessionId: nonEmptyText,
       payload: z
         .object({
-          focusAreas: z.array(nonEmptyText),
-          desiredDepth: z.enum(["normal", "deep"]),
+          focusAreas: z.array(nonEmptyText).default([]),
+          desiredDepth: z.enum(["normal", "deep"]).default("deep"),
         })
         .strict(),
     })
@@ -62,7 +62,10 @@ export const AgentDeskActionSchema = z.discriminatedUnion("type", [
       type: z.literal("retry_failed_agent"),
       sessionId: nonEmptyText,
       payload: z
-        .object({ agentId: nonEmptyText, remoteTaskId: nonEmptyText.nullable() })
+        .object({
+          agentId: nonEmptyText,
+          remoteTaskId: nonEmptyText.nullable().default(null),
+        })
         .strict(),
     })
     .strict(),
