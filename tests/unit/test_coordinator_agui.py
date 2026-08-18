@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
 from agents.coordinator.agui import stream_run_events
-from agents.coordinator.main import app, create_app
+from agents.coordinator.main import create_app
 
 
 def _start_action() -> dict[str, Any]:
@@ -49,8 +49,9 @@ def _input(
 
 
 async def _post_events(
-    payload: dict[str, Any], application: FastAPI = app
+    payload: dict[str, Any], application: FastAPI | None = None
 ) -> tuple[int, str, list[dict[str, Any]]]:
+    application = application or create_app()
     transport = ASGITransport(app=application)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
@@ -141,7 +142,14 @@ def test_ag_ui_endpoint_streams_lifecycle_state_step_and_message_events() -> Non
     assert snapshot["warnings"] == snapshot["errors"] == snapshot["availableActions"] == []
     assert snapshot["lastUpdatedAt"].endswith("Z")
     assert events[3]["messageId"] == events[4]["messageId"] == events[5]["messageId"]
-    assert events[-1]["result"] == {"sessionId": "run-1", "actionId": "action-1"}
+    assert events[-1]["result"] == {
+        "threadId": "thread-1",
+        "runId": "run-1",
+        "sessionId": "run-1",
+        "actionId": "action-1",
+        "status": "completed",
+        "remoteTasks": [],
+    }
 
 
 def test_ag_ui_endpoint_rejects_message_action_disagreement() -> None:

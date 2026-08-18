@@ -9,6 +9,11 @@ from fastapi import FastAPI
 
 from agents.coordinator.agui import router as ag_ui_router
 from agents.coordinator.registry import AgentRegistry, AgentRegistrySettings
+from agents.coordinator.run_adapter import (
+    A2ATaskCommandExecutor,
+    CoordinatorCommandExecutor,
+    CoordinatorRunAdapter,
+)
 from agents.coordinator.run_tasks import A2ATaskFactory
 
 
@@ -17,8 +22,11 @@ def create_app(
     *,
     registry: AgentRegistry | None = None,
     registry_settings: AgentRegistrySettings | None = None,
+    command_executor: CoordinatorCommandExecutor | None = None,
 ) -> FastAPI:
-    """Create a Coordinator with an optional remote-task spike dependency."""
+    """Create a Coordinator with application-scoped AG-UI run admission."""
+    if task_factory is not None and command_executor is not None:
+        raise ValueError("Supply either task_factory or command_executor, not both.")
     owns_registry = registry is None
     agent_registry = registry or AgentRegistry(
         registry_settings or AgentRegistrySettings.from_environment()
@@ -37,7 +45,10 @@ def create_app(
         version="0.1.0",
         lifespan=lifespan,
     )
-    application.state.ag_ui_task_factory = task_factory
+    executor = command_executor or (
+        A2ATaskCommandExecutor(task_factory) if task_factory is not None else None
+    )
+    application.state.ag_ui_run_adapter = CoordinatorRunAdapter(executor=executor)
     application.state.agent_registry = agent_registry
     application.include_router(ag_ui_router)
 
