@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 TEST_DATABASE_ROOT = ROOT / ".test-databases"
 EXPECTED_TABLES = {
     "sessions",
+    "workflow_transitions",
     "coordinator_runs",
     "agent_tasks",
     "evidence",
@@ -114,6 +115,7 @@ def test_migration_creates_required_tables_correlations_and_indexes() -> None:
                 "ix_agent_tasks_remote_task",
                 "ix_evidence_session_retrieved",
                 "ix_analysis_session_created",
+                "ix_workflow_transitions_session_occurred",
             } <= indexes
         finally:
             engine.dispose()
@@ -152,4 +154,5 @@ def test_initial_revision_compiles_for_postgresql_without_a_connection() -> None
     migration_sql = output.getvalue()
     assert "CREATE TABLE sessions" in migration_sql
     assert "CREATE TABLE agent_tasks" in migration_sql
+    assert "CREATE TABLE workflow_transitions" in migration_sql
     assert "CREATE INDEX ix_agent_tasks_remote_task" in migration_sql
