@@ -6,6 +6,7 @@ import ast
 import asyncio
 import json
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -18,12 +19,15 @@ from agents.coordinator.run_adapter import (
     CoordinatorCommand,
     CoordinatorRunAdapter,
     CoordinatorRunOutcome,
+    CoordinatorRunUpdate,
+    CoordinatorStateUpdate,
     FocusOnCriterionCommand,
     RemoteTaskCorrelation,
     ResearchDeeperCommand,
     RetryFailedAgentCommand,
     StartResearchCommand,
 )
+from packages.contracts import AgentDeskViewState
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -401,6 +405,50 @@ def test_follow_up_session_mismatch_is_rejected_before_delegation() -> None:
     assert [event["type"] for event in events] == ["RUN_STARTED", "RUN_ERROR"]
     assert events[-1]["code"] == "invalid_session_state"
     assert executor.commands == []
+
+
+def test_state_updates_emit_deltas_and_ignore_stale_sequences() -> None:
+    class SequencedExecutor:
+        async def execute(
+            self,
+            command: CoordinatorCommand,
+        ) -> AsyncIterator[CoordinatorRunUpdate]:
+            base = AgentDeskViewState(
+                session_id=command.correlation.session_id,
+                question="Should we use PostgreSQL or MongoDB?",
+                status="researching",
+                active_step="research",
+                last_updated_at=datetime(2026, 8, 17, 12, 0, tzinfo=UTC),
+            )
+            analyzing = base.model_copy(
+                update={
+                    "status": "analyzing",
+                    "active_step": "analysis",
+                    "last_updated_at": base.last_updated_at + timedelta(seconds=2),
+                }
+            )
+            yield CoordinatorStateUpdate(base, sequence=1)
+            yield CoordinatorStateUpdate(analyzing, sequence=3)
+            yield CoordinatorStateUpdate(base, sequence=2)
+            yield CoordinatorStateUpdate(analyzing, sequence=3)
+            yield CoordinatorRunOutcome(status="completed")
+
+    events = asyncio.run(
+        _events(
+            CoordinatorRunAdapter(executor=SequencedExecutor()),
+            _input(
+                _start_action(),
+                "Should we use PostgreSQL or MongoDB?",
+            ),
+        )
+    )
+
+    deltas = [event for event in events if event["type"] == "STATE_DELTA"]
+    assert len(deltas) == 2
+    latest = {operation["path"]: operation["value"] for operation in deltas[-1]["delta"]}
+    assert latest["/status"] == "analyzing"
+    assert latest["/activeStep"] == "analysis"
+    assert events[-1]["type"] == "RUN_FINISHED"
 
 
 def test_run_adapter_has_no_specialist_implementation_imports() -> None:
