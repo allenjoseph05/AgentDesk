@@ -11,9 +11,12 @@ requires-python = ">=3.14,<3.15"
 dependencies = [
     "a2a-sdk[fastapi]==1.1.2",
     "ag-ui-protocol==0.1.20",
+    "alembic==1.18.5",
     "fastapi==0.141.1",
     "httpx==0.28.1",
+    "psycopg[binary]==3.3.4",
     "pydantic==2.13.4",
+    "SQLAlchemy==2.0.51",
     "uvicorn[standard]==0.52.3",
 ]
 
@@ -25,6 +28,13 @@ dev = [
 
 [tool.setuptools.packages.find]
 include = ["agents*", "packages*"]
+
+[tool.setuptools.package-data]
+"packages.persistence" = [
+    "migrations/*.py",
+    "migrations/*.mako",
+    "migrations/versions/*.py",
+]
 
 [tool.pytest.ini_options]
 addopts = "-ra"
