@@ -151,6 +151,20 @@ class RecommendationChallenge(ContractModel):
     recommendation_changes_if: list[NonEmptyText] = Field(min_length=1)
 
 
+class FinalSynthesis(ContractModel):
+    """Coordinator-owned final result assembled from specialist artifacts."""
+
+    question: NonEmptyText
+    summary: NonEmptyText
+    recommendation: NonEmptyText
+    assumptions: list[NonEmptyText] = Field(min_length=1)
+    warnings: list[NonEmptyText] = Field(default_factory=list)
+    supporting_claim_ids: list[NonEmptyText] = Field(min_length=1)
+    evidence_count: int = Field(ge=1)
+    research_task_id: NonEmptyText
+    analysis_task_id: NonEmptyText
+
+
 class VerificationResult(ContractModel):
     """Verdict for one claim and its supporting evidence references."""
 
