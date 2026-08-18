@@ -37,7 +37,7 @@ class RemoteCancellationFailure:
     detail: str
 
 
-@dataclass(frozen=True)
+@dataclass
 class CancellationResult:
     """Terminal local outcome and diagnostics for remote cancellation attempts."""
 
@@ -70,6 +70,7 @@ class CancellationCoordinator:
         self._on_state_snapshot = on_state_snapshot
         self._active_tasks: dict[str, RegisteredAgent] = {}
         self._attempted_task_ids: set[str] = set()
+        self._failures: dict[str, RemoteCancellationFailure] = {}
         self._lock = asyncio.Lock()
         self._cancellation_task: asyncio.Task[CancellationResult] | None = None
         self._result: CancellationResult | None = None
@@ -99,7 +100,18 @@ class CancellationCoordinator:
                 self._active_tasks[remote_task_id] = agent
 
         if cancel_immediately:
-            return await self._cancel_one(agent, remote_task_id)
+            failure = await self._cancel_one(agent, remote_task_id)
+            async with self._lock:
+                if failure is not None:
+                    self._failures[remote_task_id] = failure
+                if self._result is not None:
+                    self._result.attempted_task_ids = tuple(
+                        sorted(self._attempted_task_ids)
+                    )
+                    self._result.failures = tuple(
+                        self._failures[task_id] for task_id in sorted(self._failures)
+                    )
+            return failure
         return None
 
     async def complete(self, remote_task_id: str) -> None:
@@ -155,6 +167,9 @@ class CancellationCoordinator:
         failures = tuple(outcome for outcome in outcomes if outcome is not None)
 
         async with self._lock:
+            self._failures.update(
+                (failure.remote_task_id, failure) for failure in failures
+            )
             for remote_task_id, _ in active_tasks:
                 self._active_tasks.pop(remote_task_id, None)
             cancelled = self._state_machine.transition("cancelled", reason=reason)
@@ -162,8 +177,10 @@ class CancellationCoordinator:
         await self._notify(cancelled, notification_errors)
         result = CancellationResult(
             snapshot=cancelled,
-            attempted_task_ids=tuple(sorted(task_id for task_id, _ in active_tasks)),
-            failures=failures,
+            attempted_task_ids=tuple(sorted(self._attempted_task_ids)),
+            failures=tuple(
+                self._failures[task_id] for task_id in sorted(self._failures)
+            ),
             notification_errors=tuple(notification_errors),
         )
         async with self._lock:

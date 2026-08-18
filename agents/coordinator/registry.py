@@ -93,18 +93,28 @@ class AgentRegistrySettings(ContractModel):
             ]
         else:
             endpoints = [
-                AgentEndpointConfig(
-                    agent_id="researcher",
-                    base_url=source.get("RESEARCH_AGENT_URL", DEFAULT_RESEARCH_AGENT_URL),
+                AgentEndpointConfig.model_validate(
+                    {
+                        "agent_id": "researcher",
+                        "base_url": source.get(
+                            "RESEARCH_AGENT_URL", DEFAULT_RESEARCH_AGENT_URL
+                        ),
+                    }
                 ),
-                AgentEndpointConfig(
-                    agent_id="analyst",
-                    base_url=source.get("ANALYST_AGENT_URL", DEFAULT_ANALYST_AGENT_URL),
+                AgentEndpointConfig.model_validate(
+                    {
+                        "agent_id": "analyst",
+                        "base_url": source.get(
+                            "ANALYST_AGENT_URL", DEFAULT_ANALYST_AGENT_URL
+                        ),
+                    }
                 ),
             ]
 
         timeout = source.get(REGISTRY_TIMEOUT_ENV, "5")
-        return cls(endpoints=endpoints, request_timeout_seconds=timeout)
+        return cls.model_validate(
+            {"endpoints": endpoints, "request_timeout_seconds": timeout}
+        )
 
 
 class RegistryDiagnostic(ContractModel):

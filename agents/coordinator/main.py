@@ -15,6 +15,9 @@ from agents.coordinator.run_adapter import (
     CoordinatorRunAdapter,
 )
 from agents.coordinator.run_tasks import A2ATaskFactory
+from packages.config import load_project_environment
+
+load_project_environment()
 
 
 def create_app(

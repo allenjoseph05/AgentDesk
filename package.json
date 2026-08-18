@@ -21,7 +21,7 @@
     "hello:stream": "python scripts/run_python.py -m agents.hello.stream_client",
     "dev:web": "npm run dev --workspace @agentdesk/web",
     "lint": "python scripts/run_python.py -m ruff check . && npm run lint --workspace @agentdesk/web",
-    "typecheck": "python scripts/run_python.py -m compileall -q agents packages tests && npm run typecheck --workspace @agentdesk/web",
+    "typecheck": "python scripts/run_python.py -m mypy && npm run typecheck --workspace @agentdesk/web",
     "test": "python scripts/run_python.py -m pytest && npm test --workspace @agentdesk/web",
     "build": "npm run build --workspace @agentdesk/web"
   }

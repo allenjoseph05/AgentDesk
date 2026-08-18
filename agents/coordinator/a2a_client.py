@@ -230,7 +230,9 @@ class A2AClientAdapter:
                         if part.WhichOneof("content") != "data":
                             raise ValueError("final artifact did not contain structured data")
                         data = MessageToDict(part.data)
-                        artifact = ArtifactEnvelope[payload_model].model_validate(data)
+                        # Pydantic intentionally supports runtime specialization here; static
+                        # type checkers cannot represent a class indexed by a runtime model.
+                        artifact = ArtifactEnvelope[payload_model].model_validate(data)  # type: ignore[valid-type]
                     except (ValidationError, IndexError, ValueError) as error:
                         raise self._invalid_artifact(
                             agent, remote_task_id, "artifact schema mismatch"

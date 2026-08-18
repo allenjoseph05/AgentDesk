@@ -234,7 +234,7 @@ class CoordinatorRunAdapter:
         encoder: EventEncoder,
     ) -> AsyncIterator[str]:
         yield encoder.encode(
-            RunStartedEvent(threadId=input_data.thread_id, runId=input_data.run_id)
+            RunStartedEvent(thread_id=input_data.thread_id, run_id=input_data.run_id)
         )
 
         try:
@@ -288,7 +288,7 @@ class CoordinatorRunAdapter:
 
         step_name = _step_name(command)
         projection = AgUiEventProjection(initial_state)
-        yield encoder.encode(StepStartedEvent(stepName=step_name))
+        yield encoder.encode(StepStartedEvent(step_name=step_name))
         yield encoder.encode(projection.snapshot_event())
 
         terminal_seen = False
@@ -318,20 +318,20 @@ class CoordinatorRunAdapter:
                 if update.message:
                     message_id = str(uuid4())
                     yield encoder.encode(
-                        TextMessageStartEvent(messageId=message_id, role="assistant")
+                        TextMessageStartEvent(message_id=message_id, role="assistant")
                     )
                     yield encoder.encode(
                         TextMessageContentEvent(
-                            messageId=message_id,
+                            message_id=message_id,
                             delta=update.message,
                         )
                     )
-                    yield encoder.encode(TextMessageEndEvent(messageId=message_id))
-                yield encoder.encode(StepFinishedEvent(stepName=step_name))
+                    yield encoder.encode(TextMessageEndEvent(message_id=message_id))
+                yield encoder.encode(StepFinishedEvent(step_name=step_name))
                 yield encoder.encode(
                     RunFinishedEvent(
-                        threadId=correlation.thread_id,
-                        runId=correlation.run_id,
+                        thread_id=correlation.thread_id,
+                        run_id=correlation.run_id,
                         result=_finished_result(correlation, update),
                     )
                 )

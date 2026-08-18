@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import os
+from collections.abc import Mapping
+from typing import Any
+
+from pydantic import BaseModel
 
 from agents.researcher.executor import ResearchAgentExecutor
 from agents.researcher.fake_tools import FakeSearchProvider, create_fixture_providers
@@ -40,7 +44,7 @@ def create_fixture_executor(
     """Compose the production executor boundary with deterministic providers."""
     fixture = load_research_fixture(fixture_id)
     search_provider, source_provider = create_fixture_providers(fixture_id)
-    llm_fixtures = (
+    llm_fixtures: Mapping[type[BaseModel], BaseModel | Mapping[str, Any]] = (
         {EvidenceBundle: fixture.evidence_bundle} if fixture.evidence_bundle is not None else {}
     )
     synthesizer = ResearchSynthesizer(

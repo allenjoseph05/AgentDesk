@@ -10,7 +10,7 @@ from a2a.helpers.proto_helpers import (
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events.event_queue import EventQueue
 from a2a.server.tasks import TaskUpdater
-from a2a.types import TaskState
+from a2a.types import Message, TaskState
 
 STREAM_PREFIX = "stream:"
 STREAM_STEP_DELAY_SECONDS = 0.15
@@ -77,7 +77,7 @@ class HelloAgentExecutor(AgentExecutor):
         await updater.complete(self._status_message(context, "Greeting task completed."))
 
     @staticmethod
-    def _status_message(context: RequestContext, text: str):
+    def _status_message(context: RequestContext, text: str) -> Message:
         return new_text_message(
             text,
             context_id=context.context_id,

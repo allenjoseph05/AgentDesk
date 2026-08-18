@@ -8,6 +8,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from packages.config import load_project_environment
 from packages.persistence.schema import metadata
 
 config = context.config
@@ -18,6 +19,7 @@ target_metadata = metadata
 
 
 def _database_url() -> str:
+    load_project_environment()
     url = os.getenv("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
     if not url:
         raise RuntimeError("DATABASE_URL or alembic sqlalchemy.url is required.")

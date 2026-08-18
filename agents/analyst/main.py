@@ -17,6 +17,9 @@ from fastapi import FastAPI
 
 from agents.analyst.agent_card import create_agent_card
 from agents.analyst.executor import AnalystAgentExecutor
+from packages.config import load_project_environment
+
+load_project_environment()
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8006"
 
