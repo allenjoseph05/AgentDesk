@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import NAMESPACE_URL, uuid5
 
 from agents.coordinator.workflow_state import WorkflowSnapshot, WorkflowTransition
@@ -17,6 +17,7 @@ from packages.persistence import (
     Database,
     EvidenceRecord,
     RepositoryConflictError,
+    ResearchArtifactRecord,
     SessionRecord,
     WorkflowTransitionRecord,
 )
@@ -34,6 +35,7 @@ class ArtifactProvenanceError(WorkflowPersistenceError):
 class EvidencePersistenceResult:
     evidence_inserted: int
     claims_inserted: int
+    bundle_inserted: bool = False
 
 
 class WorkflowPersistenceService:
@@ -127,6 +129,36 @@ class WorkflowPersistenceService:
             repositories.sessions.require(task.session_id)
             repositories.agent_tasks.add(task)
 
+    def finish_agent_task(
+        self,
+        task_id: str,
+        *,
+        status: Literal["completed", "failed", "cancelled"],
+        finished_at: datetime,
+        error_code: str | None = None,
+        error_message: str | None = None,
+    ) -> bool:
+        """Record one terminal specialist outcome; an exact replay is harmless."""
+        with self._database.transaction() as repositories:
+            current = repositories.agent_tasks.require(task_id)
+            replacement = current.model_copy(
+                update={
+                    "status": status,
+                    "finished_at": finished_at,
+                    "error_code": error_code,
+                    "error_message": error_message,
+                }
+            )
+            replacement = AgentTaskRecord.model_validate(
+                replacement.model_dump(mode="python")
+            )
+            if current.status in {"completed", "failed", "cancelled"}:
+                if current != replacement:
+                    raise RepositoryConflictError("agent task outcome", task_id)
+                return False
+            repositories.agent_tasks.replace(replacement)
+            return True
+
     def register_remote_task(
         self,
         task_id: str,
@@ -138,12 +170,20 @@ class WorkflowPersistenceService:
         with self._database.transaction() as repositories:
             current = repositories.agent_tasks.require(task_id)
             if current.remote_task_id is not None:
+                if current.remote_task_id != remote_task_id:
+                    raise RepositoryConflictError("agent task correlation", task_id)
                 if (
-                    current.remote_task_id != remote_task_id
-                    or current.a2a_context_id != a2a_context_id
+                    current.a2a_context_id is not None
+                    and a2a_context_id is not None
+                    and current.a2a_context_id != a2a_context_id
                 ):
                     raise RepositoryConflictError("agent task correlation", task_id)
-                return False
+                if current.a2a_context_id is not None or a2a_context_id is None:
+                    return False
+                repositories.agent_tasks.replace(
+                    current.model_copy(update={"a2a_context_id": a2a_context_id})
+                )
+                return True
             if current.a2a_context_id not in {None, a2a_context_id}:
                 raise RepositoryConflictError("agent task correlation", task_id)
             repositories.agent_tasks.replace(
@@ -166,6 +206,14 @@ class WorkflowPersistenceService:
         with self._database.transaction() as repositories:
             task = repositories.agent_tasks.require(task_id)
             _validate_provenance(session_id, task, envelope)
+            bundle_inserted = repositories.artifacts.put_research_artifact(
+                ResearchArtifactRecord(
+                    id=_artifact_row_id(session_id, "research-artifact", task_id),
+                    session_id=session_id,
+                    agent_task_id=task_id,
+                    envelope=envelope,
+                )
+            )
             evidence_inserted = sum(
                 repositories.artifacts.put_evidence(
                     EvidenceRecord(
@@ -190,7 +238,7 @@ class WorkflowPersistenceService:
                 )
                 for item in envelope.payload.claims
             )
-        return EvidencePersistenceResult(evidence_inserted, claims_inserted)
+        return EvidencePersistenceResult(evidence_inserted, claims_inserted, bundle_inserted)
 
     def persist_analysis(
         self,

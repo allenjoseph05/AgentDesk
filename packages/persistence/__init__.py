@@ -7,6 +7,7 @@ from packages.persistence.records import (
     ClaimRecord,
     CoordinatorRunRecord,
     EvidenceRecord,
+    ResearchArtifactRecord,
     SessionRecord,
     WorkflowTransitionRecord,
 )
@@ -25,6 +26,7 @@ __all__ = [
     "CoordinatorRunRecord",
     "Database",
     "EvidenceRecord",
+    "ResearchArtifactRecord",
     "RecordNotFoundError",
     "RepositoryConflictError",
     "RepositoryError",
