@@ -4,6 +4,7 @@ export const AG_UI_STATE_SCHEMA_VERSION = "1.0" as const;
 
 const nonEmptyText = z.string().trim().min(1);
 const unitInterval = z.number().finite().min(0).max(1);
+const optionScore = z.number().finite().min(0).max(10);
 
 const evidenceSchema = z
   .object({
@@ -27,17 +28,17 @@ const claimSchema = z
   .object({
     id: nonEmptyText,
     statement: nonEmptyText,
-    evidenceIds: z.array(nonEmptyText),
-    confidence: unitInterval.nullable(),
-    caveats: z.array(nonEmptyText),
+    evidenceIds: z.array(nonEmptyText).min(1),
+    confidence: unitInterval.nullable().default(null),
+    caveats: z.array(nonEmptyText).default([]),
   })
   .strict();
 
 const criterionScoreSchema = z
   .object({
     criterion: nonEmptyText,
-    weight: z.number().finite().nonnegative(),
-    scores: z.record(nonEmptyText, z.number().finite()),
+    weight: unitInterval,
+    scores: z.record(nonEmptyText, optionScore),
     rationale: nonEmptyText,
     supportingClaimIds: z.array(nonEmptyText),
   })
@@ -47,12 +48,12 @@ const decisionAnalysisSchema = z
   .object({
     recommendation: nonEmptyText,
     executiveSummary: nonEmptyText,
-    criteria: z.array(criterionScoreSchema),
-    argumentsFor: z.array(nonEmptyText),
-    argumentsAgainst: z.array(nonEmptyText),
-    assumptions: z.array(nonEmptyText),
-    risks: z.array(nonEmptyText),
-    recommendationChangesIf: z.array(nonEmptyText),
+    criteria: z.array(criterionScoreSchema).min(1),
+    argumentsFor: z.array(nonEmptyText).min(1),
+    argumentsAgainst: z.array(nonEmptyText).min(1),
+    assumptions: z.array(nonEmptyText).min(1),
+    risks: z.array(nonEmptyText).min(1),
+    recommendationChangesIf: z.array(nonEmptyText).min(1),
   })
   .strict();
 
@@ -82,8 +83,8 @@ const specialistViewSchema = z
     name: nonEmptyText,
     skill: nonEmptyText,
     status: z.enum(["pending", "working", "waiting", "completed", "cancelled", "failed"]),
-    remoteTaskId: nonEmptyText.nullable(),
-    message: nonEmptyText.nullable(),
+    remoteTaskId: nonEmptyText.nullable().default(null),
+    message: nonEmptyText.nullable().default(null),
   })
   .strict();
 
@@ -97,8 +98,8 @@ const followUpActionSchema = z.enum([
 export const AgentDeskViewStateSchema = z
   .object({
     schemaVersion: z.literal(AG_UI_STATE_SCHEMA_VERSION),
-    sessionId: nonEmptyText.nullable(),
-    question: nonEmptyText.nullable(),
+    sessionId: nonEmptyText.nullable().default(null),
+    question: nonEmptyText.nullable().default(null),
     status: z.enum([
       "idle",
       "planning",
@@ -110,18 +111,18 @@ export const AgentDeskViewStateSchema = z
       "cancelled",
       "failed",
       "partial",
-    ]),
-    activeStep: nonEmptyText.nullable(),
-    agents: z.array(specialistViewSchema),
-    evidence: z.array(evidenceSchema),
-    evidenceCount: z.number().int().nonnegative(),
-    claims: z.array(claimSchema),
-    analysis: decisionAnalysisSchema.nullable(),
-    verification: verificationReportSchema.nullable(),
-    warnings: z.array(nonEmptyText),
-    errors: z.array(nonEmptyText),
-    availableActions: z.array(followUpActionSchema),
-    lastUpdatedAt: z.string().datetime({ offset: true }).nullable(),
+    ]).default("idle"),
+    activeStep: nonEmptyText.nullable().default(null),
+    agents: z.array(specialistViewSchema).default([]),
+    evidence: z.array(evidenceSchema).default([]),
+    evidenceCount: z.number().int().nonnegative().default(0),
+    claims: z.array(claimSchema).default([]),
+    analysis: decisionAnalysisSchema.nullable().default(null),
+    verification: verificationReportSchema.nullable().default(null),
+    warnings: z.array(nonEmptyText).default([]),
+    errors: z.array(nonEmptyText).default([]),
+    availableActions: z.array(followUpActionSchema).default([]),
+    lastUpdatedAt: z.string().datetime({ offset: true }).nullable().default(null),
   })
   .strict()
   .superRefine((state, context) => {
