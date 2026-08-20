@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "./app/App";
 import { AgentDeskRuntimeProvider } from "./app/AgentDeskRuntime";
+import { AgentDeskStateProvider } from "./agui/store-react";
 import "./styles.css";
 
 const rootElement = document.getElementById("root");
@@ -13,8 +14,10 @@ if (rootElement === null) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <AgentDeskRuntimeProvider>
-      <App />
-    </AgentDeskRuntimeProvider>
+    <AgentDeskStateProvider>
+      <AgentDeskRuntimeProvider>
+        <App />
+      </AgentDeskRuntimeProvider>
+    </AgentDeskStateProvider>
   </StrictMode>,
 );

@@ -3,13 +3,14 @@ import {
   type ReactNode,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 
 import { createCoordinatorAgent, runResearch } from "../agui/client";
-import { INITIAL_AGENTDESK_STATE, type AgentDeskViewState } from "../agui/state";
+import { useAgentDeskStateStore } from "../agui/store-react";
 
 export type RuntimePhase = "idle" | "connecting" | "running" | "error";
 
@@ -20,7 +21,6 @@ interface AgentDeskRuntimeValue {
   phase: RuntimePhase;
   startResearch(question: string): Promise<void>;
   threadId: string;
-  viewState: AgentDeskViewState;
 }
 
 interface AgentDeskRuntimeProviderProps {
@@ -36,13 +36,21 @@ export function AgentDeskRuntimeProvider({
 }: AgentDeskRuntimeProviderProps) {
   const agentRef = useRef<ReturnType<typeof createCoordinatorAgent> | null>(null);
   agentRef.current ??= createAgent();
+  const stateStore = useAgentDeskStateStore();
 
-  const [viewState, setViewState] = useState<AgentDeskViewState>(
-    INITIAL_AGENTDESK_STATE,
-  );
   const [phase, setPhase] = useState<RuntimePhase>("idle");
   const [message, setMessage] = useState("Ready for a new research question.");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(
+    () =>
+      stateStore.subscribeRehydration((request) => {
+        setError(`A malformed AG-UI ${request.cause} was rejected. ${request.message}`);
+        setMessage("The last valid state is preserved; rehydration is required.");
+        setPhase("error");
+      }),
+    [stateStore],
+  );
 
   const startResearch = useCallback(async (question: string) => {
     setError(null);
@@ -50,10 +58,11 @@ export function AgentDeskRuntimeProvider({
     setMessage("Connecting to the Coordinator...");
     try {
       await runResearch(agentRef.current!, question, {
+        onDelta: stateStore.applyDelta,
         onRunning: () => setPhase("running"),
-        onState: setViewState,
+        onSnapshot: stateStore.replaceSnapshot,
         onMessage: setMessage,
-        onFinished: () => setPhase("idle"),
+        onFinished: () => setPhase((current) => (current === "error" ? current : "idle")),
         onCancelled: () => {
           setMessage("Research run cancelled.");
           setPhase("idle");
@@ -67,7 +76,7 @@ export function AgentDeskRuntimeProvider({
       setError(runError instanceof Error ? runError.message : "AG-UI run failed.");
       setPhase("error");
     }
-  }, []);
+  }, [stateStore]);
 
   const cancelRun = useCallback(() => {
     agentRef.current?.abortRun();
@@ -81,9 +90,8 @@ export function AgentDeskRuntimeProvider({
       phase,
       startResearch,
       threadId: agentRef.current!.threadId,
-      viewState,
     }),
-    [cancelRun, error, message, phase, startResearch, viewState],
+    [cancelRun, error, message, phase, startResearch],
   );
 
   return (

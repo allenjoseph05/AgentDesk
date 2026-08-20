@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { createCoordinatorAgent, runResearch } from "../src/agui/client.ts";
 import { INITIAL_AGENTDESK_STATE, parseAgentDeskViewState } from "../src/agui/state.ts";
+import { AgentDeskStateStore } from "../src/agui/store.ts";
 
 const encode = (event) => `data: ${JSON.stringify(event)}\n\n`;
 
@@ -172,4 +173,49 @@ test("reconnect preserves the thread, creates a new run, and applies a fresh sna
   assert.notEqual(requests[0].runId, requests[1].runId);
   assert.equal(states.at(-1).sessionId, requests[1].runId);
   assert.equal(states.at(-1).question, "Reconnected");
+});
+
+test("store rejection stops a malformed delta before the HttpAgent applies it", async () => {
+  const snapshot = {
+    ...INITIAL_AGENTDESK_STATE,
+    sessionId: "session-safe",
+    question: "Keep the last valid state?",
+    status: "planning",
+    activeStep: "plan",
+    lastUpdatedAt: "2026-08-20T12:00:00Z",
+  };
+  const mockFetch = async (_url, init) => {
+    const request = JSON.parse(init.body);
+    return new Response(
+      [
+        { type: "RUN_STARTED", threadId: request.threadId, runId: request.runId },
+        { type: "STATE_SNAPSHOT", snapshot },
+        {
+          type: "STATE_DELTA",
+          delta: [{ op: "replace", path: "/evidenceCount", value: 7 }],
+        },
+        { type: "RUN_FINISHED", threadId: request.threadId, runId: request.runId },
+      ]
+        .map(encode)
+        .join(""),
+      { headers: { "content-type": "text/event-stream" } },
+    );
+  };
+  const store = new AgentDeskStateStore();
+  const recoveryRequests = [];
+  const states = [];
+  store.subscribeRehydration((request) => recoveryRequests.push(request));
+  const agent = createCoordinatorAgent(mockFetch);
+
+  await runResearch(agent, snapshot.question, {
+    onSnapshot: store.replaceSnapshot,
+    onDelta: store.applyDelta,
+    onState: (state) => states.push(state),
+  });
+
+  assert.deepEqual(store.getSnapshot(), snapshot);
+  assert.deepEqual(agent.state, snapshot);
+  assert.equal(states.length, 1);
+  assert.equal(recoveryRequests.length, 1);
+  assert.equal(recoveryRequests[0].cause, "delta");
 });

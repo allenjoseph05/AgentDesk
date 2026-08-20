@@ -1,5 +1,11 @@
 import { type FormEvent, useState } from "react";
 
+import {
+  selectAgents,
+  selectEvidence,
+  selectSession,
+} from "../agui/selectors";
+import { useAgentDeskSelector } from "../agui/store-react";
 import { useAgentDeskRuntime } from "./AgentDeskRuntime";
 
 const QUICK_STARTS = [
@@ -22,9 +28,13 @@ const STATUS_LABELS = {
 
 export function AgentDeskWorkspace() {
   const runtime = useAgentDeskRuntime();
+  const session = useAgentDeskSelector(selectSession);
+  const agents = useAgentDeskSelector(selectAgents);
+  const evidence = useAgentDeskSelector(selectEvidence);
   const [question, setQuestion] = useState("");
   const isBusy = runtime.phase === "connecting" || runtime.phase === "running";
-  const hasSession = runtime.viewState.sessionId !== null;
+  const hasSession = session !== null;
+  const status = session?.status ?? "idle";
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -64,8 +74,8 @@ export function AgentDeskWorkspace() {
             <article className="history-entry history-entry--active" aria-current="page">
               <span className="history-entry__status" aria-hidden="true" />
               <div>
-                <strong>{runtime.viewState.question}</strong>
-                <span>{STATUS_LABELS[runtime.viewState.status]}</span>
+                <strong>{session.question}</strong>
+                <span>{STATUS_LABELS[session.status]}</span>
               </div>
             </article>
           ) : (
@@ -147,10 +157,10 @@ export function AgentDeskWorkspace() {
           <div className="state-surface__header">
             <div>
               <p className="eyebrow">Live workspace</p>
-              <h2>{hasSession ? runtime.viewState.question : "Your research will take shape here"}</h2>
+              <h2>{session?.question ?? "Your research will take shape here"}</h2>
             </div>
-            <span className={`state-pill state-pill--${runtime.viewState.status}`}>
-              {STATUS_LABELS[runtime.viewState.status]}
+            <span className={`state-pill state-pill--${status}`}>
+              {STATUS_LABELS[status]}
             </span>
           </div>
 
@@ -158,15 +168,15 @@ export function AgentDeskWorkspace() {
             <div className="session-overview">
               <div className="metric-card">
                 <span>Current step</span>
-                <strong>{runtime.viewState.activeStep ?? "Wrapping up"}</strong>
+                <strong>{session.activeStep ?? "Wrapping up"}</strong>
               </div>
               <div className="metric-card">
                 <span>Specialists</span>
-                <strong>{runtime.viewState.agents.length}</strong>
+                <strong>{agents.length}</strong>
               </div>
               <div className="metric-card">
                 <span>Evidence collected</span>
-                <strong>{runtime.viewState.evidenceCount}</strong>
+                <strong>{evidence.length}</strong>
               </div>
               <div className="activity-card">
                 <span className="activity-orbit" aria-hidden="true">
