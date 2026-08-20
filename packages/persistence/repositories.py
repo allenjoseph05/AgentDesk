@@ -166,6 +166,24 @@ class SessionRepository(_Repository):
         ).mappings()
         return tuple(_session_record(row) for row in rows)
 
+    def list_recent(
+        self,
+        *,
+        limit: int = 50,
+        ag_ui_thread_id: str | None = None,
+    ) -> tuple[SessionRecord, ...]:
+        if limit < 1:
+            raise ValueError("Session history limit must be positive.")
+        statement = sa.select(sessions)
+        if ag_ui_thread_id is not None:
+            statement = statement.where(
+                sessions.c.ag_ui_thread_id == ag_ui_thread_id
+            )
+        rows = self._connection.execute(
+            statement.order_by(sessions.c.updated_at.desc(), sessions.c.id).limit(limit)
+        ).mappings()
+        return tuple(_session_record(row) for row in rows)
+
 
 class CoordinatorRunRepository(_Repository):
     def add(self, record: CoordinatorRunRecord) -> None:
