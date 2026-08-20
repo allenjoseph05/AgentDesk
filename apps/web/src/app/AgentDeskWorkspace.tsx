@@ -6,6 +6,7 @@ import {
   selectSession,
 } from "../agui/selectors";
 import { useAgentDeskSelector } from "../agui/store-react";
+import { ResearchStatusPanel } from "../components/ResearchStatusPanel";
 import { useAgentDeskRuntime } from "./AgentDeskRuntime";
 
 const QUICK_STARTS = [
@@ -165,34 +166,14 @@ export function AgentDeskWorkspace() {
           </div>
 
           {hasSession ? (
-            <div className="session-overview">
-              <div className="metric-card">
-                <span>Current step</span>
-                <strong>{session.activeStep ?? "Wrapping up"}</strong>
-              </div>
-              <div className="metric-card">
-                <span>Specialists</span>
-                <strong>{agents.length}</strong>
-              </div>
-              <div className="metric-card">
-                <span>Evidence collected</span>
-                <strong>{evidence.length}</strong>
-              </div>
-              <div className="activity-card">
-                <span className="activity-orbit" aria-hidden="true">
-                  <i />
-                </span>
-                <div>
-                  <strong>{runtime.message}</strong>
-                  <p>Updates arrive directly from the Coordinator over AG-UI.</p>
-                </div>
-                {isBusy && (
-                  <button type="button" onClick={runtime.cancelRun}>
-                    Cancel run
-                  </button>
-                )}
-              </div>
-            </div>
+            <ResearchStatusPanel
+              agents={agents}
+              evidenceCount={evidence.length}
+              isBusy={isBusy}
+              message={runtime.message}
+              onCancel={runtime.cancelRun}
+              session={session}
+            />
           ) : (
             <div className="state-empty">
               <div className="state-empty__graphic" aria-hidden="true">
