@@ -8,6 +8,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from agents.coordinator.agui import router as ag_ui_router
+from agents.coordinator.history import ResearchHistoryService
+from agents.coordinator.history_api import router as history_router
 from agents.coordinator.registry import AgentRegistry, AgentRegistrySettings
 from agents.coordinator.run_adapter import (
     A2ATaskCommandExecutor,
@@ -16,6 +18,7 @@ from agents.coordinator.run_adapter import (
 )
 from agents.coordinator.run_tasks import A2ATaskFactory
 from packages.config import load_project_environment
+from packages.persistence import Database
 
 load_project_environment()
 
@@ -26,11 +29,14 @@ def create_app(
     registry: AgentRegistry | None = None,
     registry_settings: AgentRegistrySettings | None = None,
     command_executor: CoordinatorCommandExecutor | None = None,
+    database: Database | None = None,
 ) -> FastAPI:
     """Create a Coordinator with application-scoped AG-UI run admission."""
     if task_factory is not None and command_executor is not None:
         raise ValueError("Supply either task_factory or command_executor, not both.")
     owns_registry = registry is None
+    owns_database = database is None
+    history_database = database or Database.connect()
     agent_registry = registry or AgentRegistry(
         registry_settings or AgentRegistrySettings.from_environment()
     )
@@ -41,6 +47,8 @@ def create_app(
         yield
         if owns_registry:
             await agent_registry.aclose()
+        if owns_database:
+            history_database.dispose()
 
     application = FastAPI(
         title="AgentDesk Coordinator",
@@ -53,7 +61,9 @@ def create_app(
     )
     application.state.ag_ui_run_adapter = CoordinatorRunAdapter(executor=executor)
     application.state.agent_registry = agent_registry
+    application.state.research_history = ResearchHistoryService(history_database)
     application.include_router(ag_ui_router)
+    application.include_router(history_router)
 
     @application.get("/health", tags=["operations"])
     async def health() -> dict[str, str]:
