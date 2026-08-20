@@ -10,6 +10,7 @@ from a2a.helpers.proto_helpers import (
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events.event_queue import EventQueue
 from a2a.server.tasks import TaskUpdater
+from a2a.types import Message
 from pydantic import ValidationError
 
 from agents.analyst.analysis import (
@@ -108,7 +109,7 @@ class AnalystAgentExecutor(AgentExecutor):
         await updater.cancel(self._status_message(context, "Analysis task cancelled."))
 
     @staticmethod
-    def _status_message(context: RequestContext, text: str):
+    def _status_message(context: RequestContext, text: str) -> Message:
         return new_text_message(
             text,
             context_id=context.context_id,
@@ -128,13 +129,11 @@ class AnalystAgentExecutor(AgentExecutor):
             created_at=datetime.now(UTC),
         )
         if isinstance(output, DecisionAnalysis):
-            envelope = ArtifactEnvelope[DecisionAnalysis](
+            return ArtifactEnvelope[DecisionAnalysis](
                 provenance=provenance,
                 payload=output,
-            )
-        else:
-            envelope = ArtifactEnvelope[RecommendationChallenge](
-                provenance=provenance,
-                payload=output,
-            )
-        return envelope.model_dump(mode="json")
+            ).model_dump(mode="json")
+        return ArtifactEnvelope[RecommendationChallenge](
+            provenance=provenance,
+            payload=output,
+        ).model_dump(mode="json")

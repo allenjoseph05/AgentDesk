@@ -14,8 +14,8 @@ from packages.contracts.domain import (
     VerificationReport,
 )
 
-AG_UI_STATE_SCHEMA_VERSION = "1.0"
-AG_UI_ACTION_SCHEMA_VERSION = "1.0"
+AG_UI_STATE_SCHEMA_VERSION: Literal["1.0"] = "1.0"
+AG_UI_ACTION_SCHEMA_VERSION: Literal["1.0"] = "1.0"
 
 
 def _camelize(value: Any, *, transform_keys: bool = True) -> Any:

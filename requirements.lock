@@ -24,9 +24,13 @@ httpx==0.28.1
 idna==3.18
 iniconfig==2.3.0
 json-rpc==1.15.0
+librt==0.7.8
 Mako==1.4.1
 MarkupSafe==3.0.3
+mypy==1.19.1
+mypy_extensions==1.1.0
 packaging==26.3
+pathspec==1.0.4
 pluggy==1.6.0
 proto-plus==1.28.3
 protobuf==6.33.6

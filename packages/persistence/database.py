@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection, Engine
 
+from packages.config import load_project_environment
+
 if TYPE_CHECKING:
     from packages.persistence.repositories import RepositoryUnitOfWork
 
@@ -18,6 +20,7 @@ DEFAULT_DATABASE_URL = "postgresql+psycopg://agentdesk:agentdesk@localhost:5432/
 
 def database_url_from_environment() -> str:
     """Resolve the service database URL without reading environment at import time."""
+    load_project_environment()
     return os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 
 

@@ -144,6 +144,7 @@ def test_late_remote_task_is_cancelled_and_repeated_cancel_is_idempotent() -> No
         assert late_failure is None
         assert [call[1] for call in canceller.calls] == ["late-task"]
         assert first is second
+        assert first.attempted_task_ids == ("late-task",)
         assert machine.snapshot.status == "cancelled"
 
     asyncio.run(scenario())

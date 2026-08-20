@@ -217,10 +217,12 @@ def _resolve_plan(
                 f"No healthy registered provider advertises {step.skill}.",
             )
         resolved_steps.append(
-            PlannedStep(
-                **step.model_dump(),
-                provider_agent_id=provider.agent_id,
-                provider_base_url=provider.base_url,
+            PlannedStep.model_validate(
+                {
+                    **step.model_dump(),
+                    "provider_agent_id": provider.agent_id,
+                    "provider_base_url": provider.base_url,
+                }
             )
         )
     return WorkflowPlan(

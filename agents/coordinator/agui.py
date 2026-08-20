@@ -39,7 +39,7 @@ async def stream_run_events(
 @router.post("")
 async def run_agent(input_data: RunAgentInput, request: Request) -> StreamingResponse:
     """Accept an official AG-UI run and stream Coordinator protocol events."""
-    encoder = EventEncoder(accept=request.headers.get("accept"))
+    encoder = EventEncoder(accept=request.headers.get("accept", "text/event-stream"))
     adapter = cast(CoordinatorRunAdapter, request.app.state.ag_ui_run_adapter)
     return StreamingResponse(
         stream_run_events(input_data, encoder, run_adapter=adapter),
