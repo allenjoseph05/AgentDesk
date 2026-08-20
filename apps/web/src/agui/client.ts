@@ -10,7 +10,9 @@ import {
 export const AG_UI_ENDPOINT = "/ag-ui";
 
 export interface AgentDeskRunObserver {
+  onDelta?(delta: unknown): boolean;
   onRunning?(): void;
+  onSnapshot?(snapshot: unknown): boolean;
   onState?(state: AgentDeskViewState): void;
   onMessage?(message: string): void;
   onFinished?(): void;
@@ -52,7 +54,19 @@ export async function runResearch(
 
   const subscriber: AgentSubscriber = {
     onRunStartedEvent: () => observer.onRunning?.(),
-    onStateChanged: ({ state }) => observer.onState?.(parseAgentDeskViewState(state)),
+    onStateSnapshotEvent: ({ event }) =>
+      observer.onSnapshot?.(event.snapshot) === false
+        ? { stopPropagation: true }
+        : undefined,
+    onStateDeltaEvent: ({ event }) =>
+      observer.onDelta?.(event.delta) === false
+        ? { stopPropagation: true }
+        : undefined,
+    onStateChanged: ({ state }) => {
+      if (observer.onState !== undefined) {
+        observer.onState(parseAgentDeskViewState(state));
+      }
+    },
     onTextMessageContentEvent: ({ event, textMessageBuffer }) =>
       observer.onMessage?.(`${textMessageBuffer}${event.delta}`),
     onRunFinishedEvent: () => observer.onFinished?.(),

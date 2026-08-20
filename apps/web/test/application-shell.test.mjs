@@ -16,23 +16,33 @@ test("application shell renders its landmarks with one thread-scoped agent", asy
     server: { middlewareMode: true },
   });
   try {
-    const [{ AgentDeskRuntimeProvider }, { AgentDeskWorkspace }, { createCoordinatorAgent }] =
+    const [
+      { AgentDeskRuntimeProvider },
+      { AgentDeskWorkspace },
+      { AgentDeskStateProvider },
+      { createCoordinatorAgent },
+    ] =
       await Promise.all([
         vite.ssrLoadModule("/src/app/AgentDeskRuntime.tsx"),
         vite.ssrLoadModule("/src/app/AgentDeskWorkspace.tsx"),
+        vite.ssrLoadModule("/src/agui/store-react.tsx"),
         vite.ssrLoadModule("/src/agui/client.ts"),
       ]);
     let agentCount = 0;
     const markup = renderToStaticMarkup(
       createElement(
-        AgentDeskRuntimeProvider,
-        {
-          createAgent: () => {
-            agentCount += 1;
-            return createCoordinatorAgent(undefined, "thread-shell-test");
+        AgentDeskStateProvider,
+        null,
+        createElement(
+          AgentDeskRuntimeProvider,
+          {
+            createAgent: () => {
+              agentCount += 1;
+              return createCoordinatorAgent(undefined, "thread-shell-test");
+            },
           },
-        },
-        createElement(AgentDeskWorkspace),
+          createElement(AgentDeskWorkspace),
+        ),
       ),
     );
 
