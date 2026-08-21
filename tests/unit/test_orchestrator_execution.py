@@ -237,6 +237,33 @@ def test_orchestrator_reports_accepted_research_before_analysis_starts() -> None
     ]
 
 
+def test_orchestrator_reports_accepted_analysis_at_terminal_boundary() -> None:
+    request, evidence, analysis = _fixture_values()
+    remote = RecordingRemoteClient(evidence, analysis)
+    accepted: list[tuple[str, str]] = []
+
+    async def analysis_completed(
+        agent: RegisteredAgent,
+        result: RemoteTaskResult[DecisionAnalysis],
+    ) -> None:
+        assert [call["artifact_name"] for call in remote.calls] == [
+            "evidence-bundle",
+            "decision-analysis",
+        ]
+        accepted.append((agent.agent_id, result.remote_task_id))
+
+    execution = asyncio.run(
+        WorkflowOrchestrator(registry=_registry(), remote_client=remote).execute(
+            request,
+            _plan(),
+            on_analysis_completed=analysis_completed,
+        )
+    )
+
+    assert accepted == [("analyst", "analysis-task-42")]
+    assert execution.analysis.artifact.payload == analysis
+
+
 def test_research_failure_prevents_analysis_from_starting() -> None:
     request, _, _ = _fixture_values()
     remote = TimeoutRemoteClient()
