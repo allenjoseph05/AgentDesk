@@ -2,7 +2,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { parseAgentDeskAction } from "../src/agui/actions.ts";
+import {
+  ActionSubmissionGate,
+  createChallengeRecommendationAction,
+  createFocusOnCriterionAction,
+  createResearchDeeperAction,
+  createRetryFailedAgentAction,
+  parseAgentDeskAction,
+} from "../src/agui/actions.ts";
 import { parseAgentDeskViewState } from "../src/agui/state.ts";
 
 const fixtureRoot = new URL("../../../fixtures/agui/", import.meta.url);
@@ -100,4 +107,38 @@ test("frontend payload defaults mirror Python contract defaults", () => {
     availableActions: [],
     lastUpdatedAt: null,
   });
+});
+
+test("typed follow-up builders normalize and validate every action envelope", () => {
+  const actions = [
+    createChallengeRecommendationAction(" session-1 ", " Test the migration risk. "),
+    createResearchDeeperAction(" session-1 ", [" Cost ", "Cost", "Operations"]),
+    createFocusOnCriterionAction(" session-1 ", " Data integrity "),
+    createRetryFailedAgentAction(" session-1 ", " research-agent ", " task-1 "),
+  ];
+
+  assert.deepEqual(actions.map((action) => action.type), [
+    "challenge_recommendation",
+    "research_deeper",
+    "focus_on_criterion",
+    "retry_failed_agent",
+  ]);
+  assert.ok(actions.every((action) => action.sessionId === "session-1"));
+  assert.equal(new Set(actions.map((action) => action.actionId)).size, actions.length);
+  assert.deepEqual(actions[1].payload.focusAreas, ["Cost", "Operations"]);
+  assert.equal(actions[2].payload.criterion, "Data integrity");
+  assert.throws(() => createFocusOnCriterionAction("session-1", "  "), /Invalid/);
+});
+
+test("submission gate rejects concurrent actions and releases only the active id", () => {
+  const gate = new ActionSubmissionGate();
+
+  assert.equal(gate.begin("action-1"), true);
+  assert.equal(gate.activeActionId, "action-1");
+  assert.equal(gate.begin("action-2"), false);
+  gate.finish("action-2");
+  assert.equal(gate.activeActionId, "action-1");
+  gate.finish("action-1");
+  assert.equal(gate.activeActionId, null);
+  assert.equal(gate.begin("action-2"), true);
 });

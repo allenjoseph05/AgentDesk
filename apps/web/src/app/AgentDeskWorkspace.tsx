@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 
 import {
+  selectActions,
   selectAgents,
   selectAnalysis,
   selectClaims,
@@ -10,6 +11,7 @@ import {
   selectWarnings,
 } from "../agui/selectors";
 import { useAgentDeskSelector } from "../agui/store-react";
+import { ActionControls } from "../components/ActionControls";
 import { ResearchResults } from "../components/ResearchResults";
 import { ResearchStatusPanel } from "../components/ResearchStatusPanel";
 import { useAgentDeskRuntime } from "./AgentDeskRuntime";
@@ -41,9 +43,11 @@ export function AgentDeskWorkspace() {
   const analysis = useAgentDeskSelector(selectAnalysis);
   const verification = useAgentDeskSelector(selectVerification);
   const warnings = useAgentDeskSelector(selectWarnings);
+  const availableActions = useAgentDeskSelector(selectActions);
   const [question, setQuestion] = useState("");
   const isBusy = runtime.phase === "connecting" || runtime.phase === "running";
   const hasSession = session !== null;
+  const activeSessionId = session?.sessionId ?? "";
   const status = session?.status ?? "idle";
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -179,9 +183,7 @@ export function AgentDeskWorkspace() {
               <ResearchStatusPanel
                 agents={agents}
                 evidenceCount={evidence.length}
-                isBusy={isBusy}
                 message={runtime.message}
-                onCancel={runtime.cancelRun}
                 session={session}
               />
               <ResearchResults
@@ -216,6 +218,26 @@ export function AgentDeskWorkspace() {
               </div>
             </div>
           )}
+          <ActionControls
+            activeAction={runtime.activeAction}
+            agents={agents}
+            analysis={analysis}
+            availableActions={availableActions}
+            isBusy={isBusy}
+            onCancel={runtime.cancelRun}
+            onChallenge={(challenge) =>
+              runtime.challengeRecommendation(activeSessionId, challenge)
+            }
+            onFocusCriterion={(criterion) =>
+              runtime.focusOnCriterion(activeSessionId, criterion)
+            }
+            onResearchDeeper={(focusAreas) =>
+              runtime.researchDeeper(activeSessionId, focusAreas)
+            }
+            onRetryAgent={(agentId, remoteTaskId) =>
+              runtime.retryFailedAgent(activeSessionId, agentId, remoteTaskId)
+            }
+          />
         </section>
       </main>
     </div>

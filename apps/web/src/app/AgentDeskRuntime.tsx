@@ -9,17 +9,35 @@ import {
   useState,
 } from "react";
 
-import { createCoordinatorAgent, runResearch } from "../agui/client";
+import {
+  ActionSubmissionGate,
+  type AgentDeskAction,
+  createChallengeRecommendationAction,
+  createFocusOnCriterionAction,
+  createResearchDeeperAction,
+  createRetryFailedAgentAction,
+  createStartResearchAction,
+} from "../agui/actions";
+import { createCoordinatorAgent, runAgentDeskAction } from "../agui/client";
 import { useAgentDeskStateStore } from "../agui/store-react";
 
 export type RuntimePhase = "idle" | "connecting" | "running" | "error";
 
 interface AgentDeskRuntimeValue {
+  activeAction: AgentDeskAction["type"] | null;
   cancelRun(): void;
+  challengeRecommendation(sessionId: string, challenge: string | null): Promise<boolean>;
   error: string | null;
+  focusOnCriterion(sessionId: string, criterion: string): Promise<boolean>;
   message: string;
   phase: RuntimePhase;
-  startResearch(question: string): Promise<void>;
+  researchDeeper(sessionId: string, focusAreas: string[]): Promise<boolean>;
+  retryFailedAgent(
+    sessionId: string,
+    agentId: string,
+    remoteTaskId: string | null,
+  ): Promise<boolean>;
+  startResearch(question: string): Promise<boolean>;
   threadId: string;
 }
 
@@ -36,9 +54,12 @@ export function AgentDeskRuntimeProvider({
 }: AgentDeskRuntimeProviderProps) {
   const agentRef = useRef<ReturnType<typeof createCoordinatorAgent> | null>(null);
   agentRef.current ??= createAgent();
+  const submissionGateRef = useRef<ActionSubmissionGate | null>(null);
+  submissionGateRef.current ??= new ActionSubmissionGate();
   const stateStore = useAgentDeskStateStore();
 
   const [phase, setPhase] = useState<RuntimePhase>("idle");
+  const [activeAction, setActiveAction] = useState<AgentDeskAction["type"] | null>(null);
   const [message, setMessage] = useState("Ready for a new research question.");
   const [error, setError] = useState<string | null>(null);
 
@@ -52,12 +73,31 @@ export function AgentDeskRuntimeProvider({
     [stateStore],
   );
 
-  const startResearch = useCallback(async (question: string) => {
+  const executeAction = useCallback(async (
+    actionFactory: () => AgentDeskAction,
+    userMessage: string,
+  ): Promise<boolean> => {
+    let action: AgentDeskAction;
+    try {
+      action = actionFactory();
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : "Invalid action request.");
+      setMessage("The action was not sent because its payload is invalid.");
+      setPhase("error");
+      return false;
+    }
+
+    const gate = submissionGateRef.current!;
+    if (!gate.begin(action.actionId)) {
+      return false;
+    }
+
     setError(null);
+    setActiveAction(action.type);
     setPhase("connecting");
     setMessage("Connecting to the Coordinator...");
     try {
-      await runResearch(agentRef.current!, question, {
+      await runAgentDeskAction(agentRef.current!, action, userMessage, {
         onDelta: stateStore.applyDelta,
         onRunning: () => setPhase("running"),
         onSnapshot: stateStore.replaceSnapshot,
@@ -72,26 +112,97 @@ export function AgentDeskRuntimeProvider({
           setPhase("error");
         },
       });
+      return true;
     } catch (runError) {
       setError(runError instanceof Error ? runError.message : "AG-UI run failed.");
       setPhase("error");
+      return false;
+    } finally {
+      gate.finish(action.actionId);
+      setActiveAction(null);
     }
   }, [stateStore]);
 
+  const startResearch = useCallback(
+    (question: string) =>
+      executeAction(
+        () => createStartResearchAction(question),
+        question,
+      ),
+    [executeAction],
+  );
+
+  const challengeRecommendation = useCallback(
+    (sessionId: string, challenge: string | null) =>
+      executeAction(
+        () => createChallengeRecommendationAction(sessionId, challenge),
+        challenge?.trim()
+          ? `Challenge the recommendation: ${challenge.trim()}`
+          : "Challenge the current recommendation and test the strongest counterargument.",
+      ),
+    [executeAction],
+  );
+
+  const researchDeeper = useCallback(
+    (sessionId: string, focusAreas: string[]) =>
+      executeAction(
+        () => createResearchDeeperAction(sessionId, focusAreas),
+        focusAreas.length > 0
+          ? `Research deeper into: ${focusAreas.join(", ")}.`
+          : "Research this question more deeply.",
+      ),
+    [executeAction],
+  );
+
+  const focusOnCriterion = useCallback(
+    (sessionId: string, criterion: string) =>
+      executeAction(
+        () => createFocusOnCriterionAction(sessionId, criterion),
+        `Focus the analysis on ${criterion.trim()}.`,
+      ),
+    [executeAction],
+  );
+
+  const retryFailedAgent = useCallback(
+    (sessionId: string, agentId: string, remoteTaskId: string | null) =>
+      executeAction(
+        () => createRetryFailedAgentAction(sessionId, agentId, remoteTaskId),
+        `Retry the failed specialist ${agentId.trim()}.`,
+      ),
+    [executeAction],
+  );
+
   const cancelRun = useCallback(() => {
+    setMessage("Stopping the active run...");
     agentRef.current?.abortRun();
   }, []);
 
   const value = useMemo<AgentDeskRuntimeValue>(
     () => ({
+      activeAction,
       cancelRun,
+      challengeRecommendation,
       error,
+      focusOnCriterion,
       message,
       phase,
+      researchDeeper,
+      retryFailedAgent,
       startResearch,
       threadId: agentRef.current!.threadId,
     }),
-    [cancelRun, error, message, phase, startResearch],
+    [
+      activeAction,
+      cancelRun,
+      challengeRecommendation,
+      error,
+      focusOnCriterion,
+      message,
+      phase,
+      researchDeeper,
+      retryFailedAgent,
+      startResearch,
+    ],
   );
 
   return (

@@ -73,6 +73,13 @@ export const AgentDeskActionSchema = z.discriminatedUnion("type", [
 
 export type AgentDeskAction = z.infer<typeof AgentDeskActionSchema>;
 export type StartResearchAction = Extract<AgentDeskAction, { type: "start_research" }>;
+export type ChallengeRecommendationAction = Extract<
+  AgentDeskAction,
+  { type: "challenge_recommendation" }
+>;
+export type ResearchDeeperAction = Extract<AgentDeskAction, { type: "research_deeper" }>;
+export type FocusOnCriterionAction = Extract<AgentDeskAction, { type: "focus_on_criterion" }>;
+export type RetryFailedAgentAction = Extract<AgentDeskAction, { type: "retry_failed_agent" }>;
 
 export function parseAgentDeskAction(value: unknown): AgentDeskAction {
   if (
@@ -92,7 +99,7 @@ export function parseAgentDeskAction(value: unknown): AgentDeskAction {
 }
 
 export function createStartResearchAction(question: string): StartResearchAction {
-  return {
+  return validateBuiltAction({
     schemaVersion: AG_UI_ACTION_SCHEMA_VERSION,
     actionId: crypto.randomUUID(),
     type: "start_research",
@@ -104,5 +111,90 @@ export function createStartResearchAction(question: string): StartResearchAction
       criteria: [],
       desiredDepth: "normal",
     },
-  };
+  });
+}
+
+export function createChallengeRecommendationAction(
+  sessionId: string,
+  challenge: string | null = null,
+): ChallengeRecommendationAction {
+  return validateBuiltAction({
+    schemaVersion: AG_UI_ACTION_SCHEMA_VERSION,
+    actionId: crypto.randomUUID(),
+    type: "challenge_recommendation",
+    sessionId: sessionId.trim(),
+    payload: { challenge: challenge?.trim() || null },
+  });
+}
+
+export function createResearchDeeperAction(
+  sessionId: string,
+  focusAreas: string[] = [],
+): ResearchDeeperAction {
+  return validateBuiltAction({
+    schemaVersion: AG_UI_ACTION_SCHEMA_VERSION,
+    actionId: crypto.randomUUID(),
+    type: "research_deeper",
+    sessionId: sessionId.trim(),
+    payload: {
+      focusAreas: Array.from(new Set(focusAreas.map((area) => area.trim()).filter(Boolean))),
+      desiredDepth: "deep",
+    },
+  });
+}
+
+export function createFocusOnCriterionAction(
+  sessionId: string,
+  criterion: string,
+): FocusOnCriterionAction {
+  return validateBuiltAction({
+    schemaVersion: AG_UI_ACTION_SCHEMA_VERSION,
+    actionId: crypto.randomUUID(),
+    type: "focus_on_criterion",
+    sessionId: sessionId.trim(),
+    payload: { criterion: criterion.trim() },
+  });
+}
+
+export function createRetryFailedAgentAction(
+  sessionId: string,
+  agentId: string,
+  remoteTaskId: string | null,
+): RetryFailedAgentAction {
+  return validateBuiltAction({
+    schemaVersion: AG_UI_ACTION_SCHEMA_VERSION,
+    actionId: crypto.randomUUID(),
+    type: "retry_failed_agent",
+    sessionId: sessionId.trim(),
+    payload: {
+      agentId: agentId.trim(),
+      remoteTaskId: remoteTaskId?.trim() || null,
+    },
+  });
+}
+
+export class ActionSubmissionGate {
+  #activeActionId: string | null = null;
+
+  get activeActionId(): string | null {
+    return this.#activeActionId;
+  }
+
+  begin(actionId: string): boolean {
+    if (this.#activeActionId !== null) {
+      return false;
+    }
+    this.#activeActionId = actionId;
+    return true;
+  }
+
+  finish(actionId: string): void {
+    if (this.#activeActionId === actionId) {
+      this.#activeActionId = null;
+    }
+  }
+}
+
+function validateBuiltAction<Action extends AgentDeskAction>(action: Action): Action {
+  return parseAgentDeskAction(action) as Action;
 }
