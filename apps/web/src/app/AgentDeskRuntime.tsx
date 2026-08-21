@@ -19,6 +19,7 @@ import {
   createStartResearchAction,
 } from "../agui/actions";
 import { createCoordinatorAgent, runAgentDeskAction } from "../agui/client";
+import { userSafeAgUiError } from "../agui/client-config";
 import { useAgentDeskStateStore } from "../agui/store-react";
 import { type TimelineItem, upsertTimelineItem } from "../agui/timeline";
 
@@ -84,7 +85,7 @@ export function AgentDeskRuntimeProvider({
     try {
       action = actionFactory();
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : "Invalid action request.");
+      setError(userSafeAgUiError(actionError));
       setMessage("The action was not sent because its payload is invalid.");
       setPhase("error");
       return false;
@@ -118,7 +119,7 @@ export function AgentDeskRuntimeProvider({
       });
       return true;
     } catch (runError) {
-      setError(runError instanceof Error ? runError.message : "AG-UI run failed.");
+      setError(userSafeAgUiError(runError));
       setPhase("error");
       return false;
     } finally {

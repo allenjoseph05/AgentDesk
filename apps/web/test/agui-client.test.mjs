@@ -8,6 +8,7 @@ import {
   createRetryFailedAgentAction,
 } from "../src/agui/actions.ts";
 import {
+  createBrowserCoordinatorAgent,
   createCoordinatorAgent,
   runAgentDeskAction,
   runResearch,
@@ -364,4 +365,91 @@ test("progressive text, steps, and specialist activity correlate without exposin
   assert.equal(timeline.find((item) => item.kind === "activity").status, "completed");
   assert.ok(timeline.every((item) => item.runId));
   assert.doesNotMatch(JSON.stringify(timeline), /PRIVATE CHAIN OF THOUGHT/u);
+});
+
+test("production browser client applies endpoint/auth config and keeps thread with new run ids", async () => {
+  const stored = new Map();
+  const storage = {
+    getItem: (key) => stored.get(key) ?? null,
+    setItem: (key, value) => stored.set(key, value),
+  };
+  const requests = [];
+  let authCalls = 0;
+  const mockFetch = async (url, init) => {
+    const request = JSON.parse(init.body);
+    requests.push({
+      authorization: new Headers(init.headers).get("authorization"),
+      request,
+      url,
+    });
+    return new Response(
+      [
+        { type: "RUN_STARTED", threadId: request.threadId, runId: request.runId },
+        { type: "RUN_FINISHED", threadId: request.threadId, runId: request.runId },
+      ].map(encode).join(""),
+      { headers: { "content-type": "text/event-stream" } },
+    );
+  };
+  const options = {
+    environment: { VITE_AGENTDESK_AG_UI_ENDPOINT: "https://coordinator.example/ag-ui" },
+    fetch: mockFetch,
+    getAuthenticationHeaders: () => ({ Authorization: `Bearer auth-${++authCalls}` }),
+    storage,
+  };
+  const identities = [];
+  const firstAgent = createBrowserCoordinatorAgent(options);
+  const first = await runResearch(firstAgent, "First browser run", {
+    onRunIdentity: (identity) => identities.push(identity),
+  });
+  const second = await runResearch(firstAgent, "Second browser run", {
+    onRunIdentity: (identity) => identities.push(identity),
+  });
+  const reconstructedAgent = createBrowserCoordinatorAgent(options);
+  const third = await runResearch(reconstructedAgent, "Run after reconstruction", {
+    onRunIdentity: (identity) => identities.push(identity),
+  });
+
+  assert.equal(requests.length, 3);
+  assert.ok(requests.every(({ url }) => url === "https://coordinator.example/ag-ui"));
+  assert.deepEqual(requests.map(({ authorization }) => authorization), [
+    "Bearer auth-1",
+    "Bearer auth-2",
+    "Bearer auth-3",
+  ]);
+  assert.equal(first.threadId, second.threadId);
+  assert.equal(second.threadId, third.threadId);
+  assert.equal(reconstructedAgent.threadId, firstAgent.threadId);
+  assert.equal(new Set([first.runId, second.runId, third.runId]).size, 3);
+  assert.deepEqual(identities, [first, second, third]);
+  assert.deepEqual(requests.map(({ request }) => request.runId), [
+    first.runId,
+    second.runId,
+    third.runId,
+  ]);
+});
+
+test("stream errors are mapped before reaching browser observers", async () => {
+  const mockFetch = async (_url, init) => {
+    const request = JSON.parse(init.body);
+    return new Response(
+      [
+        { type: "RUN_STARTED", threadId: request.threadId, runId: request.runId },
+        {
+          type: "RUN_ERROR",
+          message: "provider token sk-secret caused internal stack failure",
+          code: "provider_failure",
+        },
+      ].map(encode).join(""),
+      { headers: { "content-type": "text/event-stream" } },
+    );
+  };
+  const errors = [];
+
+  await runResearch(createCoordinatorAgent(mockFetch), "Map error", {
+    onError: (message) => errors.push(message),
+  });
+
+  assert.deepEqual(errors, [
+    "The Coordinator could not complete this run. Retry or start a new research session.",
+  ]);
 });

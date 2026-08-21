@@ -6,6 +6,16 @@ import {
   parseAgentDeskAction,
 } from "./actions.ts";
 import {
+  type AuthenticationHeaderProvider,
+  type BrowserClientEnvironment,
+  type BrowserStorage,
+  createAuthenticatedFetch,
+  DEFAULT_AG_UI_ENDPOINT,
+  getOrCreateBrowserThreadId,
+  resolveAgUiEndpoint,
+  userSafeAgUiError,
+} from "./client-config.ts";
+import {
   INITIAL_AGENTDESK_STATE,
   parseAgentDeskViewState,
   type AgentDeskViewState,
@@ -17,7 +27,21 @@ import {
   type TimelineItem,
 } from "./timeline.ts";
 
-export const AG_UI_ENDPOINT = "/ag-ui";
+export const AG_UI_ENDPOINT = DEFAULT_AG_UI_ENDPOINT;
+
+export interface AgentDeskRunIdentity {
+  actionId: string;
+  runId: string;
+  threadId: string;
+}
+
+export interface BrowserCoordinatorAgentOptions {
+  environment?: BrowserClientEnvironment;
+  fetch?: HttpAgentFetchFn;
+  getAuthenticationHeaders?: AuthenticationHeaderProvider;
+  storage?: BrowserStorage | null;
+  threadId?: string;
+}
 
 export interface AgentDeskRunObserver {
   onDelta?(delta: unknown): boolean;
@@ -25,6 +49,7 @@ export interface AgentDeskRunObserver {
   onSnapshot?(snapshot: unknown): boolean;
   onState?(state: AgentDeskViewState): void;
   onMessage?(message: string): void;
+  onRunIdentity?(identity: AgentDeskRunIdentity): void;
   onTimelineItem?(item: TimelineItem): void;
   onFinished?(): void;
   onCancelled?(): void;
@@ -35,10 +60,35 @@ export function createCoordinatorAgent(
   fetch?: HttpAgentFetchFn,
   threadId = crypto.randomUUID(),
 ): HttpAgent {
+  return buildCoordinatorAgent({ endpoint: AG_UI_ENDPOINT, fetch, threadId });
+}
+
+export function createBrowserCoordinatorAgent(
+  options: BrowserCoordinatorAgentOptions = {},
+): HttpAgent {
+  const storage = options.storage === undefined ? availableSessionStorage() : options.storage;
+  const threadId = options.threadId ?? getOrCreateBrowserThreadId(storage);
+  const baseFetch = options.fetch ?? globalThis.fetch.bind(globalThis);
+  return buildCoordinatorAgent({
+    endpoint: resolveAgUiEndpoint(options.environment ?? {}),
+    fetch: createAuthenticatedFetch(baseFetch, options.getAuthenticationHeaders),
+    threadId,
+  });
+}
+
+function buildCoordinatorAgent({
+  endpoint,
+  fetch,
+  threadId,
+}: {
+  endpoint: string;
+  fetch?: HttpAgentFetchFn;
+  threadId: string;
+}): HttpAgent {
   return new HttpAgent({
     agentId: "agentdesk-coordinator",
     description: "AgentDesk browser-to-Coordinator AG-UI connection",
-    url: AG_UI_ENDPOINT,
+    url: endpoint,
     threadId,
     initialState: structuredClone(INITIAL_AGENTDESK_STATE),
     ...(fetch ? { fetch } : {}),
@@ -49,13 +99,13 @@ export async function runResearch(
   agent: HttpAgent,
   question: string,
   observer: AgentDeskRunObserver = {},
-): Promise<void> {
+): Promise<AgentDeskRunIdentity> {
   const normalizedQuestion = question.trim();
   if (!normalizedQuestion) {
     throw new Error("A research question is required.");
   }
 
-  await runAgentDeskAction(
+  return runAgentDeskAction(
     agent,
     createStartResearchAction(normalizedQuestion),
     normalizedQuestion,
@@ -68,7 +118,7 @@ export async function runAgentDeskAction(
   actionInput: AgentDeskAction,
   userMessage: string,
   observer: AgentDeskRunObserver = {},
-): Promise<void> {
+): Promise<AgentDeskRunIdentity> {
   const action = parseAgentDeskAction(actionInput);
   const normalizedMessage = userMessage.trim();
   if (!normalizedMessage) {
@@ -82,6 +132,12 @@ export async function runAgentDeskAction(
   });
   const abortController = new AbortController();
   const activityContent = new Map<string, Record<string, unknown>>();
+  const identity = {
+    actionId: action.actionId,
+    runId: crypto.randomUUID(),
+    threadId: agent.threadId,
+  } satisfies AgentDeskRunIdentity;
+  observer.onRunIdentity?.(identity);
 
   const subscriber: AgentSubscriber = {
     onRunStartedEvent: () => observer.onRunning?.(),
@@ -182,16 +238,17 @@ export async function runAgentDeskAction(
       }
     },
     onRunFinishedEvent: () => observer.onFinished?.(),
-    onRunErrorEvent: ({ event }) => observer.onError?.(event.message),
+    onRunErrorEvent: ({ event }) => observer.onError?.(userSafeAgUiError(event.message)),
   };
 
   await agent.runAgent(
-    { abortController, forwardedProps: { agentdesk: action } },
+    { abortController, forwardedProps: { agentdesk: action }, runId: identity.runId },
     subscriber,
   );
   if (abortController.signal.aborted) {
     observer.onCancelled?.();
   }
+  return identity;
 }
 
 function activityContentFromItem(item: Extract<TimelineItem, { kind: "activity" }>) {
@@ -200,4 +257,12 @@ function activityContentFromItem(item: Extract<TimelineItem, { kind: "activity" 
     status: item.status,
     summary: item.summary,
   };
+}
+
+function availableSessionStorage(): BrowserStorage | null {
+  try {
+    return typeof sessionStorage === "undefined" ? null : sessionStorage;
+  } catch {
+    return null;
+  }
 }
