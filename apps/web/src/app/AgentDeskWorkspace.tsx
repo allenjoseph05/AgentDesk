@@ -2,10 +2,15 @@ import { type FormEvent, useState } from "react";
 
 import {
   selectAgents,
+  selectAnalysis,
+  selectClaims,
   selectEvidence,
   selectSession,
+  selectVerification,
+  selectWarnings,
 } from "../agui/selectors";
 import { useAgentDeskSelector } from "../agui/store-react";
+import { ResearchResults } from "../components/ResearchResults";
 import { ResearchStatusPanel } from "../components/ResearchStatusPanel";
 import { useAgentDeskRuntime } from "./AgentDeskRuntime";
 
@@ -32,6 +37,10 @@ export function AgentDeskWorkspace() {
   const session = useAgentDeskSelector(selectSession);
   const agents = useAgentDeskSelector(selectAgents);
   const evidence = useAgentDeskSelector(selectEvidence);
+  const claims = useAgentDeskSelector(selectClaims);
+  const analysis = useAgentDeskSelector(selectAnalysis);
+  const verification = useAgentDeskSelector(selectVerification);
+  const warnings = useAgentDeskSelector(selectWarnings);
   const [question, setQuestion] = useState("");
   const isBusy = runtime.phase === "connecting" || runtime.phase === "running";
   const hasSession = session !== null;
@@ -166,14 +175,23 @@ export function AgentDeskWorkspace() {
           </div>
 
           {hasSession ? (
-            <ResearchStatusPanel
-              agents={agents}
-              evidenceCount={evidence.length}
-              isBusy={isBusy}
-              message={runtime.message}
-              onCancel={runtime.cancelRun}
-              session={session}
-            />
+            <>
+              <ResearchStatusPanel
+                agents={agents}
+                evidenceCount={evidence.length}
+                isBusy={isBusy}
+                message={runtime.message}
+                onCancel={runtime.cancelRun}
+                session={session}
+              />
+              <ResearchResults
+                analysis={analysis}
+                claims={claims}
+                evidence={evidence}
+                verification={verification}
+                warnings={warnings}
+              />
+            </>
           ) : (
             <div className="state-empty">
               <div className="state-empty__graphic" aria-hidden="true">
