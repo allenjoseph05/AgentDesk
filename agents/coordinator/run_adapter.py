@@ -12,6 +12,7 @@ from typing import Literal, Protocol
 from uuid import uuid4
 
 from ag_ui.core import (
+    ActivitySnapshotEvent,
     RunAgentInput,
     RunErrorEvent,
     RunFinishedEvent,
@@ -37,6 +38,7 @@ from packages.contracts.agui import (
 )
 
 TerminalRunStatus = Literal["completed", "partial", "cancelled", "failed"]
+ActivityStatus = Literal["waiting", "working", "completed", "failed", "cancelled"]
 
 
 @dataclass(frozen=True)
@@ -130,6 +132,34 @@ class CoordinatorStateUpdate:
 
 
 @dataclass(frozen=True)
+class CoordinatorStepUpdate:
+    """One semantic workflow step boundary projected into AG-UI lifecycle events."""
+
+    step_name: str
+    status: Literal["started", "finished"]
+
+    def __post_init__(self) -> None:
+        if not self.step_name.strip():
+            raise ValueError("Coordinator step name cannot be blank.")
+
+
+@dataclass(frozen=True)
+class CoordinatorActivityUpdate:
+    """A user-safe specialist activity snapshot with stable replacement identity."""
+
+    message_id: str
+    activity_type: str
+    agent_id: str
+    status: ActivityStatus
+    summary: str
+
+    def __post_init__(self) -> None:
+        values = (self.message_id, self.activity_type, self.agent_id, self.summary)
+        if any(not value.strip() for value in values):
+            raise ValueError("Coordinator activity fields cannot be blank.")
+
+
+@dataclass(frozen=True)
 class CoordinatorRunOutcome:
     """One terminal Coordinator result mapped to an AG-UI terminal event."""
 
@@ -150,7 +180,12 @@ class CoordinatorRunOutcome:
             raise ValueError("Remote task correlations must be unique.")
 
 
-CoordinatorRunUpdate = CoordinatorStateUpdate | CoordinatorRunOutcome
+CoordinatorRunUpdate = (
+    CoordinatorStateUpdate
+    | CoordinatorStepUpdate
+    | CoordinatorActivityUpdate
+    | CoordinatorRunOutcome
+)
 
 
 class CoordinatorCommandExecutor(Protocol):
@@ -293,6 +328,27 @@ class CoordinatorRunAdapter:
                     )
                     if event is not None:
                         yield encoder.encode(event)
+                    continue
+                if isinstance(update, CoordinatorStepUpdate):
+                    step_event = (
+                        StepStartedEvent(step_name=update.step_name)
+                        if update.status == "started"
+                        else StepFinishedEvent(step_name=update.step_name)
+                    )
+                    yield encoder.encode(step_event)
+                    continue
+                if isinstance(update, CoordinatorActivityUpdate):
+                    yield encoder.encode(
+                        ActivitySnapshotEvent(
+                            message_id=update.message_id,
+                            activity_type=update.activity_type,
+                            content={
+                                "agentId": update.agent_id,
+                                "status": update.status,
+                                "summary": update.summary,
+                            },
+                        )
+                    )
                     continue
 
                 terminal_seen = True

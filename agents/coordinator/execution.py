@@ -3,20 +3,26 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import suppress
 from datetime import UTC, datetime
 from typing import Protocol
+from uuid import NAMESPACE_URL, uuid5
 
 from agents.coordinator.a2a_client import RemoteTaskResult
 from agents.coordinator.orchestrator import WorkflowExecution, WorkflowOrchestrator
 from agents.coordinator.persistence import WorkflowPersistenceError, WorkflowPersistenceService
 from agents.coordinator.planner import DecisionPlanner, PlanningFailedError, WorkflowPlan
-from agents.coordinator.registry import AgentRegistry
+from agents.coordinator.projection import DurableAgUiProjector
+from agents.coordinator.registry import AgentRegistry, RegisteredAgent
 from agents.coordinator.run_adapter import (
     ChallengeRecommendationCommand,
+    CoordinatorActivityUpdate,
     CoordinatorCommand,
     CoordinatorRunOutcome,
     CoordinatorRunUpdate,
+    CoordinatorStateUpdate,
+    CoordinatorStepUpdate,
     FocusOnCriterionCommand,
     RemoteTaskCorrelation,
     ResearchDeeperCommand,
@@ -26,7 +32,7 @@ from agents.coordinator.run_adapter import (
 from agents.coordinator.workflow_state import TERMINAL_STATUSES, WorkflowStateMachine
 from packages.contracts import DecisionAnalysis, EvidenceBundle, ResearchRequest
 from packages.llm import llm_provider_from_environment
-from packages.persistence import Database, RepositoryError
+from packages.persistence import AgentTaskRecord, Database, RepositoryError
 
 
 class WorkflowPlanner(Protocol):
@@ -34,7 +40,22 @@ class WorkflowPlanner(Protocol):
 
 
 class WorkflowRunner(Protocol):
-    async def execute(self, request: ResearchRequest, plan: WorkflowPlan) -> WorkflowExecution: ...
+    async def execute(
+        self,
+        request: ResearchRequest,
+        plan: WorkflowPlan,
+        *,
+        on_remote_task_started: (
+            Callable[[RegisteredAgent, str], Awaitable[None]] | None
+        ) = None,
+        on_research_completed: (
+            Callable[
+                [RegisteredAgent, RemoteTaskResult[EvidenceBundle]],
+                Awaitable[None],
+            ]
+            | None
+        ) = None,
+    ) -> WorkflowExecution: ...
 
 
 class OrchestrationConfigurationError(RuntimeError):
@@ -61,11 +82,13 @@ class OrchestrationCommandExecutor:
         planner: WorkflowPlanner,
         orchestrator: WorkflowRunner,
         persistence: WorkflowPersistenceService,
+        projector: DurableAgUiProjector,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._planner = planner
         self._orchestrator = orchestrator
         self._persistence = persistence
+        self._projector = projector
         self._clock = clock or (lambda: datetime.now(UTC))
 
     async def execute(
@@ -81,6 +104,7 @@ class OrchestrationCommandExecutor:
             on_transition=self._persistence.persist_transition,
         )
         initialized = False
+        orchestration_task: asyncio.Task[WorkflowExecution] | None = None
         try:
             self._persistence.initialize(
                 snapshot=machine.snapshot,
@@ -99,19 +123,161 @@ class OrchestrationCommandExecutor:
                 active_step="research",
                 completed_steps=["plan"],
             )
-            execution = await self._orchestrator.execute(command.request, plan)
-            machine.transition(
-                "analyzing",
-                active_step="analysis",
-                completed_steps=["research"],
+            research_step = next(
+                step for step in plan.steps if step.skill == "web-research"
             )
+            research_task_id = _agent_task_id(
+                command.correlation.session_id,
+                command.correlation.run_id,
+                research_step.step_id,
+            )
+            self._persistence.create_agent_task(
+                AgentTaskRecord(
+                    id=research_task_id,
+                    session_id=command.correlation.session_id,
+                    run_id=command.correlation.run_id,
+                    agent_id=research_step.provider_agent_id,
+                    skill=research_step.skill,
+                    started_at=machine.snapshot.updated_at,
+                )
+            )
+            sequence = 0
+            activity_id = f"research:{research_task_id}"
+            sequence += 1
+            yield CoordinatorStateUpdate(
+                self._projector.snapshot(command.correlation.session_id),
+                sequence=sequence,
+            )
+            yield CoordinatorActivityUpdate(
+                message_id=activity_id,
+                activity_type="specialist-research",
+                agent_id=research_step.provider_agent_id,
+                status="waiting",
+                summary="Research specialist is waiting to start.",
+            )
+
+            updates: asyncio.Queue[CoordinatorRunUpdate] = asyncio.Queue()
+            research_completed = False
+
+            async def remote_task_started(
+                agent: RegisteredAgent,
+                remote_task_id: str,
+            ) -> None:
+                nonlocal sequence
+                if (
+                    agent.agent_id != research_step.provider_agent_id
+                    or research_completed
+                ):
+                    return
+                self._persistence.register_remote_task(
+                    research_task_id,
+                    remote_task_id=remote_task_id,
+                )
+                sequence += 1
+                await updates.put(
+                    CoordinatorStepUpdate(step_name="research", status="started")
+                )
+                await updates.put(
+                    CoordinatorActivityUpdate(
+                        message_id=activity_id,
+                        activity_type="specialist-research",
+                        agent_id=agent.agent_id,
+                        status="working",
+                        summary="Research specialist is collecting evidence.",
+                    )
+                )
+                await updates.put(
+                    CoordinatorStateUpdate(
+                        self._projector.snapshot(command.correlation.session_id),
+                        sequence=sequence,
+                    )
+                )
+
+            async def research_task_completed(
+                agent: RegisteredAgent,
+                result: RemoteTaskResult[EvidenceBundle],
+            ) -> None:
+                nonlocal research_completed, sequence
+                if agent.agent_id != research_step.provider_agent_id:
+                    raise RuntimeError("Research result provider does not match the plan.")
+                self._persistence.register_remote_task(
+                    research_task_id,
+                    remote_task_id=result.remote_task_id,
+                    a2a_context_id=result.remote_context_id,
+                )
+                self._persistence.persist_evidence(
+                    command.correlation.session_id,
+                    research_task_id,
+                    result.artifact,
+                )
+                if research_completed:
+                    return
+                finished_at = self._clock()
+                self._persistence.finish_agent_task(
+                    research_task_id,
+                    status="completed",
+                    finished_at=finished_at,
+                )
+                if machine.snapshot.status == "researching":
+                    machine.transition(
+                        "analyzing",
+                        active_step="analysis",
+                        completed_steps=["research"],
+                    )
+                research_completed = True
+                sequence += 1
+                await updates.put(
+                    CoordinatorStateUpdate(
+                        self._projector.snapshot(command.correlation.session_id),
+                        sequence=sequence,
+                    )
+                )
+                await updates.put(
+                    CoordinatorActivityUpdate(
+                        message_id=activity_id,
+                        activity_type="specialist-research",
+                        agent_id=agent.agent_id,
+                        status="completed",
+                        summary="Research evidence was accepted.",
+                    )
+                )
+                await updates.put(
+                    CoordinatorStepUpdate(step_name="research", status="finished")
+                )
+
+            orchestration_task = asyncio.create_task(
+                self._orchestrator.execute(
+                    command.request,
+                    plan,
+                    on_remote_task_started=remote_task_started,
+                    on_research_completed=research_task_completed,
+                )
+            )
+            async for update in _queued_updates(orchestration_task, updates):
+                yield update
+            execution = await orchestration_task
+            if machine.snapshot.status == "researching":
+                machine.transition(
+                    "analyzing",
+                    active_step="analysis",
+                    completed_steps=["research"],
+                )
             machine.transition("completed", completed_steps=["analysis"])
             self._persistence.finish_run(
                 command.correlation.run_id,
                 status="completed",
                 finished_at=machine.snapshot.updated_at,
             )
+            sequence += 1
+            yield CoordinatorStateUpdate(
+                self._projector.snapshot(command.correlation.session_id),
+                sequence=sequence,
+            )
         except asyncio.CancelledError:
+            if orchestration_task is not None and not orchestration_task.done():
+                orchestration_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await orchestration_task
             if initialized:
                 self._cancel_run(command, machine)
             raise
@@ -230,6 +396,37 @@ def create_orchestration_executor(
         planner=planner,
         orchestrator=WorkflowOrchestrator(registry=registry),
         persistence=WorkflowPersistenceService(database),
+        projector=DurableAgUiProjector(database),
+    )
+
+
+async def _queued_updates(
+    orchestration_task: asyncio.Task[WorkflowExecution],
+    updates: asyncio.Queue[CoordinatorRunUpdate],
+) -> AsyncIterator[CoordinatorRunUpdate]:
+    while not orchestration_task.done() or not updates.empty():
+        if not updates.empty():
+            yield updates.get_nowait()
+            continue
+        pending_update = asyncio.create_task(updates.get())
+        done, _ = await asyncio.wait(
+            {orchestration_task, pending_update},
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if pending_update in done:
+            yield pending_update.result()
+            continue
+        pending_update.cancel()
+        with suppress(asyncio.CancelledError):
+            await pending_update
+
+
+def _agent_task_id(session_id: str, run_id: str, step_id: str) -> str:
+    return str(
+        uuid5(
+            NAMESPACE_URL,
+            f"agentdesk:{session_id}:run:{run_id}:step:{step_id}",
+        )
     )
 
 

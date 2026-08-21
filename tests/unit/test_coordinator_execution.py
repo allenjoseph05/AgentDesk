@@ -19,8 +19,11 @@ from agents.coordinator.execution import OrchestrationCommandExecutor
 from agents.coordinator.orchestrator import WorkflowExecution
 from agents.coordinator.persistence import WorkflowPersistenceService
 from agents.coordinator.planner import WorkflowPlan
+from agents.coordinator.projection import DurableAgUiProjector
+from agents.coordinator.registry import RegisteredAgent
 from agents.coordinator.run_adapter import CoordinatorRunAdapter
 from agents.coordinator.workflow_state import WorkflowStateMachine
+from agents.researcher.agent_card import create_agent_card as create_research_card
 from packages.contracts import ArtifactEnvelope, ArtifactProvenance, ResearchRequest
 from packages.persistence import Database, metadata
 from packages.testing import load_research_fixture
@@ -94,16 +97,25 @@ class BlockingOrchestrator:
         self,
         request: ResearchRequest,
         plan: WorkflowPlan,
+        **callbacks: Any,
     ) -> WorkflowExecution:
         assert request.options == ["PostgreSQL", "MongoDB"]
         assert plan == _plan()
         self.started.set()
+        research_agent = RegisteredAgent(
+            agent_id="researcher",
+            base_url="https://research.example",
+            card=create_research_card("https://research.example"),
+        )
+        on_started = callbacks.get("on_remote_task_started")
+        if on_started is not None:
+            await on_started(research_agent, "research-task-71")
         await self.release.wait()
         fixture = load_research_fixture("postgresql-vs-mongodb-golden")
         assert fixture.evidence_bundle is not None
         assert fixture.decision_analysis is not None
         created_at = datetime(2026, 8, 21, 12, 0, tzinfo=UTC)
-        return WorkflowExecution(
+        execution = WorkflowExecution(
             research=RemoteTaskResult(
                 agent_id="researcher",
                 remote_task_id="research-task-71",
@@ -131,6 +143,11 @@ class BlockingOrchestrator:
                 ),
             ),
         )
+        on_research_completed = callbacks.get("on_research_completed")
+        if on_research_completed is not None:
+            await on_research_completed(research_agent, execution.research)
+            await on_research_completed(research_agent, execution.research)
+        return execution
 
 
 def _input() -> RunAgentInput:
@@ -215,6 +232,7 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
             planner=planner,
             orchestrator=orchestrator,
             persistence=WorkflowPersistenceService(database),
+            projector=DurableAgUiProjector(database),
             clock=AdvancingClock(),
         )
         stream = CoordinatorRunAdapter(executor=executor).stream(
@@ -230,6 +248,7 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
         ]
         assert planner.requests == []
 
+        events.extend([_decode(await anext(stream)) for _ in range(5)])
         pending_event = asyncio.ensure_future(anext(stream))
         await orchestrator.started.wait()
         await asyncio.sleep(0)
@@ -251,6 +270,36 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
     events, planner = asyncio.run(scenario())
 
     assert len(planner.requests) == 1
+    research_steps = [
+        event
+        for event in events
+        if event["type"] in {"STEP_STARTED", "STEP_FINISHED"}
+        and event.get("stepName") == "research"
+    ]
+    assert [event["type"] for event in research_steps] == [
+        "STEP_STARTED",
+        "STEP_FINISHED",
+    ]
+    activities = [
+        event
+        for event in events
+        if event["type"] == "ACTIVITY_SNAPSHOT"
+        and event["activityType"] == "specialist-research"
+    ]
+    assert [event["content"]["status"] for event in activities] == [
+        "waiting",
+        "working",
+        "completed",
+    ]
+    assert len({event["messageId"] for event in activities}) == 1
+    evidence_delta = next(
+        event
+        for event in events
+        if event["type"] == "STATE_DELTA"
+        and any(operation["path"] == "/evidence" for operation in event["delta"])
+    )
+    evidence_paths = {operation["path"] for operation in evidence_delta["delta"]}
+    assert {"/evidence", "/evidenceCount", "/claims"} <= evidence_paths
     assert events[-1]["type"] == "RUN_FINISHED"
     assert events[-1]["result"] == {
         "threadId": "browser-thread-71",
@@ -275,10 +324,16 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
         session = repositories.sessions.require("coordinator-run-71")
         run = repositories.runs.get("coordinator-run-71")
         transitions = repositories.transitions.list_by_session("coordinator-run-71")
+        evidence = repositories.artifacts.list_evidence("coordinator-run-71")
+        claims = repositories.artifacts.list_claims("coordinator-run-71")
     assert session.status == "completed"
     assert session.completed_steps == ["plan", "research", "analysis"]
     assert run is not None and run.status == "completed"
     assert run.finished_at is not None
+    fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+    assert fixture.evidence_bundle is not None
+    assert len(evidence) == len(fixture.evidence_bundle.evidence)
+    assert len(claims) == len(fixture.evidence_bundle.claims)
     assert [transition.to_status for transition in transitions] == [
         "planning",
         "researching",
@@ -322,6 +377,7 @@ def test_follow_up_run_is_correlated_to_existing_thread_and_session(
         planner=planner,
         orchestrator=orchestrator,
         persistence=persistence,
+        projector=DurableAgUiProjector(database),
         clock=clock,
     )
 
