@@ -12,6 +12,7 @@ import {
 } from "../agui/selectors";
 import { useAgentDeskSelector } from "../agui/store-react";
 import { ActionControls } from "../components/ActionControls";
+import { ActivityTimeline } from "../components/ActivityTimeline";
 import { ResearchResults } from "../components/ResearchResults";
 import { ResearchStatusPanel } from "../components/ResearchStatusPanel";
 import { useAgentDeskRuntime } from "./AgentDeskRuntime";
@@ -218,6 +219,7 @@ export function AgentDeskWorkspace() {
               </div>
             </div>
           )}
+          <ActivityTimeline agents={agents} items={runtime.timeline} />
           <ActionControls
             activeAction={runtime.activeAction}
             agents={agents}

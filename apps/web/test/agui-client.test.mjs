@@ -14,6 +14,7 @@ import {
 } from "../src/agui/client.ts";
 import { INITIAL_AGENTDESK_STATE, parseAgentDeskViewState } from "../src/agui/state.ts";
 import { AgentDeskStateStore } from "../src/agui/store.ts";
+import { upsertTimelineItem } from "../src/agui/timeline.ts";
 
 const encode = (event) => `data: ${JSON.stringify(event)}\n\n`;
 
@@ -296,4 +297,71 @@ test("invalid action payload is rejected before messages or network work", async
   );
   assert.equal(fetchCount, 0);
   assert.equal(agent.messages.length, 0);
+});
+
+test("progressive text, steps, and specialist activity correlate without exposing reasoning", async () => {
+  const mockFetch = async (_url, init) => {
+    const request = JSON.parse(init.body);
+    return new Response(
+      [
+        { type: "RUN_STARTED", threadId: request.threadId, runId: request.runId },
+        { type: "STEP_STARTED", stepName: "research-evidence" },
+        { type: "TEXT_MESSAGE_START", messageId: "assistant-progress", role: "assistant" },
+        { type: "TEXT_MESSAGE_CONTENT", messageId: "assistant-progress", delta: "Evidence " },
+        { type: "TEXT_MESSAGE_CONTENT", messageId: "assistant-progress", delta: "accepted." },
+        { type: "TEXT_MESSAGE_END", messageId: "assistant-progress" },
+        {
+          type: "ACTIVITY_SNAPSHOT",
+          messageId: "research-progress",
+          activityType: "specialist_progress",
+          content: {
+            agentId: "research-agent",
+            summary: "One source accepted.",
+            status: "working",
+          },
+          replace: true,
+        },
+        {
+          type: "ACTIVITY_DELTA",
+          messageId: "research-progress",
+          activityType: "specialist_progress",
+          patch: [
+            { op: "replace", path: "/summary", value: "Two sources accepted." },
+            { op: "replace", path: "/status", value: "completed" },
+          ],
+        },
+        { type: "REASONING_START", messageId: "private-reasoning" },
+        { type: "REASONING_MESSAGE_START", messageId: "private-reasoning", role: "reasoning" },
+        {
+          type: "REASONING_MESSAGE_CONTENT",
+          messageId: "private-reasoning",
+          delta: "PRIVATE CHAIN OF THOUGHT",
+        },
+        { type: "REASONING_MESSAGE_END", messageId: "private-reasoning" },
+        { type: "REASONING_END", messageId: "private-reasoning" },
+        { type: "STEP_FINISHED", stepName: "research-evidence" },
+        { type: "RUN_FINISHED", threadId: request.threadId, runId: request.runId },
+      ].map(encode).join(""),
+      { headers: { "content-type": "text/event-stream" } },
+    );
+  };
+  const updates = [];
+  const messages = [];
+  const agent = createCoordinatorAgent(mockFetch, "thread-timeline");
+
+  await runResearch(agent, "Trace this run", {
+    onMessage: (message) => messages.push(message),
+    onTimelineItem: (item) => updates.push(item),
+  });
+
+  const timeline = updates.reduce(upsertTimelineItem, []);
+  assert.deepEqual(messages, ["Evidence ", "Evidence accepted."]);
+  assert.equal(timeline.find((item) => item.kind === "message").content, "Evidence accepted.");
+  assert.equal(timeline.find((item) => item.kind === "message").status, "complete");
+  assert.equal(timeline.find((item) => item.kind === "step").status, "complete");
+  assert.equal(timeline.find((item) => item.kind === "activity").agentId, "research-agent");
+  assert.equal(timeline.find((item) => item.kind === "activity").summary, "Two sources accepted.");
+  assert.equal(timeline.find((item) => item.kind === "activity").status, "completed");
+  assert.ok(timeline.every((item) => item.runId));
+  assert.doesNotMatch(JSON.stringify(timeline), /PRIVATE CHAIN OF THOUGHT/u);
 });
