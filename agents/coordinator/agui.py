@@ -29,9 +29,13 @@ async def stream_run_events(
     """Encode one validated AG-UI run through the Coordinator adapter."""
     if task_factory is not None and run_adapter is not None:
         raise ValueError("Supply either task_factory or run_adapter, not both.")
-    adapter = run_adapter or CoordinatorRunAdapter(
-        executor=(A2ATaskCommandExecutor(task_factory) if task_factory is not None else None)
-    )
+    if run_adapter is None and task_factory is None:
+        raise ValueError("A Coordinator run adapter or A2A task factory is required.")
+    if run_adapter is not None:
+        adapter = run_adapter
+    else:
+        assert task_factory is not None
+        adapter = CoordinatorRunAdapter(executor=A2ATaskCommandExecutor(task_factory))
     async for event in adapter.stream(input_data, encoder):
         yield event
 

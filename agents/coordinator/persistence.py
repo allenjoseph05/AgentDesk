@@ -74,6 +74,89 @@ class WorkflowPersistenceService:
             repositories.sessions.add(session)
             repositories.runs.add(run)
 
+    def continue_session(
+        self,
+        *,
+        session_id: str,
+        ag_ui_thread_id: str,
+        run_id: str,
+        action_id: str,
+        action_type: str,
+        started_at: datetime,
+    ) -> None:
+        """Attach a new Coordinator run to an existing browser session."""
+        run = CoordinatorRunRecord(
+            run_id=run_id,
+            session_id=session_id,
+            ag_ui_thread_id=ag_ui_thread_id,
+            action_id=action_id,
+            action_type=action_type,
+            started_at=started_at,
+        )
+        with self._database.transaction() as repositories:
+            session = repositories.sessions.require(session_id)
+            if session.ag_ui_thread_id != ag_ui_thread_id:
+                raise WorkflowPersistenceError(
+                    "Coordinator session does not belong to the AG-UI thread."
+                )
+            if started_at < session.updated_at:
+                raise WorkflowPersistenceError(
+                    "Coordinator run timestamp precedes durable session state."
+                )
+            repositories.runs.add(run)
+            repositories.sessions.replace(
+                session.model_copy(
+                    update={
+                        "last_run_id": run_id,
+                        "last_action_id": action_id,
+                        "updated_at": started_at,
+                    }
+                )
+            )
+
+    def start_run(self, run_id: str) -> bool:
+        """Advance one accepted Coordinator run to its execution boundary."""
+        with self._database.transaction() as repositories:
+            current = repositories.runs.get(run_id)
+            if current is None:
+                raise WorkflowPersistenceError(
+                    f"Coordinator run {run_id} does not exist."
+                )
+            if current.status == "running":
+                return False
+            if current.status != "accepted":
+                raise WorkflowPersistenceError(
+                    f"Coordinator run {run_id} is already terminal."
+                )
+            repositories.runs.replace(current.model_copy(update={"status": "running"}))
+            return True
+
+    def finish_run(
+        self,
+        run_id: str,
+        *,
+        status: Literal["completed", "partial", "failed", "cancelled"],
+        finished_at: datetime,
+    ) -> bool:
+        """Persist one terminal Coordinator run result; exact replay is harmless."""
+        with self._database.transaction() as repositories:
+            current = repositories.runs.get(run_id)
+            if current is None:
+                raise WorkflowPersistenceError(
+                    f"Coordinator run {run_id} does not exist."
+                )
+            replacement = CoordinatorRunRecord.model_validate(
+                current.model_copy(
+                    update={"status": status, "finished_at": finished_at}
+                ).model_dump(mode="python")
+            )
+            if current.status in {"completed", "partial", "failed", "cancelled"}:
+                if current != replacement:
+                    raise RepositoryConflictError("coordinator run outcome", run_id)
+                return False
+            repositories.runs.replace(replacement)
+            return True
+
     def persist_transition(
         self,
         snapshot: WorkflowSnapshot,

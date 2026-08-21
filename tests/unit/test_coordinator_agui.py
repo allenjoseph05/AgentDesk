@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 
 import pytest
@@ -12,6 +13,22 @@ from httpx import ASGITransport, AsyncClient
 
 from agents.coordinator.agui import stream_run_events
 from agents.coordinator.main import create_app
+from agents.coordinator.run_adapter import (
+    CoordinatorCommand,
+    CoordinatorRunOutcome,
+    CoordinatorRunUpdate,
+)
+
+
+class CompletingExecutor:
+    async def execute(
+        self, command: CoordinatorCommand
+    ) -> AsyncIterator[CoordinatorRunUpdate]:
+        del command
+        yield CoordinatorRunOutcome(
+            status="completed",
+            message="Coordinator command accepted.",
+        )
 
 
 def _start_action() -> dict[str, Any]:
@@ -51,7 +68,7 @@ def _input(
 async def _post_events(
     payload: dict[str, Any], application: FastAPI | None = None
 ) -> tuple[int, str, list[dict[str, Any]]]:
-    application = application or create_app()
+    application = application or create_app(command_executor=CompletingExecutor())
     transport = ASGITransport(app=application)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(

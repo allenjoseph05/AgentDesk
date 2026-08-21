@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from agents.coordinator.agui import router as ag_ui_router
+from agents.coordinator.execution import create_orchestration_executor
 from agents.coordinator.history import ResearchHistoryService
 from agents.coordinator.history_api import router as history_router
 from agents.coordinator.registry import AgentRegistry, AgentRegistrySettings
@@ -57,7 +58,12 @@ def create_app(
         lifespan=lifespan,
     )
     executor = command_executor or (
-        A2ATaskCommandExecutor(task_factory) if task_factory is not None else None
+        A2ATaskCommandExecutor(task_factory)
+        if task_factory is not None
+        else create_orchestration_executor(
+            registry=agent_registry,
+            database=history_database,
+        )
     )
     application.state.ag_ui_run_adapter = CoordinatorRunAdapter(executor=executor)
     application.state.agent_registry = agent_registry
