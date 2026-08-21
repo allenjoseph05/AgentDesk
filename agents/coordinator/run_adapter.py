@@ -159,16 +159,6 @@ class CoordinatorCommandExecutor(Protocol):
     def execute(self, command: CoordinatorCommand) -> AsyncIterator[CoordinatorRunUpdate]: ...
 
 
-class AcceptingCommandExecutor:
-    """Default shell executor used until orchestration is wired in AD-071."""
-
-    async def execute(self, command: CoordinatorCommand) -> AsyncIterator[CoordinatorRunUpdate]:
-        yield CoordinatorRunOutcome(
-            status="completed",
-            message="Coordinator command accepted. Workflow execution will begin next.",
-        )
-
-
 @dataclass(frozen=True)
 class _Admission:
     fingerprint: str
@@ -222,10 +212,10 @@ class CoordinatorRunAdapter:
     def __init__(
         self,
         *,
-        executor: CoordinatorCommandExecutor | None = None,
+        executor: CoordinatorCommandExecutor,
         admissions: RunAdmissionRegistry | None = None,
     ) -> None:
-        self._executor = executor or AcceptingCommandExecutor()
+        self._executor = executor
         self._admissions = admissions or RunAdmissionRegistry()
 
     async def stream(

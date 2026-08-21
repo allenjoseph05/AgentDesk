@@ -97,6 +97,8 @@ class CoordinatorRunRecord(ContractModel):
             raise ValueError("Terminal Coordinator run requires a finish timestamp.")
         if self.status not in terminal and self.finished_at is not None:
             raise ValueError("Active Coordinator run cannot have a finish timestamp.")
+        if self.finished_at is not None and self.finished_at < self.started_at:
+            raise ValueError("Coordinator run finish timestamp cannot precede its start.")
         return self
 
 
