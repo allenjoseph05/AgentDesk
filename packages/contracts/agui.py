@@ -11,6 +11,7 @@ from packages.contracts.domain import (
     DecisionAnalysis,
     Depth,
     Evidence,
+    RecommendationChallenge,
     VerificationReport,
 )
 
@@ -129,6 +130,14 @@ class AgentDeskViewState(ContractModel):
     )
     claims: list[Claim] = Field(default_factory=list)
     analysis: DecisionAnalysis | None = None
+    recommendation_challenge: RecommendationChallenge | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "recommendationChallenge",
+            "recommendation_challenge",
+        ),
+        serialization_alias="recommendationChallenge",
+    )
     verification: VerificationReport | None = None
     warnings: list[NonEmptyText] = Field(default_factory=list)
     errors: list[NonEmptyText] = Field(default_factory=list)

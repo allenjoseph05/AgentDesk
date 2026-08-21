@@ -19,6 +19,7 @@
       {"id": "claim-mongo-fast", "statement": "MongoDB has lower p95 latency.", "evidenceIds": ["benchmark-b"], "confidence": 0.55, "caveats": ["The benchmark environment is not controlled."]}
     ],
     "analysis": null,
+    "recommendationChallenge": null,
     "verification": {"results": [
       {"claimId": "claim-pg-fast", "verdict": "insufficient_evidence", "rationale": "The competing benchmark prevents a verdict.", "evidenceIds": ["benchmark-a", "benchmark-b"]},
       {"claimId": "claim-mongo-fast", "verdict": "insufficient_evidence", "rationale": "The competing benchmark prevents a verdict.", "evidenceIds": ["benchmark-a", "benchmark-b"]}

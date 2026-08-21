@@ -48,6 +48,7 @@
       "risks": ["Unmeasured workloads could change the tradeoff."],
       "recommendationChangesIf": ["Independent document writes become dominant."]
     },
+    "recommendationChallenge": null,
     "verification": {"results": [
       {"claimId": "claim-pg", "verdict": "supported", "rationale": "Fixture evidence supports the claim.", "evidenceIds": ["evidence-pg"]},
       {"claimId": "claim-mongo", "verdict": "supported", "rationale": "Fixture evidence supports the claim.", "evidenceIds": ["evidence-mongo"]}

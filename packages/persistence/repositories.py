@@ -18,6 +18,7 @@ from packages.contracts import (
     DecisionAnalysis,
     Evidence,
     EvidenceBundle,
+    RecommendationChallenge,
 )
 from packages.persistence.records import (
     AgentTaskRecord,
@@ -25,6 +26,7 @@ from packages.persistence.records import (
     ClaimRecord,
     CoordinatorRunRecord,
     EvidenceRecord,
+    RecommendationChallengeRecord,
     ResearchArtifactRecord,
     SessionRecord,
     WorkflowTransitionRecord,
@@ -35,6 +37,7 @@ from packages.persistence.schema import (
     claims,
     coordinator_runs,
     evidence,
+    recommendation_challenges,
     research_artifacts,
     sessions,
     workflow_transitions,
@@ -403,6 +406,54 @@ class ArtifactRepository(_Repository):
         ).mappings()
         return tuple(_research_artifact_record(row) for row in rows)
 
+    def put_recommendation_challenge(
+        self,
+        record: RecommendationChallengeRecord,
+    ) -> bool:
+        validated = RecommendationChallengeRecord.model_validate(
+            record.model_dump(mode="python")
+        )
+        existing = self.get_recommendation_challenge_by_task(validated.agent_task_id)
+        if existing is not None:
+            _assert_same("recommendation challenge", validated.id, existing, validated)
+            return False
+        inserted = self._insert_if_absent(
+            recommendation_challenges,
+            _recommendation_challenge_values(validated),
+            conflict_columns=("agent_task_id",),
+        )
+        if not inserted:
+            existing = self.get_recommendation_challenge_by_task(validated.agent_task_id)
+            if existing is None:
+                raise RepositoryConflictError("recommendation challenge", validated.id)
+            _assert_same("recommendation challenge", validated.id, existing, validated)
+        return inserted
+
+    def get_recommendation_challenge_by_task(
+        self,
+        agent_task_id: str,
+    ) -> RecommendationChallengeRecord | None:
+        row = self._connection.execute(
+            sa.select(recommendation_challenges).where(
+                recommendation_challenges.c.agent_task_id == agent_task_id
+            )
+        ).mappings().one_or_none()
+        return _recommendation_challenge_record(row) if row is not None else None
+
+    def list_recommendation_challenges(
+        self,
+        session_id: str,
+    ) -> tuple[RecommendationChallengeRecord, ...]:
+        rows = self._connection.execute(
+            sa.select(recommendation_challenges)
+            .where(recommendation_challenges.c.session_id == session_id)
+            .order_by(
+                recommendation_challenges.c.created_at,
+                recommendation_challenges.c.id,
+            )
+        ).mappings()
+        return tuple(_recommendation_challenge_record(row) for row in rows)
+
     def add_evidence(self, record: EvidenceRecord) -> None:
         validated = EvidenceRecord.model_validate(record.model_dump(mode="python"))
         self._insert(
@@ -416,7 +467,7 @@ class ArtifactRepository(_Repository):
         validated = EvidenceRecord.model_validate(record.model_dump(mode="python"))
         existing = self.get_evidence(validated.session_id, validated.evidence.id)
         if existing is not None:
-            _assert_same("evidence", validated.id, existing, validated)
+            _assert_reusable_artifact("evidence", validated.id, existing, validated)
             return False
         inserted = self._insert_if_absent(
             evidence,
@@ -427,7 +478,7 @@ class ArtifactRepository(_Repository):
             existing = self.get_evidence(validated.session_id, validated.evidence.id)
             if existing is None:
                 raise RepositoryConflictError("evidence", validated.id)
-            _assert_same("evidence", validated.id, existing, validated)
+            _assert_reusable_artifact("evidence", validated.id, existing, validated)
         return inserted
 
     def get_evidence(
@@ -464,7 +515,7 @@ class ArtifactRepository(_Repository):
         validated = ClaimRecord.model_validate(record.model_dump(mode="python"))
         existing = self.get_claim(validated.session_id, validated.claim.id)
         if existing is not None:
-            _assert_same("claim", validated.id, existing, validated)
+            _assert_reusable_artifact("claim", validated.id, existing, validated)
             return False
         inserted = self._insert_if_absent(
             claims,
@@ -475,7 +526,7 @@ class ArtifactRepository(_Repository):
             existing = self.get_claim(validated.session_id, validated.claim.id)
             if existing is None:
                 raise RepositoryConflictError("claim", validated.id)
-            _assert_same("claim", validated.id, existing, validated)
+            _assert_reusable_artifact("claim", validated.id, existing, validated)
         return inserted
 
     def get_claim(self, session_id: str, claim_id: str) -> ClaimRecord | None:
@@ -563,6 +614,22 @@ def _assert_immutable(
 
 def _assert_same(entity: str, record_id: str, current: Any, replay: Any) -> None:
     if current.model_dump(mode="json") != replay.model_dump(mode="json"):
+        raise RepositoryConflictError(entity, record_id)
+
+
+def _assert_reusable_artifact(
+    entity: str,
+    record_id: str,
+    current: EvidenceRecord | ClaimRecord,
+    replay: EvidenceRecord | ClaimRecord,
+) -> None:
+    current_payload = current.evidence if isinstance(current, EvidenceRecord) else current.claim
+    replay_payload = replay.evidence if isinstance(replay, EvidenceRecord) else replay.claim
+    if (
+        current.session_id != replay.session_id
+        or current.artifact_schema_version != replay.artifact_schema_version
+        or current_payload.model_dump(mode="json") != replay_payload.model_dump(mode="json")
+    ):
         raise RepositoryConflictError(entity, record_id)
 
 
@@ -687,6 +754,40 @@ def _research_artifact_record(row: RowMapping) -> ResearchArtifactRecord:
 
 
 def _research_artifact_values(record: ResearchArtifactRecord) -> dict[str, Any]:
+    return {
+        "id": record.id,
+        "session_id": record.session_id,
+        "agent_task_id": record.agent_task_id,
+        "payload": record.envelope.payload.model_dump(mode="json"),
+        "artifact_schema_version": record.envelope.schema_version,
+        "producer_agent": record.envelope.provenance.producer_agent,
+        "remote_task_id": record.envelope.provenance.remote_task_id,
+        "created_at": record.envelope.provenance.created_at,
+    }
+
+
+def _recommendation_challenge_record(
+    row: RowMapping,
+) -> RecommendationChallengeRecord:
+    return RecommendationChallengeRecord(
+        id=row["id"],
+        session_id=row["session_id"],
+        agent_task_id=row["agent_task_id"],
+        envelope=ArtifactEnvelope[RecommendationChallenge](
+            schema_version=row["artifact_schema_version"],
+            provenance=ArtifactProvenance(
+                producer_agent=row["producer_agent"],
+                remote_task_id=row["remote_task_id"],
+                created_at=_aware(row["created_at"]),
+            ),
+            payload=RecommendationChallenge.model_validate(row["payload"]),
+        ),
+    )
+
+
+def _recommendation_challenge_values(
+    record: RecommendationChallengeRecord,
+) -> dict[str, Any]:
     return {
         "id": record.id,
         "session_id": record.session_id,

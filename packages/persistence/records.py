@@ -6,7 +6,14 @@ from typing import Literal
 
 from pydantic import AwareDatetime, Field, model_validator
 
-from packages.contracts import ArtifactEnvelope, Claim, DecisionAnalysis, Evidence, EvidenceBundle
+from packages.contracts import (
+    ArtifactEnvelope,
+    Claim,
+    DecisionAnalysis,
+    Evidence,
+    EvidenceBundle,
+    RecommendationChallenge,
+)
 from packages.contracts.base import ContractModel, NonEmptyText
 
 SessionPersistenceStatus = Literal[
@@ -163,3 +170,10 @@ class AnalysisRecord(ContractModel):
     analysis: DecisionAnalysis
     artifact_schema_version: NonEmptyText
     created_at: AwareDatetime
+
+
+class RecommendationChallengeRecord(ContractModel):
+    id: NonEmptyText
+    session_id: NonEmptyText
+    agent_task_id: NonEmptyText
+    envelope: ArtifactEnvelope[RecommendationChallenge]

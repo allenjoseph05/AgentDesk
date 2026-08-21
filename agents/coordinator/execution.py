@@ -30,7 +30,13 @@ from agents.coordinator.run_adapter import (
     StartResearchCommand,
 )
 from agents.coordinator.workflow_state import TERMINAL_STATUSES, WorkflowStateMachine
-from packages.contracts import DecisionAnalysis, EvidenceBundle, ResearchRequest
+from packages.contracts import (
+    AnalysisRequest,
+    DecisionAnalysis,
+    EvidenceBundle,
+    RecommendationChallenge,
+    ResearchRequest,
+)
 from packages.llm import llm_provider_from_environment
 from packages.persistence import AgentTaskRecord, Database, RepositoryError
 
@@ -63,6 +69,18 @@ class WorkflowRunner(Protocol):
             | None
         ) = None,
     ) -> WorkflowExecution: ...
+
+    async def challenge(
+        self,
+        request: AnalysisRequest,
+        *,
+        on_remote_task_started: (
+            Callable[[RegisteredAgent, str], Awaitable[None]] | None
+        ) = None,
+        on_remote_task_finished: (
+            Callable[[RegisteredAgent, str], Awaitable[None]] | None
+        ) = None,
+    ) -> RemoteTaskResult[RecommendationChallenge]: ...
 
 
 class OrchestrationConfigurationError(RuntimeError):
@@ -101,7 +119,15 @@ class OrchestrationCommandExecutor:
     async def execute(
         self, command: CoordinatorCommand
     ) -> AsyncIterator[CoordinatorRunUpdate]:
-        if not isinstance(command, StartResearchCommand):
+        if isinstance(command, ChallengeRecommendationCommand):
+            async for update in self._execute_challenge(command):
+                yield update
+            return
+        if isinstance(command, (ResearchDeeperCommand, FocusOnCriterionCommand)):
+            async for update in self._execute_research_follow_up(command):
+                yield update
+            return
+        if isinstance(command, RetryFailedAgentCommand):
             yield self._record_unsupported_follow_up(command)
             return
 
@@ -456,6 +482,251 @@ class OrchestrationCommandExecutor:
             ),
         )
 
+    async def _execute_challenge(
+        self,
+        command: ChallengeRecommendationCommand,
+    ) -> AsyncIterator[CoordinatorRunUpdate]:
+        started_at = self._clock()
+        initialized = False
+        activity_id = f"challenge:{command.correlation.run_id}"
+        try:
+            self._continue_follow_up(command, started_at)
+            initialized = True
+            context = self._persistence.load_follow_up_context(
+                command.correlation.session_id
+            )
+            request = AnalysisRequest(
+                question=context.question,
+                options=list(context.options),
+                criteria=list(context.criteria),
+                evidence_bundle=context.evidence_bundle,
+                mode="challenge_current_recommendation",
+                current_recommendation=context.current_recommendation,
+            )
+            yield CoordinatorActivityUpdate(
+                message_id=activity_id,
+                activity_type="specialist-counteranalysis",
+                agent_id="analyst",
+                status="waiting",
+                summary="Analyst is preparing a counteranalysis.",
+            )
+            result = await self._orchestrator.challenge(request)
+            task_id = _agent_task_id(
+                command.correlation.session_id,
+                command.correlation.run_id,
+                "challenge-recommendation",
+            )
+            finished_at = self._clock()
+            self._persistence.create_agent_task(
+                AgentTaskRecord(
+                    id=task_id,
+                    session_id=command.correlation.session_id,
+                    run_id=command.correlation.run_id,
+                    agent_id=result.agent_id,
+                    skill="decision-analysis",
+                    a2a_context_id=result.remote_context_id,
+                    remote_task_id=result.remote_task_id,
+                    status="completed",
+                    started_at=started_at,
+                    finished_at=finished_at,
+                )
+            )
+            self._persistence.persist_recommendation_challenge(
+                command.correlation.session_id,
+                task_id,
+                result.artifact,
+            )
+            self._persistence.finish_run(
+                command.correlation.run_id,
+                status="completed",
+                finished_at=finished_at,
+            )
+            yield CoordinatorStateUpdate(
+                self._projector.snapshot(command.correlation.session_id),
+                sequence=1,
+            )
+            yield CoordinatorActivityUpdate(
+                message_id=activity_id,
+                activity_type="specialist-counteranalysis",
+                agent_id=result.agent_id,
+                status="completed",
+                summary="Counteranalysis was accepted.",
+            )
+        except asyncio.CancelledError:
+            if initialized:
+                self._finish_follow_up_run(command, "cancelled")
+            raise
+        except Exception as error:
+            if initialized:
+                self._finish_follow_up_run(command, "failed")
+            yield CoordinatorRunOutcome(
+                status="failed",
+                message=_safe_follow_up_message(error),
+                error_code=_failure_code(error),
+            )
+            return
+        yield CoordinatorRunOutcome(
+            status="completed",
+            message="Recommendation counteranalysis completed.",
+            remote_tasks=(_remote_correlation(result),),
+        )
+
+    async def _execute_research_follow_up(
+        self,
+        command: ResearchDeeperCommand | FocusOnCriterionCommand,
+    ) -> AsyncIterator[CoordinatorRunUpdate]:
+        started_at = self._clock()
+        initialized = False
+        activity_id = f"follow-up:{command.correlation.run_id}"
+        try:
+            self._continue_follow_up(command, started_at)
+            initialized = True
+            context = self._persistence.load_follow_up_context(
+                command.correlation.session_id
+            )
+            if isinstance(command, ResearchDeeperCommand):
+                criteria = list(command.focus_areas or context.criteria)
+                desired_depth = command.desired_depth
+            else:
+                criterion = next(
+                    (
+                        item
+                        for item in context.criteria
+                        if item.casefold() == command.criterion.casefold()
+                    ),
+                    command.criterion,
+                )
+                criteria = [criterion]
+                desired_depth = "deep"
+            request = ResearchRequest(
+                question=context.question,
+                options=list(context.options),
+                criteria=criteria,
+                desired_depth=desired_depth,
+            )
+            yield CoordinatorActivityUpdate(
+                message_id=activity_id,
+                activity_type="specialist-follow-up",
+                agent_id="coordinator",
+                status="waiting",
+                summary="Follow-up research and analysis are queued.",
+            )
+            plan = await self._planner.plan(request)
+            execution = await self._orchestrator.execute(request, plan)
+            finished_at = self._clock()
+            research_step = next(
+                step for step in plan.steps if step.skill == "web-research"
+            )
+            analysis_step = next(
+                step for step in plan.steps if step.skill == "decision-analysis"
+            )
+            research_task_id = _agent_task_id(
+                command.correlation.session_id,
+                command.correlation.run_id,
+                research_step.step_id,
+            )
+            analysis_task_id = _agent_task_id(
+                command.correlation.session_id,
+                command.correlation.run_id,
+                analysis_step.step_id,
+            )
+            for task_id, step, result in (
+                (research_task_id, research_step, execution.research),
+                (analysis_task_id, analysis_step, execution.analysis),
+            ):
+                self._persistence.create_agent_task(
+                    AgentTaskRecord(
+                        id=task_id,
+                        session_id=command.correlation.session_id,
+                        run_id=command.correlation.run_id,
+                        agent_id=result.agent_id,
+                        skill=step.skill,
+                        a2a_context_id=result.remote_context_id,
+                        remote_task_id=result.remote_task_id,
+                        status="completed",
+                        started_at=started_at,
+                        finished_at=finished_at,
+                    )
+                )
+            self._persistence.persist_evidence(
+                command.correlation.session_id,
+                research_task_id,
+                execution.research.artifact,
+            )
+            self._persistence.persist_analysis(
+                command.correlation.session_id,
+                analysis_task_id,
+                execution.analysis.artifact,
+            )
+            self._persistence.finish_run(
+                command.correlation.run_id,
+                status="completed",
+                finished_at=finished_at,
+            )
+            yield CoordinatorStateUpdate(
+                self._projector.snapshot(command.correlation.session_id),
+                sequence=1,
+            )
+            yield CoordinatorActivityUpdate(
+                message_id=activity_id,
+                activity_type="specialist-follow-up",
+                agent_id="coordinator",
+                status="completed",
+                summary="Follow-up research and analysis were accepted.",
+            )
+        except asyncio.CancelledError:
+            if initialized:
+                self._finish_follow_up_run(command, "cancelled")
+            raise
+        except Exception as error:
+            if initialized:
+                self._finish_follow_up_run(command, "failed")
+            yield CoordinatorRunOutcome(
+                status="failed",
+                message=_safe_follow_up_message(error),
+                error_code=_failure_code(error),
+            )
+            return
+        yield CoordinatorRunOutcome(
+            status="completed",
+            message="Follow-up research and analysis completed.",
+            remote_tasks=(
+                _remote_correlation(execution.research),
+                _remote_correlation(execution.analysis),
+            ),
+        )
+
+    def _continue_follow_up(
+        self,
+        command: ChallengeRecommendationCommand
+        | ResearchDeeperCommand
+        | FocusOnCriterionCommand,
+        started_at: datetime,
+    ) -> None:
+        self._persistence.continue_session(
+            session_id=command.correlation.session_id,
+            ag_ui_thread_id=command.correlation.thread_id,
+            run_id=command.correlation.run_id,
+            action_id=command.correlation.action_id,
+            action_type=_action_type(command),
+            started_at=started_at,
+        )
+        self._persistence.start_run(command.correlation.run_id)
+
+    def _finish_follow_up_run(
+        self,
+        command: ChallengeRecommendationCommand
+        | ResearchDeeperCommand
+        | FocusOnCriterionCommand,
+        status: Literal["failed", "cancelled"],
+    ) -> None:
+        with suppress(WorkflowPersistenceError):
+            self._persistence.finish_run(
+                command.correlation.run_id,
+                status=status,
+                finished_at=self._clock(),
+            )
+
     def _record_unsupported_follow_up(
         self,
         command: CoordinatorCommand,
@@ -600,7 +871,9 @@ def _agent_task_id(session_id: str, run_id: str, step_id: str) -> str:
 
 
 def _remote_correlation(
-    result: RemoteTaskResult[EvidenceBundle] | RemoteTaskResult[DecisionAnalysis],
+    result: RemoteTaskResult[EvidenceBundle]
+    | RemoteTaskResult[DecisionAnalysis]
+    | RemoteTaskResult[RecommendationChallenge],
 ) -> RemoteTaskCorrelation:
     return RemoteTaskCorrelation(
         agent_id=result.agent_id,
@@ -622,6 +895,12 @@ def _safe_failure_message(error: Exception) -> str:
     if isinstance(error, PlanningFailedError):
         return "The Coordinator could not produce a valid research plan."
     return "The Coordinator could not complete research orchestration."
+
+
+def _safe_follow_up_message(error: Exception) -> str:
+    if isinstance(error, (RepositoryError, WorkflowPersistenceError)):
+        return "The requested Coordinator session could not be continued."
+    return _safe_failure_message(error)
 
 
 def _action_type(command: CoordinatorCommand) -> str:

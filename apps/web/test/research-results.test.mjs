@@ -31,6 +31,7 @@ async function renderResults(state) {
         analysis: parsed.analysis,
         claims: parsed.claims,
         evidence: parsed.evidence,
+        recommendationChallenge: parsed.recommendationChallenge,
         verification: parsed.verification,
         warnings: parsed.warnings,
       }),
@@ -54,6 +55,26 @@ test("golden results render recommendation, comparison, evidence, boundaries, an
   assert.match(markup, /Reconsider the recommendation if/u);
   assert.match(markup, /data-verdict="supported"/u);
   assert.match(markup, /Decision criteria and option scores/u);
+});
+
+test("counteranalysis appears from a live recommendation challenge state update", async () => {
+  const fixture = await loadFixture("postgresql-vs-mongodb.golden.json");
+  fixture.state.recommendationChallenge = {
+    currentRecommendation: "PostgreSQL",
+    strongestAlternative: "MongoDB",
+    strongestCounterargument: "Document-first writes may outweigh relational guarantees.",
+    supportingClaimIds: ["claim-mongo"],
+    assumptions: ["Relational joins remain central."],
+    evidenceGaps: ["No production write benchmark."],
+    recommendationChangesIf: ["Independent document writes become dominant."],
+  };
+
+  const markup = await renderResults(fixture.state);
+
+  assert.match(markup, /Recommendation challenged/u);
+  assert.match(markup, /Strongest alternative: MongoDB/u);
+  assert.match(markup, /Document-first writes may outweigh relational guarantees/u);
+  assert.match(markup, /No production write benchmark/u);
 });
 
 test("partial results retain evidence and identify missing analysis and verification", async () => {

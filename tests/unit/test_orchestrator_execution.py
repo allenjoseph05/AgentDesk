@@ -45,6 +45,7 @@ from packages.contracts import (
     ArtifactProvenance,
     DecisionAnalysis,
     EvidenceBundle,
+    RecommendationChallenge,
     ResearchRequest,
 )
 from packages.testing import load_research_fixture
@@ -158,6 +159,17 @@ class TimeoutRemoteClient:
         raise RemoteTimeoutError(agent_id=kwargs["agent"].agent_id)
 
 
+class ChallengeRemoteClient:
+    def __init__(self, challenge: RecommendationChallenge) -> None:
+        self.challenge = challenge
+        self.calls: list[dict[str, Any]] = []
+
+    async def execute(self, **kwargs: Any):
+        self.calls.append(kwargs)
+        await kwargs["on_task_started"]("challenge-task-42")
+        return _result("analyst", "challenge-task-42", self.challenge)
+
+
 def test_orchestrator_runs_research_before_analysis_and_preserves_remote_ids() -> None:
     request, evidence, analysis = _fixture_values()
     remote = RecordingRemoteClient(evidence, analysis)
@@ -178,6 +190,33 @@ def test_orchestrator_runs_research_before_analysis_and_preserves_remote_ids() -
     assert execution.analysis.remote_task_id == "analysis-task-42"
     assert execution.research.artifact.payload == evidence
     assert execution.analysis.artifact.payload == analysis
+
+
+def test_orchestrator_routes_challenge_to_the_analyst_artifact_contract() -> None:
+    request, evidence, analysis = _fixture_values()
+    fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+    assert fixture.recommendation_challenge is not None
+    remote = ChallengeRemoteClient(fixture.recommendation_challenge)
+    challenge_request = AnalysisRequest(
+        question=request.question,
+        options=request.options,
+        constraints=request.constraints,
+        criteria=request.criteria,
+        evidence_bundle=evidence,
+        mode="challenge_current_recommendation",
+        current_recommendation=analysis.recommendation,
+    )
+
+    result = asyncio.run(
+        WorkflowOrchestrator(registry=_registry(), remote_client=remote).challenge(
+            challenge_request
+        )
+    )
+
+    assert remote.calls[0]["agent"].agent_id == "analyst"
+    assert remote.calls[0]["artifact_name"] == "recommendation-challenge"
+    assert remote.calls[0]["payload_model"] is RecommendationChallenge
+    assert result.artifact.payload == fixture.recommendation_challenge
 
 
 def test_orchestrator_reports_remote_task_lifecycle() -> None:

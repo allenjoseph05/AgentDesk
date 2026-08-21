@@ -28,6 +28,7 @@ EXPECTED_TABLES = {
     "claims",
     "research_artifacts",
     "analysis",
+    "recommendation_challenges",
 }
 
 
@@ -117,6 +118,7 @@ def test_migration_creates_required_tables_correlations_and_indexes() -> None:
                 "ix_evidence_session_retrieved",
                 "ix_analysis_session_created",
                 "ix_research_artifacts_session_created",
+                "ix_recommendation_challenges_session_created",
                 "ix_workflow_transitions_session_occurred",
             } <= indexes
         finally:
