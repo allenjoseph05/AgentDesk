@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createCoordinatorAgent, runResearch } from "../src/agui/client.ts";
+import {
+  createChallengeRecommendationAction,
+  createFocusOnCriterionAction,
+  createResearchDeeperAction,
+  createRetryFailedAgentAction,
+} from "../src/agui/actions.ts";
+import {
+  createCoordinatorAgent,
+  runAgentDeskAction,
+  runResearch,
+} from "../src/agui/client.ts";
 import { INITIAL_AGENTDESK_STATE, parseAgentDeskViewState } from "../src/agui/state.ts";
 import { AgentDeskStateStore } from "../src/agui/store.ts";
 
@@ -218,4 +228,72 @@ test("store rejection stops a malformed delta before the HttpAgent applies it", 
   assert.equal(states.length, 1);
   assert.equal(recoveryRequests.length, 1);
   assert.equal(recoveryRequests[0].cause, "delta");
+});
+
+test("typed follow-up actions use one thread and validated idempotency envelopes", async () => {
+  const requests = [];
+  const mockFetch = async (_url, init) => {
+    const request = JSON.parse(init.body);
+    requests.push(request);
+    return new Response(
+      [
+        { type: "RUN_STARTED", threadId: request.threadId, runId: request.runId },
+        { type: "RUN_FINISHED", threadId: request.threadId, runId: request.runId },
+      ].map(encode).join(""),
+      { headers: { "content-type": "text/event-stream" } },
+    );
+  };
+  const agent = createCoordinatorAgent(mockFetch, "thread-follow-up");
+  const cases = [
+    [createChallengeRecommendationAction("session-1", null), "Challenge recommendation."],
+    [createResearchDeeperAction("session-1", ["Cost"]), "Research Cost more deeply."],
+    [createFocusOnCriterionAction("session-1", "Cost"), "Focus on Cost."],
+    [createRetryFailedAgentAction("session-1", "research-agent", "task-1"), "Retry research."],
+  ];
+
+  for (const [action, message] of cases) {
+    await runAgentDeskAction(agent, action, message);
+  }
+
+  assert.equal(requests.length, 4);
+  assert.ok(requests.every((request) => request.threadId === "thread-follow-up"));
+  assert.deepEqual(requests.map((request) => request.forwardedProps.agentdesk.type), [
+    "challenge_recommendation",
+    "research_deeper",
+    "focus_on_criterion",
+    "retry_failed_agent",
+  ]);
+  assert.equal(
+    new Set(requests.map((request) => request.forwardedProps.agentdesk.actionId)).size,
+    requests.length,
+  );
+  assert.deepEqual(requests.at(-1).forwardedProps.agentdesk.payload, {
+    agentId: "research-agent",
+    remoteTaskId: "task-1",
+  });
+});
+
+test("invalid action payload is rejected before messages or network work", async () => {
+  let fetchCount = 0;
+  const agent = createCoordinatorAgent(async () => {
+    fetchCount += 1;
+    throw new Error("fetch must not run");
+  });
+
+  await assert.rejects(
+    runAgentDeskAction(
+      agent,
+      {
+        schemaVersion: "1.0",
+        actionId: "invalid-action",
+        type: "focus_on_criterion",
+        sessionId: "session-1",
+        payload: { criterion: "" },
+      },
+      "Invalid focus.",
+    ),
+    /Invalid AgentDesk action/u,
+  );
+  assert.equal(fetchCount, 0);
+  assert.equal(agent.messages.length, 0);
 });

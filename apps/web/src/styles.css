@@ -31,6 +31,7 @@ body {
 }
 
 button,
+input,
 textarea {
   color: inherit;
   font: inherit;
@@ -45,6 +46,7 @@ button:disabled {
 }
 
 button:focus-visible,
+input:focus-visible,
 textarea:focus-visible,
 a:focus-visible {
   outline: 3px solid rgb(231 120 89 / 35%);
@@ -1462,6 +1464,206 @@ p {
   margin-top: 0.75rem;
 }
 
+.action-controls {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #e3e6df;
+}
+
+.action-controls__heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.action-controls__heading .eyebrow {
+  margin-bottom: 0.25rem;
+}
+
+.action-controls__heading h3 {
+  margin-bottom: 0;
+  font-family: "Aptos Display", Aptos, "Segoe UI", sans-serif;
+  font-size: 1rem;
+  letter-spacing: -0.025em;
+}
+
+.action-controls__heading > span {
+  color: #2d6e53;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.active-run-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid #c5d9ce;
+  border-radius: 0.85rem;
+  background: #f1f7f3;
+}
+
+.active-run-control strong {
+  font-size: 0.78rem;
+}
+
+.active-run-control p {
+  margin: 0.25rem 0 0;
+  color: #65736c;
+  font-size: 0.7rem;
+  line-height: 1.45;
+}
+
+.action-control-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.action-control-card {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid #dfe3db;
+  border-radius: 0.85rem;
+  background: #f8f9f5;
+}
+
+.action-control-card h4 {
+  margin: 0;
+  font-family: "Aptos Display", Aptos, "Segoe UI", sans-serif;
+  font-size: 0.86rem;
+  letter-spacing: -0.015em;
+}
+
+.action-control-card > div > p,
+.action-control-card--retry > div > p {
+  margin: 0.28rem 0 0;
+  color: #6f7874;
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.action-control-card > label {
+  display: block;
+  margin: 0.85rem 0 0.35rem;
+  color: #59645f;
+  font-size: 0.64rem;
+  font-weight: 750;
+}
+
+.action-control-card > input {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #d6dcd4;
+  border-radius: 0.58rem;
+  outline: 0;
+  color: var(--ink);
+  background: #fff;
+  font-size: 0.72rem;
+}
+
+.action-control-card > input:focus {
+  border-color: #8ba69a;
+}
+
+.action-button {
+  margin-top: auto;
+  padding: 0.58rem 0.72rem;
+  border: 1px solid #b9cec3;
+  border-radius: 0.58rem;
+  color: #245a45;
+  background: #edf4f0;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.action-control-card > input + .action-button,
+.action-control-card > datalist + .action-button {
+  margin-top: 0.65rem;
+}
+
+.action-button:hover:not(:disabled) {
+  border-color: #86aa99;
+  background: #e2eee7;
+}
+
+.action-button:disabled {
+  opacity: 0.45;
+}
+
+.action-button--danger {
+  flex: 0 0 auto;
+  margin-top: 0;
+  border-color: #ddb2a7;
+  color: #8a3c2e;
+  background: #fff4f0;
+}
+
+.action-control-card--retry {
+  grid-column: 1 / -1;
+}
+
+.action-unavailable {
+  width: 100%;
+  margin: 0.8rem 0 0;
+  padding: 0.7rem;
+  border-radius: 0.58rem;
+  color: #747d79;
+  background: #ecefea;
+  font-size: 0.68rem;
+}
+
+.retry-agent-list {
+  display: grid;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.retry-agent-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid #e2d7d2;
+  border-radius: 0.58rem;
+  background: #fff8f5;
+}
+
+.retry-agent-list li > span {
+  display: grid;
+  min-width: 0;
+}
+
+.retry-agent-list strong {
+  overflow: hidden;
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.retry-agent-list small {
+  margin-top: 0.2rem;
+  overflow-wrap: anywhere;
+  color: #806e67;
+  font-size: 0.63rem;
+}
+
+.retry-agent-list .action-button {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
 .state-empty {
   display: grid;
   justify-items: center;
@@ -1816,6 +2018,20 @@ p {
   }
 
   .verification-list li {
+    grid-template-columns: 1fr;
+  }
+
+  .action-controls__heading,
+  .active-run-control {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .active-run-control .action-button {
+    width: 100%;
+  }
+
+  .action-control-grid {
     grid-template-columns: 1fr;
   }
 }

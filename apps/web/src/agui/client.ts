@@ -1,6 +1,10 @@
 import { HttpAgent, type AgentSubscriber, type HttpAgentFetchFn } from "@ag-ui/client";
 
-import { createStartResearchAction, parseAgentDeskAction } from "./actions.ts";
+import {
+  type AgentDeskAction,
+  createStartResearchAction,
+  parseAgentDeskAction,
+} from "./actions.ts";
 import {
   INITIAL_AGENTDESK_STATE,
   parseAgentDeskViewState,
@@ -44,12 +48,31 @@ export async function runResearch(
     throw new Error("A research question is required.");
   }
 
+  await runAgentDeskAction(
+    agent,
+    createStartResearchAction(normalizedQuestion),
+    normalizedQuestion,
+    observer,
+  );
+}
+
+export async function runAgentDeskAction(
+  agent: HttpAgent,
+  actionInput: AgentDeskAction,
+  userMessage: string,
+  observer: AgentDeskRunObserver = {},
+): Promise<void> {
+  const action = parseAgentDeskAction(actionInput);
+  const normalizedMessage = userMessage.trim();
+  if (!normalizedMessage) {
+    throw new Error("A user-facing action message is required.");
+  }
+
   agent.addMessage({
     id: crypto.randomUUID(),
     role: "user",
-    content: normalizedQuestion,
+    content: normalizedMessage,
   });
-  const action = parseAgentDeskAction(createStartResearchAction(normalizedQuestion));
   const abortController = new AbortController();
 
   const subscriber: AgentSubscriber = {

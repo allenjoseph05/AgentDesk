@@ -10,9 +10,7 @@ import { SpecialistStatusList } from "./SpecialistStatusList";
 interface ResearchStatusPanelProps {
   agents: AgentDeskViewState["agents"];
   evidenceCount: number;
-  isBusy: boolean;
   message: string;
-  onCancel(): void;
   session: SessionSelection;
 }
 
@@ -28,9 +26,7 @@ const STAGE_STATE_LABELS: Record<WorkflowStageState, string> = {
 export function ResearchStatusPanel({
   agents,
   evidenceCount,
-  isBusy,
   message,
-  onCancel,
   session,
 }: ResearchStatusPanelProps) {
   const status = RESEARCH_STATUS_PRESENTATION[session.status];
@@ -84,11 +80,6 @@ export function ResearchStatusPanel({
           <strong>{message}</strong>
           <p>Activity is reported as observed states, not estimated percentage progress.</p>
         </div>
-        {isBusy && (
-          <button type="button" onClick={onCancel}>
-            Cancel run
-          </button>
-        )}
       </div>
     </div>
   );
