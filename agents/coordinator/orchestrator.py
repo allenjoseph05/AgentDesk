@@ -48,6 +48,10 @@ class WorkflowExecution:
 
 
 RemoteTaskLifecycleHandler = Callable[[RegisteredAgent, str], Awaitable[None]]
+ResearchCompletedHandler = Callable[
+    [RegisteredAgent, RemoteTaskResult[EvidenceBundle]],
+    Awaitable[None],
+]
 
 
 class WorkflowOrchestrator:
@@ -73,6 +77,7 @@ class WorkflowOrchestrator:
         *,
         on_remote_task_started: RemoteTaskLifecycleHandler | None = None,
         on_remote_task_finished: RemoteTaskLifecycleHandler | None = None,
+        on_research_completed: ResearchCompletedHandler | None = None,
     ) -> WorkflowExecution:
         """Run research to completion before constructing the analysis request."""
         steps = {step.skill: step for step in plan.steps}
@@ -95,6 +100,8 @@ class WorkflowOrchestrator:
             on_remote_task_started=on_remote_task_started,
             on_remote_task_finished=on_remote_task_finished,
         )
+        if on_research_completed is not None:
+            await on_research_completed(research_agent, research_result)
         analysis_request = AnalysisRequest(
             question=request.question,
             options=request.options,
