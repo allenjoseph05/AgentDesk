@@ -6,7 +6,7 @@ import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import suppress
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Literal, Protocol
 from uuid import NAMESPACE_URL, uuid5
 
 from agents.coordinator.a2a_client import RemoteTaskResult
@@ -51,6 +51,13 @@ class WorkflowRunner(Protocol):
         on_research_completed: (
             Callable[
                 [RegisteredAgent, RemoteTaskResult[EvidenceBundle]],
+                Awaitable[None],
+            ]
+            | None
+        ) = None,
+        on_analysis_completed: (
+            Callable[
+                [RegisteredAgent, RemoteTaskResult[DecisionAnalysis]],
                 Awaitable[None],
             ]
             | None
@@ -105,6 +112,12 @@ class OrchestrationCommandExecutor:
         )
         initialized = False
         orchestration_task: asyncio.Task[WorkflowExecution] | None = None
+        sequence = 0
+        analysis_task_id: str | None = None
+        analysis_activity_id: str | None = None
+        analysis_agent_id: str | None = None
+        analysis_completed = False
+        analysis_started = False
         try:
             self._persistence.initialize(
                 snapshot=machine.snapshot,
@@ -126,6 +139,10 @@ class OrchestrationCommandExecutor:
             research_step = next(
                 step for step in plan.steps if step.skill == "web-research"
             )
+            analysis_step = next(
+                step for step in plan.steps if step.skill == "decision-analysis"
+            )
+            analysis_agent_id = analysis_step.provider_agent_id
             research_task_id = _agent_task_id(
                 command.correlation.session_id,
                 command.correlation.run_id,
@@ -141,7 +158,22 @@ class OrchestrationCommandExecutor:
                     started_at=machine.snapshot.updated_at,
                 )
             )
-            sequence = 0
+            analysis_task_id = _agent_task_id(
+                command.correlation.session_id,
+                command.correlation.run_id,
+                analysis_step.step_id,
+            )
+            analysis_activity_id = f"analysis:{analysis_task_id}"
+            self._persistence.create_agent_task(
+                AgentTaskRecord(
+                    id=analysis_task_id,
+                    session_id=command.correlation.session_id,
+                    run_id=command.correlation.run_id,
+                    agent_id=analysis_step.provider_agent_id,
+                    skill=analysis_step.skill,
+                    started_at=machine.snapshot.updated_at,
+                )
+            )
             activity_id = f"research:{research_task_id}"
             sequence += 1
             yield CoordinatorStateUpdate(
@@ -163,11 +195,38 @@ class OrchestrationCommandExecutor:
                 agent: RegisteredAgent,
                 remote_task_id: str,
             ) -> None:
-                nonlocal sequence
-                if (
-                    agent.agent_id != research_step.provider_agent_id
-                    or research_completed
-                ):
+                nonlocal analysis_started, sequence
+                if agent.agent_id == analysis_step.provider_agent_id:
+                    if analysis_completed:
+                        return
+                    assert analysis_task_id is not None
+                    assert analysis_activity_id is not None
+                    self._persistence.register_remote_task(
+                        analysis_task_id,
+                        remote_task_id=remote_task_id,
+                    )
+                    analysis_started = True
+                    sequence += 1
+                    await updates.put(
+                        CoordinatorStepUpdate(step_name="analysis", status="started")
+                    )
+                    await updates.put(
+                        CoordinatorActivityUpdate(
+                            message_id=analysis_activity_id,
+                            activity_type="specialist-analysis",
+                            agent_id=agent.agent_id,
+                            status="working",
+                            summary="Analysis specialist is evaluating the evidence.",
+                        )
+                    )
+                    await updates.put(
+                        CoordinatorStateUpdate(
+                            self._projector.snapshot(command.correlation.session_id),
+                            sequence=sequence,
+                        )
+                    )
+                    return
+                if agent.agent_id != research_step.provider_agent_id or research_completed:
                     return
                 self._persistence.register_remote_task(
                     research_task_id,
@@ -244,6 +303,63 @@ class OrchestrationCommandExecutor:
                 await updates.put(
                     CoordinatorStepUpdate(step_name="research", status="finished")
                 )
+                assert analysis_activity_id is not None
+                await updates.put(
+                    CoordinatorActivityUpdate(
+                        message_id=analysis_activity_id,
+                        activity_type="specialist-analysis",
+                        agent_id=analysis_step.provider_agent_id,
+                        status="waiting",
+                        summary="Analysis specialist is waiting for accepted evidence.",
+                    )
+                )
+
+            async def analysis_task_completed(
+                agent: RegisteredAgent,
+                result: RemoteTaskResult[DecisionAnalysis],
+            ) -> None:
+                nonlocal analysis_completed, sequence
+                if agent.agent_id != analysis_step.provider_agent_id:
+                    raise RuntimeError("Analysis result provider does not match the plan.")
+                assert analysis_task_id is not None
+                assert analysis_activity_id is not None
+                self._persistence.register_remote_task(
+                    analysis_task_id,
+                    remote_task_id=result.remote_task_id,
+                    a2a_context_id=result.remote_context_id,
+                )
+                self._persistence.persist_analysis(
+                    command.correlation.session_id,
+                    analysis_task_id,
+                    result.artifact,
+                )
+                if analysis_completed:
+                    return
+                self._persistence.finish_agent_task(
+                    analysis_task_id,
+                    status="completed",
+                    finished_at=self._clock(),
+                )
+                analysis_completed = True
+                sequence += 1
+                await updates.put(
+                    CoordinatorStateUpdate(
+                        self._projector.snapshot(command.correlation.session_id),
+                        sequence=sequence,
+                    )
+                )
+                await updates.put(
+                    CoordinatorActivityUpdate(
+                        message_id=analysis_activity_id,
+                        activity_type="specialist-analysis",
+                        agent_id=agent.agent_id,
+                        status="completed",
+                        summary="Decision analysis was accepted.",
+                    )
+                )
+                await updates.put(
+                    CoordinatorStepUpdate(step_name="analysis", status="finished")
+                )
 
             orchestration_task = asyncio.create_task(
                 self._orchestrator.execute(
@@ -251,6 +367,7 @@ class OrchestrationCommandExecutor:
                     plan,
                     on_remote_task_started=remote_task_started,
                     on_research_completed=research_task_completed,
+                    on_analysis_completed=analysis_task_completed,
                 )
             )
             async for update in _queued_updates(orchestration_task, updates):
@@ -282,8 +399,47 @@ class OrchestrationCommandExecutor:
                 self._cancel_run(command, machine)
             raise
         except Exception as error:
+            terminal_status = "failed"
             if initialized:
-                self._fail_run(command, machine)
+                if (
+                    analysis_task_id is not None
+                    and machine.snapshot.status == "analyzing"
+                    and not analysis_completed
+                ):
+                    self._persistence.finish_agent_task(
+                        analysis_task_id,
+                        status="failed",
+                        finished_at=self._clock(),
+                        error_code=_failure_code(error),
+                        error_message=_safe_failure_message(error),
+                    )
+                terminal_status = self._fail_run(command, machine)
+                sequence += 1
+                yield CoordinatorStateUpdate(
+                    self._projector.snapshot(command.correlation.session_id),
+                    sequence=sequence,
+                )
+                if terminal_status == "partial" and analysis_activity_id is not None:
+                    yield CoordinatorActivityUpdate(
+                        message_id=analysis_activity_id,
+                        activity_type="specialist-analysis",
+                        agent_id=analysis_agent_id or "analyst",
+                        status="failed",
+                        summary="Decision analysis did not complete.",
+                    )
+                    if analysis_started:
+                        yield CoordinatorStepUpdate(
+                            step_name="analysis",
+                            status="finished",
+                        )
+                    yield CoordinatorRunOutcome(
+                        status="partial",
+                        message=(
+                            "Research evidence remains available, but analysis did not "
+                            "complete."
+                        ),
+                    )
+                    return
             yield CoordinatorRunOutcome(
                 status="failed",
                 message=_safe_failure_message(error),
@@ -358,23 +514,36 @@ class OrchestrationCommandExecutor:
         self,
         command: StartResearchCommand,
         machine: WorkflowStateMachine,
-    ) -> None:
+    ) -> Literal["failed", "partial"]:
+        terminal_status: Literal["failed", "partial"] = "failed"
         if machine.snapshot.status not in TERMINAL_STATUSES:
-            active_step = machine.snapshot.active_step
-            machine.transition(
-                "failed",
-                failed_steps=([active_step] if active_step is not None else []),
-                reason="Coordinator orchestration failed.",
-            )
+            if (
+                machine.snapshot.status == "analyzing"
+                and "research" in machine.snapshot.completed_steps
+            ):
+                terminal_status = "partial"
+                machine.transition(
+                    "partial",
+                    failed_steps=["analysis"],
+                    reason="Analysis did not complete after successful research.",
+                )
+            else:
+                active_step = machine.snapshot.active_step
+                machine.transition(
+                    "failed",
+                    failed_steps=([active_step] if active_step is not None else []),
+                    reason="Coordinator orchestration failed.",
+                )
         try:
             self._persistence.finish_run(
                 command.correlation.run_id,
-                status="failed",
+                status=terminal_status,
                 finished_at=machine.snapshot.updated_at,
             )
         except WorkflowPersistenceError:
             # Initialization itself can fail before a durable run exists.
-            return
+            return terminal_status
+        return terminal_status
 
 
 def create_orchestration_executor(

@@ -14,17 +14,26 @@ from ag_ui.core import RunAgentInput
 from ag_ui.encoder import EventEncoder
 from sqlalchemy.pool import StaticPool
 
+from agents.analyst.agent_card import create_agent_card as create_analyst_card
 from agents.coordinator.a2a_client import RemoteTaskResult
 from agents.coordinator.execution import OrchestrationCommandExecutor
 from agents.coordinator.orchestrator import WorkflowExecution
 from agents.coordinator.persistence import WorkflowPersistenceService
 from agents.coordinator.planner import WorkflowPlan
-from agents.coordinator.projection import DurableAgUiProjector
+from agents.coordinator.projection import (
+    DurableAgUiProjector,
+    apply_projected_delta,
+)
 from agents.coordinator.registry import RegisteredAgent
 from agents.coordinator.run_adapter import CoordinatorRunAdapter
 from agents.coordinator.workflow_state import WorkflowStateMachine
 from agents.researcher.agent_card import create_agent_card as create_research_card
-from packages.contracts import ArtifactEnvelope, ArtifactProvenance, ResearchRequest
+from packages.contracts import (
+    AgentDeskViewState,
+    ArtifactEnvelope,
+    ArtifactProvenance,
+    ResearchRequest,
+)
 from packages.persistence import Database, metadata
 from packages.testing import load_research_fixture
 
@@ -89,9 +98,16 @@ class RecordingPlanner:
 
 
 class BlockingOrchestrator:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        fixture_id: str = "postgresql-vs-mongodb-golden",
+        fail_analysis: bool = False,
+    ) -> None:
         self.started = asyncio.Event()
         self.release = asyncio.Event()
+        self.fixture_id = fixture_id
+        self.fail_analysis = fail_analysis
 
     async def execute(
         self,
@@ -111,7 +127,7 @@ class BlockingOrchestrator:
         if on_started is not None:
             await on_started(research_agent, "research-task-71")
         await self.release.wait()
-        fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+        fixture = load_research_fixture(self.fixture_id)
         assert fixture.evidence_bundle is not None
         assert fixture.decision_analysis is not None
         created_at = datetime(2026, 8, 21, 12, 0, tzinfo=UTC)
@@ -147,6 +163,19 @@ class BlockingOrchestrator:
         if on_research_completed is not None:
             await on_research_completed(research_agent, execution.research)
             await on_research_completed(research_agent, execution.research)
+        analysis_agent = RegisteredAgent(
+            agent_id="analyst",
+            base_url="https://analyst.example",
+            card=create_analyst_card("https://analyst.example"),
+        )
+        if on_started is not None:
+            await on_started(analysis_agent, "analysis-task-71")
+        if self.fail_analysis:
+            raise RuntimeError("Analyst fixture failure.")
+        on_analysis_completed = callbacks.get("on_analysis_completed")
+        if on_analysis_completed is not None:
+            await on_analysis_completed(analysis_agent, execution.analysis)
+            await on_analysis_completed(analysis_agent, execution.analysis)
         return execution
 
 
@@ -292,6 +321,28 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
         "completed",
     ]
     assert len({event["messageId"] for event in activities}) == 1
+    analysis_steps = [
+        event
+        for event in events
+        if event["type"] in {"STEP_STARTED", "STEP_FINISHED"}
+        and event.get("stepName") == "analysis"
+    ]
+    assert [event["type"] for event in analysis_steps] == [
+        "STEP_STARTED",
+        "STEP_FINISHED",
+    ]
+    analysis_activities = [
+        event
+        for event in events
+        if event["type"] == "ACTIVITY_SNAPSHOT"
+        and event["activityType"] == "specialist-analysis"
+    ]
+    assert [event["content"]["status"] for event in analysis_activities] == [
+        "waiting",
+        "working",
+        "completed",
+    ]
+    assert len({event["messageId"] for event in analysis_activities}) == 1
     evidence_delta = next(
         event
         for event in events
@@ -300,6 +351,21 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
     )
     evidence_paths = {operation["path"] for operation in evidence_delta["delta"]}
     assert {"/evidence", "/evidenceCount", "/claims"} <= evidence_paths
+    analysis_delta = next(
+        event
+        for event in events
+        if event["type"] == "STATE_DELTA"
+        and any(operation["path"] == "/analysis" for operation in event["delta"])
+    )
+    projected_analysis = next(
+        operation["value"]
+        for operation in analysis_delta["delta"]
+        if operation["path"] == "/analysis"
+    )
+    assert projected_analysis["recommendation"] == "PostgreSQL"
+    assert projected_analysis["criteria"]
+    assert projected_analysis["risks"]
+    assert projected_analysis["assumptions"]
     assert events[-1]["type"] == "RUN_FINISHED"
     assert events[-1]["result"] == {
         "threadId": "browser-thread-71",
@@ -326,6 +392,8 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
         transitions = repositories.transitions.list_by_session("coordinator-run-71")
         evidence = repositories.artifacts.list_evidence("coordinator-run-71")
         claims = repositories.artifacts.list_claims("coordinator-run-71")
+        analyses = repositories.artifacts.list_analysis("coordinator-run-71")
+        tasks = repositories.agent_tasks.list_by_session("coordinator-run-71")
     assert session.status == "completed"
     assert session.completed_steps == ["plan", "research", "analysis"]
     assert run is not None and run.status == "completed"
@@ -334,12 +402,70 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
     assert fixture.evidence_bundle is not None
     assert len(evidence) == len(fixture.evidence_bundle.evidence)
     assert len(claims) == len(fixture.evidence_bundle.claims)
+    assert len(analyses) == 1
+    assert analyses[0].analysis == fixture.decision_analysis
+    assert [(task.agent_id, task.status) for task in tasks] == [
+        ("analyst", "completed"),
+        ("researcher", "completed"),
+    ]
     assert [transition.to_status for transition in transitions] == [
         "planning",
         "researching",
         "analyzing",
         "completed",
     ]
+
+
+def test_analysis_failure_finishes_partial_and_preserves_evidence(
+    database: Database,
+) -> None:
+    async def scenario() -> list[dict[str, Any]]:
+        orchestrator = BlockingOrchestrator(
+            fixture_id="postgresql-vs-mongodb-partial",
+            fail_analysis=True,
+        )
+        orchestrator.release.set()
+        executor = OrchestrationCommandExecutor(
+            planner=RecordingPlanner(),
+            orchestrator=orchestrator,
+            persistence=WorkflowPersistenceService(database),
+            projector=DurableAgUiProjector(database),
+            clock=AdvancingClock(),
+        )
+        return [
+            _decode(item)
+            async for item in CoordinatorRunAdapter(executor=executor).stream(
+                _input(),
+                EventEncoder(accept="text/event-stream"),
+            )
+        ]
+
+    events = asyncio.run(scenario())
+
+    assert not any(event["type"] == "RUN_ERROR" for event in events)
+    assert events[-1]["type"] == "RUN_FINISHED"
+    assert events[-1]["result"]["status"] == "partial"
+    snapshot_event = next(event for event in events if event["type"] == "STATE_SNAPSHOT")
+    state = AgentDeskViewState.model_validate(snapshot_event["snapshot"])
+    for event in events:
+        if event["type"] == "STATE_DELTA":
+            state = apply_projected_delta(state, event["delta"])
+    fixture = load_research_fixture("postgresql-vs-mongodb-partial")
+    assert fixture.evidence_bundle is not None
+    assert state.status == "partial"
+    assert state.evidence == fixture.evidence_bundle.evidence
+    assert state.claims == fixture.evidence_bundle.claims
+    assert state.analysis is None
+    assert state.verification is None
+    assert [(agent.agent_id, agent.status) for agent in state.agents] == [
+        ("analyst", "failed"),
+        ("researcher", "completed"),
+    ]
+    with database.transaction() as repositories:
+        run = repositories.runs.get("coordinator-run-71")
+        analyses = repositories.artifacts.list_analysis("coordinator-run-71")
+    assert run is not None and run.status == "partial"
+    assert analyses == ()
 
 
 def test_follow_up_run_is_correlated_to_existing_thread_and_session(
