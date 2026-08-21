@@ -30,8 +30,10 @@ from agents.coordinator.workflow_state import WorkflowStateMachine
 from agents.researcher.agent_card import create_agent_card as create_research_card
 from packages.contracts import (
     AgentDeskViewState,
+    AnalysisRequest,
     ArtifactEnvelope,
     ArtifactProvenance,
+    RecommendationChallenge,
     ResearchRequest,
 )
 from packages.persistence import Database, metadata
@@ -108,6 +110,8 @@ class BlockingOrchestrator:
         self.release = asyncio.Event()
         self.fixture_id = fixture_id
         self.fail_analysis = fail_analysis
+        self.challenge_requests: list[AnalysisRequest] = []
+        self.execute_calls = 0
 
     async def execute(
         self,
@@ -115,6 +119,9 @@ class BlockingOrchestrator:
         plan: WorkflowPlan,
         **callbacks: Any,
     ) -> WorkflowExecution:
+        self.execute_calls += 1
+        research_remote_task_id = f"research-task-{70 + self.execute_calls}"
+        analysis_remote_task_id = f"analysis-task-{70 + self.execute_calls}"
         assert request.options == ["PostgreSQL", "MongoDB"]
         assert plan == _plan()
         self.started.set()
@@ -125,7 +132,7 @@ class BlockingOrchestrator:
         )
         on_started = callbacks.get("on_remote_task_started")
         if on_started is not None:
-            await on_started(research_agent, "research-task-71")
+            await on_started(research_agent, research_remote_task_id)
         await self.release.wait()
         fixture = load_research_fixture(self.fixture_id)
         assert fixture.evidence_bundle is not None
@@ -134,12 +141,12 @@ class BlockingOrchestrator:
         execution = WorkflowExecution(
             research=RemoteTaskResult(
                 agent_id="researcher",
-                remote_task_id="research-task-71",
+                remote_task_id=research_remote_task_id,
                 remote_context_id="context-71",
                 artifact=ArtifactEnvelope(
                     provenance=ArtifactProvenance(
                         producer_agent="researcher",
-                        remote_task_id="research-task-71",
+                        remote_task_id=research_remote_task_id,
                         created_at=created_at,
                     ),
                     payload=fixture.evidence_bundle,
@@ -147,12 +154,12 @@ class BlockingOrchestrator:
             ),
             analysis=RemoteTaskResult(
                 agent_id="analyst",
-                remote_task_id="analysis-task-71",
+                remote_task_id=analysis_remote_task_id,
                 remote_context_id="context-71",
                 artifact=ArtifactEnvelope(
                     provenance=ArtifactProvenance(
                         producer_agent="analyst",
-                        remote_task_id="analysis-task-71",
+                        remote_task_id=analysis_remote_task_id,
                         created_at=created_at,
                     ),
                     payload=fixture.decision_analysis,
@@ -169,7 +176,7 @@ class BlockingOrchestrator:
             card=create_analyst_card("https://analyst.example"),
         )
         if on_started is not None:
-            await on_started(analysis_agent, "analysis-task-71")
+            await on_started(analysis_agent, analysis_remote_task_id)
         if self.fail_analysis:
             raise RuntimeError("Analyst fixture failure.")
         on_analysis_completed = callbacks.get("on_analysis_completed")
@@ -177,6 +184,29 @@ class BlockingOrchestrator:
             await on_analysis_completed(analysis_agent, execution.analysis)
             await on_analysis_completed(analysis_agent, execution.analysis)
         return execution
+
+    async def challenge(
+        self,
+        request: AnalysisRequest,
+        **callbacks: Any,
+    ) -> RemoteTaskResult[RecommendationChallenge]:
+        del callbacks
+        self.challenge_requests.append(request)
+        fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+        assert fixture.recommendation_challenge is not None
+        return RemoteTaskResult(
+            agent_id="analyst",
+            remote_task_id=f"challenge-task-{len(self.challenge_requests)}",
+            remote_context_id="context-71",
+            artifact=ArtifactEnvelope(
+                provenance=ArtifactProvenance(
+                    producer_agent="analyst",
+                    remote_task_id=f"challenge-task-{len(self.challenge_requests)}",
+                    created_at=datetime(2026, 8, 21, 12, 0, tzinfo=UTC),
+                ),
+                payload=fixture.recommendation_challenge,
+            ),
+        )
 
 
 def _input() -> RunAgentInput:
@@ -229,6 +259,7 @@ def _follow_up_input() -> RunAgentInput:
                 "evidenceCount": 0,
                 "claims": [],
                 "analysis": None,
+                "recommendationChallenge": None,
                 "verification": None,
                 "warnings": [],
                 "errors": [],
@@ -245,6 +276,57 @@ def _follow_up_input() -> RunAgentInput:
                     "type": "challenge_recommendation",
                     "sessionId": "coordinator-run-71",
                     "payload": {"challenge": message},
+                }
+            },
+        }
+    )
+
+
+def _research_follow_up_input(
+    *,
+    run_id: str,
+    action_id: str,
+    action_type: str,
+    payload: dict[str, Any],
+) -> RunAgentInput:
+    return RunAgentInput.model_validate(
+        {
+            "threadId": "browser-thread-71",
+            "runId": run_id,
+            "state": {
+                "schemaVersion": "1.0",
+                "sessionId": "coordinator-run-71",
+                "question": "Should we use PostgreSQL or MongoDB?",
+                "status": "completed",
+                "activeStep": None,
+                "agents": [],
+                "evidence": [],
+                "evidenceCount": 0,
+                "claims": [],
+                "analysis": None,
+                "recommendationChallenge": None,
+                "verification": None,
+                "warnings": [],
+                "errors": [],
+                "availableActions": [],
+                "lastUpdatedAt": "2026-08-21T12:00:04Z",
+            },
+            "messages": [
+                {
+                    "id": f"message-{action_id}",
+                    "role": "user",
+                    "content": "Continue the decision research.",
+                }
+            ],
+            "tools": [],
+            "context": [],
+            "forwardedProps": {
+                "agentdesk": {
+                    "schemaVersion": "1.0",
+                    "actionId": action_id,
+                    "type": action_type,
+                    "sessionId": "coordinator-run-71",
+                    "payload": payload,
                 }
             },
         }
@@ -524,7 +606,7 @@ def test_follow_up_run_is_correlated_to_existing_thread_and_session(
         "STATE_SNAPSHOT",
         "RUN_ERROR",
     ]
-    assert events[-1]["code"] == "follow_up_not_implemented"
+    assert events[-1]["code"] == "orchestration_failed"
     assert planner.requests == []
     assert not orchestrator.started.is_set()
     with database.transaction() as repositories:
@@ -537,3 +619,132 @@ def test_follow_up_run_is_correlated_to_existing_thread_and_session(
     assert run is not None
     assert run.session_id == "coordinator-run-71"
     assert run.status == "failed"
+
+
+def test_challenge_creates_one_new_run_and_live_counteranalysis_delta(
+    database: Database,
+) -> None:
+    planner = RecordingPlanner()
+    orchestrator = BlockingOrchestrator()
+    orchestrator.release.set()
+    adapter = CoordinatorRunAdapter(
+        executor=OrchestrationCommandExecutor(
+            planner=planner,
+            orchestrator=orchestrator,
+            persistence=WorkflowPersistenceService(database),
+            projector=DurableAgUiProjector(database),
+            clock=AdvancingClock(),
+        )
+    )
+    encoder = EventEncoder(accept="text/event-stream")
+
+    async def scenario() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        _ = [_decode(item) async for item in adapter.stream(_input(), encoder)]
+        follow_up = [
+            _decode(item)
+            async for item in adapter.stream(_follow_up_input(), encoder)
+        ]
+        replay = [
+            _decode(item)
+            async for item in adapter.stream(_follow_up_input(), encoder)
+        ]
+        return follow_up, replay
+
+    follow_up, replay = asyncio.run(scenario())
+
+    counteranalysis_delta = next(
+        event
+        for event in follow_up
+        if event["type"] == "STATE_DELTA"
+        and any(
+            operation["path"] == "/recommendationChallenge"
+            for operation in event["delta"]
+        )
+    )
+    challenge = next(
+        operation["value"]
+        for operation in counteranalysis_delta["delta"]
+        if operation["path"] == "/recommendationChallenge"
+    )
+    assert challenge["currentRecommendation"] == "PostgreSQL"
+    assert challenge["strongestAlternative"] == "MongoDB"
+    assert len(orchestrator.challenge_requests) == 1
+    assert orchestrator.challenge_requests[0].mode == "challenge_current_recommendation"
+    assert [event["type"] for event in replay] == ["RUN_STARTED", "RUN_ERROR"]
+    assert replay[-1]["code"] == "duplicate_action"
+    with database.transaction() as repositories:
+        session = repositories.sessions.require("coordinator-run-71")
+        run = repositories.runs.get("follow-up-run-71")
+        challenges = repositories.artifacts.list_recommendation_challenges(
+            "coordinator-run-71"
+        )
+    assert session.last_run_id == "follow-up-run-71"
+    assert session.ag_ui_thread_id == "browser-thread-71"
+    assert run is not None and run.status == "completed"
+    assert len(challenges) == 1
+
+
+@pytest.mark.parametrize(
+    ("action_type", "payload", "expected_criteria"),
+    [
+        (
+            "research_deeper",
+            {"focusAreas": ["Schema flexibility"], "desiredDepth": "deep"},
+            ["Schema flexibility"],
+        ),
+        (
+            "focus_on_criterion",
+            {"criterion": "Data integrity"},
+            ["Data integrity"],
+        ),
+    ],
+)
+def test_research_follow_ups_rerun_specialists_in_the_same_session(
+    database: Database,
+    action_type: str,
+    payload: dict[str, Any],
+    expected_criteria: list[str],
+) -> None:
+    planner = RecordingPlanner()
+    orchestrator = BlockingOrchestrator()
+    orchestrator.release.set()
+    adapter = CoordinatorRunAdapter(
+        executor=OrchestrationCommandExecutor(
+            planner=planner,
+            orchestrator=orchestrator,
+            persistence=WorkflowPersistenceService(database),
+            projector=DurableAgUiProjector(database),
+            clock=AdvancingClock(),
+        )
+    )
+    follow_up_input = _research_follow_up_input(
+        run_id=f"{action_type}-run-74",
+        action_id=f"{action_type}-action-74",
+        action_type=action_type,
+        payload=payload,
+    )
+    encoder = EventEncoder(accept="text/event-stream")
+
+    async def scenario() -> list[dict[str, Any]]:
+        _ = [_decode(item) async for item in adapter.stream(_input(), encoder)]
+        return [
+            _decode(item)
+            async for item in adapter.stream(follow_up_input, encoder)
+        ]
+
+    events = asyncio.run(scenario())
+
+    assert events[-1]["type"] == "RUN_FINISHED"
+    assert planner.requests[-1].criteria == expected_criteria
+    assert planner.requests[-1].desired_depth == "deep"
+    assert orchestrator.execute_calls == 2
+    with database.transaction() as repositories:
+        session = repositories.sessions.require("coordinator-run-71")
+        run = repositories.runs.get(f"{action_type}-run-74")
+        tasks = repositories.agent_tasks.list_by_session("coordinator-run-71")
+        analyses = repositories.artifacts.list_analysis("coordinator-run-71")
+    assert session.ag_ui_thread_id == "browser-thread-71"
+    assert session.last_run_id == f"{action_type}-run-74"
+    assert run is not None and run.status == "completed"
+    assert len(tasks) == 4
+    assert len(analyses) == 2

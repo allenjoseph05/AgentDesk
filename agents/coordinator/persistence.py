@@ -8,7 +8,12 @@ from typing import Any, Literal
 from uuid import NAMESPACE_URL, uuid5
 
 from agents.coordinator.workflow_state import WorkflowSnapshot, WorkflowTransition
-from packages.contracts import ArtifactEnvelope, DecisionAnalysis, EvidenceBundle
+from packages.contracts import (
+    ArtifactEnvelope,
+    DecisionAnalysis,
+    EvidenceBundle,
+    RecommendationChallenge,
+)
 from packages.persistence import (
     AgentTaskRecord,
     AnalysisRecord,
@@ -16,6 +21,7 @@ from packages.persistence import (
     CoordinatorRunRecord,
     Database,
     EvidenceRecord,
+    RecommendationChallengeRecord,
     RepositoryConflictError,
     ResearchArtifactRecord,
     SessionRecord,
@@ -38,11 +44,52 @@ class EvidencePersistenceResult:
     bundle_inserted: bool = False
 
 
+@dataclass(frozen=True)
+class FollowUpContext:
+    question: str
+    options: tuple[str, ...]
+    criteria: tuple[str, ...]
+    evidence_bundle: EvidenceBundle
+    current_recommendation: str
+
+
 class WorkflowPersistenceService:
     """Persist Coordinator commit points behind one transaction boundary."""
 
     def __init__(self, database: Database) -> None:
         self._database = database
+
+    def load_follow_up_context(self, session_id: str) -> FollowUpContext:
+        """Rehydrate the latest accepted decision context for a follow-up run."""
+        with self._database.transaction() as repositories:
+            repositories.sessions.require(session_id)
+            research = repositories.artifacts.list_research_artifacts(session_id)
+            analyses = repositories.artifacts.list_analysis(session_id)
+        if not research or not analyses:
+            raise WorkflowPersistenceError(
+                "Follow-up actions require completed research and analysis."
+            )
+        latest_analysis = analyses[-1].analysis
+        options = tuple(
+            dict.fromkeys(
+                option
+                for criterion in latest_analysis.criteria
+                for option in criterion.scores
+            )
+        )
+        criteria = tuple(item.criterion for item in latest_analysis.criteria)
+        if len(options) < 2 or not criteria:
+            raise WorkflowPersistenceError(
+                "The durable analysis does not contain reusable decision context."
+            )
+        latest_research = research[-1].envelope.payload
+        return FollowUpContext(
+            question=latest_research.question,
+            options=options,
+            criteria=criteria,
+            evidence_bundle=latest_research,
+            current_recommendation=latest_analysis.recommendation,
+        )
 
     def initialize(
         self,
@@ -340,6 +387,28 @@ class WorkflowPersistenceService:
                     analysis=envelope.payload,
                     artifact_schema_version=envelope.schema_version,
                     created_at=envelope.provenance.created_at,
+                )
+            )
+
+    def persist_recommendation_challenge(
+        self,
+        session_id: str,
+        task_id: str,
+        envelope: ArtifactEnvelope[RecommendationChallenge],
+    ) -> bool:
+        with self._database.transaction() as repositories:
+            task = repositories.agent_tasks.require(task_id)
+            _validate_provenance(session_id, task, envelope)
+            return repositories.artifacts.put_recommendation_challenge(
+                RecommendationChallengeRecord(
+                    id=_artifact_row_id(
+                        session_id,
+                        "recommendation-challenge",
+                        task_id,
+                    ),
+                    session_id=session_id,
+                    agent_task_id=task_id,
+                    envelope=envelope,
                 )
             )
 

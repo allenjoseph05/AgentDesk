@@ -11,7 +11,13 @@ from pydantic import BaseModel
 from agents.coordinator.a2a_client import A2AClientAdapter, RemoteTaskResult
 from agents.coordinator.planner import PlannedStep, WorkflowPlan
 from agents.coordinator.registry import AgentRegistry, RegisteredAgent
-from packages.contracts import AnalysisRequest, DecisionAnalysis, EvidenceBundle, ResearchRequest
+from packages.contracts import (
+    AnalysisRequest,
+    DecisionAnalysis,
+    EvidenceBundle,
+    RecommendationChallenge,
+    ResearchRequest,
+)
 
 
 class RemoteAgentClient(Protocol):
@@ -125,6 +131,28 @@ class WorkflowOrchestrator:
         if on_analysis_completed is not None:
             await on_analysis_completed(analysis_agent, analysis_result)
         return WorkflowExecution(research=research_result, analysis=analysis_result)
+
+    async def challenge(
+        self,
+        request: AnalysisRequest,
+        *,
+        on_remote_task_started: RemoteTaskLifecycleHandler | None = None,
+        on_remote_task_finished: RemoteTaskLifecycleHandler | None = None,
+    ) -> RemoteTaskResult[RecommendationChallenge]:
+        """Ask the registered analyst for the strongest bounded counteranalysis."""
+        agent = self._registry.first_by_skill("decision-analysis")
+        if agent is None:
+            raise OrchestrationPlanError(
+                "No healthy provider advertises decision-analysis."
+            )
+        return await self._execute_remote(
+            agent=agent,
+            request=request,
+            artifact_name="recommendation-challenge",
+            payload_model=RecommendationChallenge,
+            on_remote_task_started=on_remote_task_started,
+            on_remote_task_finished=on_remote_task_finished,
+        )
 
     async def _execute_remote[PayloadT: BaseModel](
         self,

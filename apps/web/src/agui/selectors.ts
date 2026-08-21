@@ -37,6 +37,10 @@ export function selectAnalysis(state: AgentDeskViewState) {
   return state.analysis;
 }
 
+export function selectRecommendationChallenge(state: AgentDeskViewState) {
+  return state.recommendationChallenge;
+}
+
 export function selectVerification(state: AgentDeskViewState) {
   return state.verification;
 }

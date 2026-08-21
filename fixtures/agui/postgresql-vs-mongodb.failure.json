@@ -9,7 +9,7 @@
   "state": {
     "schemaVersion": "1.0", "sessionId": "session-failure", "question": "Should the product use PostgreSQL or MongoDB?", "status": "failed", "activeStep": "research",
     "agents": [{"agentId": "research-agent", "name": "Research Agent", "skill": "web-research", "status": "failed", "remoteTaskId": "research-task-failure", "message": "The source provider is unavailable."}],
-    "evidence": [], "evidenceCount": 0, "claims": [], "analysis": null, "verification": null,
+    "evidence": [], "evidenceCount": 0, "claims": [], "analysis": null, "recommendationChallenge": null, "verification": null,
     "warnings": [], "errors": ["Research sources are temporarily unavailable."],
     "availableActions": ["retry_failed_agent"], "lastUpdatedAt": "2026-08-17T12:00:03Z"
   }

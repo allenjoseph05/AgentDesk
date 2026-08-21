@@ -57,6 +57,18 @@ const decisionAnalysisSchema = z
   })
   .strict();
 
+const recommendationChallengeSchema = z
+  .object({
+    currentRecommendation: nonEmptyText,
+    strongestAlternative: nonEmptyText,
+    strongestCounterargument: nonEmptyText,
+    supportingClaimIds: z.array(nonEmptyText).min(1),
+    assumptions: z.array(nonEmptyText).min(1),
+    evidenceGaps: z.array(nonEmptyText).default([]),
+    recommendationChangesIf: z.array(nonEmptyText).min(1),
+  })
+  .strict();
+
 const verificationReportSchema = z
   .object({
     results: z.array(
@@ -118,6 +130,7 @@ export const AgentDeskViewStateSchema = z
     evidenceCount: z.number().int().nonnegative().default(0),
     claims: z.array(claimSchema).default([]),
     analysis: decisionAnalysisSchema.nullable().default(null),
+    recommendationChallenge: recommendationChallengeSchema.nullable().default(null),
     verification: verificationReportSchema.nullable().default(null),
     warnings: z.array(nonEmptyText).default([]),
     errors: z.array(nonEmptyText).default([]),
@@ -185,6 +198,7 @@ export const INITIAL_AGENTDESK_STATE: AgentDeskViewState = {
   evidenceCount: 0,
   claims: [],
   analysis: null,
+  recommendationChallenge: null,
   verification: null,
   warnings: [],
   errors: [],

@@ -10,6 +10,7 @@ interface ResearchResultsProps {
   analysis: AgentDeskViewState["analysis"];
   claims: AgentDeskViewState["claims"];
   evidence: AgentDeskViewState["evidence"];
+  recommendationChallenge: AgentDeskViewState["recommendationChallenge"];
   verification: AgentDeskViewState["verification"];
   warnings: AgentDeskViewState["warnings"];
 }
@@ -36,11 +37,16 @@ export function ResearchResults({
   analysis,
   claims,
   evidence,
+  recommendationChallenge = null,
   verification,
   warnings,
 }: ResearchResultsProps) {
   const hasArtifacts =
-    analysis !== null || evidence.length > 0 || claims.length > 0 || verification !== null;
+    analysis !== null ||
+    recommendationChallenge !== null ||
+    evidence.length > 0 ||
+    claims.length > 0 ||
+    verification !== null;
 
   if (!hasArtifacts) {
     return (
@@ -75,6 +81,10 @@ export function ResearchResults({
 
       <WarningList warnings={warnings} />
 
+      {recommendationChallenge !== null && (
+        <CounteranalysisCard challenge={recommendationChallenge} />
+      )}
+
       {analysis === null ? (
         <section className="analysis-empty" aria-labelledby="analysis-empty-title">
           <div aria-hidden="true">i</div>
@@ -105,6 +115,47 @@ export function ResearchResults({
 
       <VerificationPanel claims={claims} verification={verification} />
     </section>
+  );
+}
+
+function CounteranalysisCard({
+  challenge,
+}: {
+  challenge: NonNullable<AgentDeskViewState["recommendationChallenge"]>;
+}) {
+  return (
+    <article className="counteranalysis-card" aria-labelledby="counteranalysis-title">
+      <div>
+        <p className="eyebrow">Recommendation challenged</p>
+        <h4 id="counteranalysis-title">
+          Strongest alternative: {challenge.strongestAlternative}
+        </h4>
+        <p>{challenge.strongestCounterargument}</p>
+      </div>
+      <div className="counteranalysis-details">
+        <section>
+          <h5>Assumptions under pressure</h5>
+          <ul>
+            {challenge.assumptions.map((assumption) => (
+              <li key={assumption}>{assumption}</li>
+            ))}
+          </ul>
+        </section>
+        <section>
+          <h5>The recommendation changes if</h5>
+          <ul>
+            {challenge.recommendationChangesIf.map((condition) => (
+              <li key={condition}>{condition}</li>
+            ))}
+          </ul>
+        </section>
+      </div>
+      {challenge.evidenceGaps.length > 0 && (
+        <p className="counteranalysis-gaps">
+          Evidence gaps: {challenge.evidenceGaps.join("; ")}
+        </p>
+      )}
+    </article>
   );
 }
 

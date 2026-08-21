@@ -1089,6 +1089,55 @@ p {
   line-height: 1.5;
 }
 
+.counteranalysis-card {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.1rem;
+  border: 1px solid #d7c9a7;
+  border-left: 4px solid #a06a36;
+  border-radius: 12px;
+  background: #fffaf0;
+}
+
+.counteranalysis-card h4 {
+  margin: 0.2rem 0 0.45rem;
+  color: #3b332b;
+}
+
+.counteranalysis-card p,
+.counteranalysis-card li {
+  color: #665b50;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.counteranalysis-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.counteranalysis-details section {
+  padding: 0.8rem;
+  border-radius: 9px;
+  background: rgb(255 255 255 / 70%);
+}
+
+.counteranalysis-details h5 {
+  margin: 0;
+  color: #4b4036;
+}
+
+.counteranalysis-details ul {
+  margin: 0.45rem 0 0;
+  padding-left: 1rem;
+}
+
+.counteranalysis-gaps {
+  margin: 0;
+  font-style: italic;
+}
+
 .recommendation-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

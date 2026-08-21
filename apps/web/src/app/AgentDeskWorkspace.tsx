@@ -6,6 +6,7 @@ import {
   selectAnalysis,
   selectClaims,
   selectEvidence,
+  selectRecommendationChallenge,
   selectSession,
   selectVerification,
   selectWarnings,
@@ -42,6 +43,7 @@ export function AgentDeskWorkspace() {
   const evidence = useAgentDeskSelector(selectEvidence);
   const claims = useAgentDeskSelector(selectClaims);
   const analysis = useAgentDeskSelector(selectAnalysis);
+  const recommendationChallenge = useAgentDeskSelector(selectRecommendationChallenge);
   const verification = useAgentDeskSelector(selectVerification);
   const warnings = useAgentDeskSelector(selectWarnings);
   const availableActions = useAgentDeskSelector(selectActions);
@@ -191,6 +193,7 @@ export function AgentDeskWorkspace() {
                 analysis={analysis}
                 claims={claims}
                 evidence={evidence}
+                recommendationChallenge={recommendationChallenge}
                 verification={verification}
                 warnings={warnings}
               />

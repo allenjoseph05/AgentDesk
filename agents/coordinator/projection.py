@@ -71,6 +71,9 @@ class DurableAgUiProjector:
             claims = repositories.artifacts.list_claims(session_id)
             research_artifacts = repositories.artifacts.list_research_artifacts(session_id)
             analyses = repositories.artifacts.list_analysis(session_id)
+            challenges = repositories.artifacts.list_recommendation_challenges(
+                session_id
+            )
 
         agents = _latest_agent_views(tasks)
         failed_agents = [agent for agent in agents if agent.status == "failed"]
@@ -104,6 +107,9 @@ class DurableAgUiProjector:
             evidence_count=len(evidence),
             claims=[record.claim for record in claims],
             analysis=analyses[-1].analysis if analyses else None,
+            recommendation_challenge=(
+                challenges[-1].envelope.payload if challenges else None
+            ),
             verification=None,
             warnings=warnings,
             errors=errors,

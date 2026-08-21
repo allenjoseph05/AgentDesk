@@ -101,6 +101,7 @@ test("frontend payload defaults mirror Python contract defaults", () => {
     evidenceCount: 0,
     claims: [],
     analysis: null,
+    recommendationChallenge: null,
     verification: null,
     warnings: [],
     errors: [],
