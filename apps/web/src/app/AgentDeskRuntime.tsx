@@ -20,6 +20,7 @@ import {
 } from "../agui/actions";
 import { createCoordinatorAgent, runAgentDeskAction } from "../agui/client";
 import { useAgentDeskStateStore } from "../agui/store-react";
+import { type TimelineItem, upsertTimelineItem } from "../agui/timeline";
 
 export type RuntimePhase = "idle" | "connecting" | "running" | "error";
 
@@ -39,6 +40,7 @@ interface AgentDeskRuntimeValue {
   ): Promise<boolean>;
   startResearch(question: string): Promise<boolean>;
   threadId: string;
+  timeline: TimelineItem[];
 }
 
 interface AgentDeskRuntimeProviderProps {
@@ -62,6 +64,7 @@ export function AgentDeskRuntimeProvider({
   const [activeAction, setActiveAction] = useState<AgentDeskAction["type"] | null>(null);
   const [message, setMessage] = useState("Ready for a new research question.");
   const [error, setError] = useState<string | null>(null);
+  const [timeline, setTimeline] = useState<TimelineItem[]>([]);
 
   useEffect(
     () =>
@@ -102,6 +105,7 @@ export function AgentDeskRuntimeProvider({
         onRunning: () => setPhase("running"),
         onSnapshot: stateStore.replaceSnapshot,
         onMessage: setMessage,
+        onTimelineItem: (item) => setTimeline((items) => upsertTimelineItem(items, item)),
         onFinished: () => setPhase((current) => (current === "error" ? current : "idle")),
         onCancelled: () => {
           setMessage("Research run cancelled.");
@@ -190,6 +194,7 @@ export function AgentDeskRuntimeProvider({
       retryFailedAgent,
       startResearch,
       threadId: agentRef.current!.threadId,
+      timeline,
     }),
     [
       activeAction,
@@ -202,6 +207,7 @@ export function AgentDeskRuntimeProvider({
       researchDeeper,
       retryFailedAgent,
       startResearch,
+      timeline,
     ],
   );
 
