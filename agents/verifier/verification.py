@@ -6,6 +6,7 @@ import json
 
 from packages.contracts import EvidenceBundle, VerificationReport
 from packages.llm import LLMProvider, Message
+from packages.resilience import OperationPolicy, OperationTimeoutError, run_with_policy
 
 CLAIM_VERIFICATION_PROMPT = """You are the fact-verification stage of an agent system.
 Return only the requested VerificationReport structure. Evaluate every supplied claim exactly
@@ -16,6 +17,8 @@ evidence_ids field and explain how that evidence supports, partly supports, cont
 to establish the claim. Use insufficient_evidence as a valid verdict whenever the supplied
 material cannot justify a stronger conclusion. Do not reveal chain-of-thought.
 """
+
+DEFAULT_MODEL_TIMEOUT_SECONDS = 45.0
 
 
 class ClaimVerificationError(RuntimeError):
@@ -29,28 +32,44 @@ class ClaimVerificationError(RuntimeError):
 class ClaimVerifier:
     """Generate and validate one grounded verdict for every supplied claim."""
 
-    def __init__(self, llm_provider: LLMProvider) -> None:
+    def __init__(
+        self,
+        llm_provider: LLMProvider,
+        *,
+        model_timeout_seconds: float = DEFAULT_MODEL_TIMEOUT_SECONDS,
+    ) -> None:
         self._llm_provider = llm_provider
+        self._model_policy = OperationPolicy(timeout_seconds=model_timeout_seconds)
 
     async def verify(self, evidence_bundle: EvidenceBundle) -> VerificationReport:
         """Return a report whose claim and evidence references match the bundle."""
         validated_bundle = EvidenceBundle.model_validate(
             evidence_bundle.model_dump(mode="python")
         )
-        candidate = await self._llm_provider.generate_structured(
-            system_prompt=CLAIM_VERIFICATION_PROMPT,
-            messages=[
-                Message(
-                    role="user",
-                    content=json.dumps(
-                        validated_bundle.model_dump(mode="json"),
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                    ),
-                )
-            ],
-            response_model=VerificationReport,
-        )
+        try:
+            candidate = await run_with_policy(
+                "verification.generate",
+                lambda: self._llm_provider.generate_structured(
+                    system_prompt=CLAIM_VERIFICATION_PROMPT,
+                    messages=[
+                        Message(
+                            role="user",
+                            content=json.dumps(
+                                validated_bundle.model_dump(mode="json"),
+                                ensure_ascii=False,
+                                separators=(",", ":"),
+                            ),
+                        )
+                    ],
+                    response_model=VerificationReport,
+                ),
+                policy=self._model_policy,
+            )
+        except OperationTimeoutError as error:
+            raise ClaimVerificationError(
+                "verification_timeout",
+                "Claim verification exceeded its operation deadline.",
+            ) from error
         return _validate_report(validated_bundle, candidate)
 
 

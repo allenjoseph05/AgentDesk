@@ -55,6 +55,25 @@ class ScriptedProvider:
             raise LLMResponseError("Scripted planner output failed validation.") from error
 
 
+class HangingProvider:
+    """Record calls whose responses never arrive without a caller deadline."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def generate_structured[ResponseT: BaseModel](
+        self,
+        *,
+        system_prompt: str,
+        messages: list[Message],
+        response_model: type[ResponseT],
+    ) -> ResponseT:
+        del system_prompt, messages, response_model
+        self.calls += 1
+        await asyncio.Future()
+        raise AssertionError("The planner deadline should cancel this call.")
+
+
 def _request() -> ResearchRequest:
     return ResearchRequest(
         question="Should the product use PostgreSQL or MongoDB?",
@@ -200,6 +219,24 @@ def test_missing_registered_skill_exhausts_exact_attempt_budget() -> None:
     assert error.value.code == "attempts_exhausted"
     assert error.value.attempts == 2
     assert len(provider.calls) == 2
+
+
+def test_planner_applies_a_deadline_to_each_bounded_model_attempt() -> None:
+    provider = HangingProvider()
+
+    with pytest.raises(PlanningFailedError) as error:
+        asyncio.run(
+            DecisionPlanner(
+                llm_provider=provider,
+                registry=_registry(),
+                max_attempts=2,
+                attempt_timeout_seconds=0.001,
+            ).plan(_request())
+        )
+
+    assert error.value.code == "attempts_exhausted"
+    assert "provider_timeout" in str(error.value)
+    assert provider.calls == 2
 
 
 def test_request_with_fewer_than_two_options_fails_before_model_call() -> None:

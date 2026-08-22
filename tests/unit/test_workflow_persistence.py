@@ -342,6 +342,74 @@ def test_evidence_and_analysis_replay_is_exactly_once(database: Database) -> Non
     assert evidence[0].evidence.summary != "Conflicting replay content."
 
 
+def test_recommendation_challenge_replay_is_exactly_once(database: Database) -> None:
+    fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+    assert fixture.recommendation_challenge is not None
+    service, machine = _initialized_service(database)
+    service.create_agent_task(
+        _task(
+            "analyst",
+            "challenge-task",
+            skill="decision-analysis",
+            started_at=machine.snapshot.updated_at,
+        )
+    )
+    service.register_remote_task("challenge-task", remote_task_id="remote-challenge")
+    envelope = ArtifactEnvelope(
+        provenance=ArtifactProvenance(
+            producer_agent="analyst",
+            remote_task_id="remote-challenge",
+            created_at=machine.snapshot.updated_at,
+        ),
+        payload=fixture.recommendation_challenge,
+    )
+
+    assert service.persist_recommendation_challenge(
+        "session-1", "challenge-task", envelope
+    )
+    assert not service.persist_recommendation_challenge(
+        "session-1", "challenge-task", envelope
+    )
+
+    conflicting = fixture.recommendation_challenge.model_copy(
+        update={"strongest_counterargument": "Conflicting replay content."},
+        deep=True,
+    )
+    with pytest.raises(RepositoryConflictError):
+        service.persist_recommendation_challenge(
+            "session-1",
+            "challenge-task",
+            envelope.model_copy(update={"payload": conflicting}),
+        )
+
+    with database.transaction() as repositories:
+        stored = repositories.artifacts.list_recommendation_challenges("session-1")
+    assert len(stored) == 1
+    assert stored[0].envelope == envelope
+
+
+def test_duplicate_action_is_rejected_durably_and_rolls_back_new_session(
+    database: Database,
+) -> None:
+    _initialized_service(database)
+    restarted_service = WorkflowPersistenceService(database)
+    restarted_machine = WorkflowStateMachine("session-2", clock=AdvancingClock())
+
+    with pytest.raises(RepositoryConflictError):
+        restarted_service.initialize(
+            snapshot=restarted_machine.snapshot,
+            ag_ui_thread_id="thread-2",
+            run_id="run-2",
+            action_id="action-1",
+            action_type="start_research",
+            question="A duplicate browser action must not run twice.",
+        )
+
+    with database.transaction() as repositories:
+        assert repositories.runs.get_by_action("action-1") is not None
+        assert repositories.sessions.get("session-2") is None
+
+
 def test_bundle_level_research_context_is_durable(database: Database) -> None:
     fixture = load_research_fixture("postgresql-vs-mongodb-golden")
     assert fixture.evidence_bundle is not None

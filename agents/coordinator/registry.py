@@ -21,14 +21,19 @@ from a2a.utils.proto_utils import validate_proto_required_fields
 from pydantic import AnyHttpUrl, Field, FiniteFloat, model_validator
 
 from packages.contracts.base import ContractModel, NonEmptyText
+from packages.resilience import OperationPolicy, OperationTimeoutError, run_with_policy
 
 DEFAULT_RESEARCH_AGENT_URL = "http://127.0.0.1:8005"
 DEFAULT_ANALYST_AGENT_URL = "http://127.0.0.1:8006"
 DEFAULT_VERIFIER_AGENT_URL = "http://127.0.0.1:8007"
 AGENT_ENDPOINTS_ENV = "AGENTDESK_AGENT_ENDPOINTS"
 REGISTRY_TIMEOUT_ENV = "AGENTDESK_REGISTRY_TIMEOUT_SECONDS"
+REGISTRY_MAX_ATTEMPTS_ENV = "AGENTDESK_REGISTRY_MAX_ATTEMPTS"
+REGISTRY_RETRY_DELAY_ENV = "AGENTDESK_REGISTRY_RETRY_DELAY_SECONDS"
 
 PositiveTimeout = Annotated[FiniteFloat, Field(gt=0, le=30)]
+RetryDelay = Annotated[FiniteFloat, Field(ge=0, le=5)]
+RetryAttempts = Annotated[int, Field(ge=1, le=5)]
 DiagnosticCode = Literal["fetch_failed", "invalid_card"]
 
 
@@ -62,6 +67,8 @@ class AgentRegistrySettings(ContractModel):
 
     endpoints: list[AgentEndpointConfig] = Field(min_length=1)
     request_timeout_seconds: PositiveTimeout = 5
+    max_attempts: RetryAttempts = 3
+    retry_delay_seconds: RetryDelay = 0.1
 
     @model_validator(mode="after")
     def validate_unique_endpoints(self) -> AgentRegistrySettings:
@@ -121,8 +128,15 @@ class AgentRegistrySettings(ContractModel):
             ]
 
         timeout = source.get(REGISTRY_TIMEOUT_ENV, "5")
+        attempts = source.get(REGISTRY_MAX_ATTEMPTS_ENV, "3")
+        retry_delay = source.get(REGISTRY_RETRY_DELAY_ENV, "0.1")
         return cls.model_validate(
-            {"endpoints": endpoints, "request_timeout_seconds": timeout}
+            {
+                "endpoints": endpoints,
+                "request_timeout_seconds": timeout,
+                "max_attempts": attempts,
+                "retry_delay_seconds": retry_delay,
+            }
         )
 
 
@@ -222,10 +236,26 @@ class AgentRegistry:
         if self._http_client is None:  # pragma: no cover - refresh initializes the client
             raise RuntimeError("Registry HTTP client is not initialized.")
         try:
-            card = await A2ACardResolver(
-                self._http_client,
-                endpoint.normalized_url,
-            ).get_agent_card()
+            resolver = A2ACardResolver(self._http_client, endpoint.normalized_url)
+
+            async def fetch_card() -> AgentCard:
+                return await resolver.get_agent_card(
+                    http_kwargs={"timeout": self._settings.request_timeout_seconds}
+                )
+
+            card = await run_with_policy(
+                "registry.discovery",
+                fetch_card,
+                policy=OperationPolicy(
+                    timeout_seconds=self._settings.request_timeout_seconds,
+                    max_attempts=self._settings.max_attempts,
+                    idempotent=True,
+                    retry_delay_seconds=self._settings.retry_delay_seconds,
+                ),
+                should_retry=_retryable_resolution_error,
+            )
+        except OperationTimeoutError as error:
+            return None, self._diagnostic(endpoint, "fetch_failed", str(error))
         except AgentCardResolutionError as error:
             return None, self._diagnostic(endpoint, "fetch_failed", str(error))
         except (AttributeError, TypeError, ValueError) as error:
@@ -287,6 +317,14 @@ def _validate_card(endpoint: AgentEndpointConfig, card: AgentCard) -> None:
             compatible_interface = True
     if not compatible_interface:
         raise ValueError("Agent Card must advertise an HTTP+JSON interface.")
+
+
+def _retryable_resolution_error(error: Exception) -> bool:
+    if not isinstance(error, AgentCardResolutionError):
+        return False
+    if error.status_code is not None:
+        return error.status_code in {408, 425, 429} or error.status_code >= 500
+    return isinstance(error.__cause__, httpx.RequestError)
 
 
 def _origin(url: str) -> tuple[str, str, int | None]:

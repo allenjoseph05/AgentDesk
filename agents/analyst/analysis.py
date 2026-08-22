@@ -7,6 +7,7 @@ import math
 
 from packages.contracts import AnalysisRequest, DecisionAnalysis, RecommendationChallenge
 from packages.llm import LLMProvider, Message
+from packages.resilience import OperationPolicy, OperationTimeoutError, run_with_policy
 
 DECISION_ANALYSIS_PROMPT = """You are the decision-analysis stage of an agent system.
 Return only the requested DecisionAnalysis structure. Reason exclusively from the supplied
@@ -29,6 +30,8 @@ gaps and assumptions from established facts. State concrete conditions under whi
 recommendation should change. Do not reveal chain-of-thought.
 """
 
+DEFAULT_MODEL_TIMEOUT_SECONDS = 45.0
+
 
 class DecisionAnalysisError(RuntimeError):
     """Raised when provider output violates the evidence-bound analysis contract."""
@@ -49,8 +52,14 @@ class RecommendationChallengeError(RuntimeError):
 class DecisionAnalyzer:
     """Generate and validate decision analysis without access to retrieval tools."""
 
-    def __init__(self, llm_provider: LLMProvider) -> None:
+    def __init__(
+        self,
+        llm_provider: LLMProvider,
+        *,
+        model_timeout_seconds: float = DEFAULT_MODEL_TIMEOUT_SECONDS,
+    ) -> None:
         self._llm_provider = llm_provider
+        self._model_policy = OperationPolicy(timeout_seconds=model_timeout_seconds)
 
     async def analyze(self, request: AnalysisRequest) -> DecisionAnalysis:
         """Return analysis whose structure and references match the supplied request."""
@@ -60,20 +69,30 @@ class DecisionAnalyzer:
                 "unsupported_mode",
                 "Decision analysis requires compare_options mode.",
             )
-        candidate = await self._llm_provider.generate_structured(
-            system_prompt=DECISION_ANALYSIS_PROMPT,
-            messages=[
-                Message(
-                    role="user",
-                    content=json.dumps(
-                        validated_request.model_dump(mode="json"),
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                    ),
-                )
-            ],
-            response_model=DecisionAnalysis,
-        )
+        try:
+            candidate = await run_with_policy(
+                "analysis.generate",
+                lambda: self._llm_provider.generate_structured(
+                    system_prompt=DECISION_ANALYSIS_PROMPT,
+                    messages=[
+                        Message(
+                            role="user",
+                            content=json.dumps(
+                                validated_request.model_dump(mode="json"),
+                                ensure_ascii=False,
+                                separators=(",", ":"),
+                            ),
+                        )
+                    ],
+                    response_model=DecisionAnalysis,
+                ),
+                policy=self._model_policy,
+            )
+        except OperationTimeoutError as error:
+            raise DecisionAnalysisError(
+                "analysis_timeout",
+                "Decision analysis exceeded its operation deadline.",
+            ) from error
         return _validate_analysis(validated_request, candidate)
 
     async def challenge(self, request: AnalysisRequest) -> RecommendationChallenge:
@@ -84,20 +103,30 @@ class DecisionAnalyzer:
                 "unsupported_mode",
                 "Recommendation challenge requires challenge_current_recommendation mode.",
             )
-        candidate = await self._llm_provider.generate_structured(
-            system_prompt=RECOMMENDATION_CHALLENGE_PROMPT,
-            messages=[
-                Message(
-                    role="user",
-                    content=json.dumps(
-                        validated_request.model_dump(mode="json"),
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                    ),
-                )
-            ],
-            response_model=RecommendationChallenge,
-        )
+        try:
+            candidate = await run_with_policy(
+                "analysis.challenge",
+                lambda: self._llm_provider.generate_structured(
+                    system_prompt=RECOMMENDATION_CHALLENGE_PROMPT,
+                    messages=[
+                        Message(
+                            role="user",
+                            content=json.dumps(
+                                validated_request.model_dump(mode="json"),
+                                ensure_ascii=False,
+                                separators=(",", ":"),
+                            ),
+                        )
+                    ],
+                    response_model=RecommendationChallenge,
+                ),
+                policy=self._model_policy,
+            )
+        except OperationTimeoutError as error:
+            raise RecommendationChallengeError(
+                "challenge_timeout",
+                "Recommendation challenge exceeded its operation deadline.",
+            ) from error
         return _validate_challenge(validated_request, candidate)
 
 

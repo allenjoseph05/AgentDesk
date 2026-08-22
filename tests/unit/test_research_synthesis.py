@@ -12,6 +12,8 @@ from agents.researcher import (
     ResearchSynthesisError,
     ResearchSynthesizer,
     ResearchToolFailure,
+    SearchProviderError,
+    SearchQuery,
     SearchResult,
     SourceDocument,
     SourceProviderError,
@@ -20,6 +22,27 @@ from agents.researcher import (
 from packages.contracts import Claim, Evidence, EvidenceBundle, ResearchRequest
 from packages.llm import FakeLLMProvider
 from packages.testing import load_research_fixture
+
+
+class FlakySearchProvider:
+    """Fail once with a typed transient error, then return no results."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def search(self, _: SearchQuery) -> list[SearchResult]:
+        self.calls += 1
+        if self.calls == 1:
+            raise SearchProviderError(
+                ResearchToolFailure(
+                    code="temporarily_unavailable",
+                    message="Search is temporarily unavailable.",
+                    provider="fixture",
+                    operation="search",
+                    retryable=True,
+                )
+            )
+        return []
 
 
 @pytest.mark.parametrize(
@@ -229,6 +252,23 @@ def test_empty_search_result_is_a_typed_synthesis_failure() -> None:
         asyncio.run(synthesizer.synthesize(ResearchRequest(question="What is known?")))
 
     assert captured.value.code == "no_search_results"
+
+
+def test_retryable_search_failure_is_replayed_only_within_the_safe_budget() -> None:
+    search_provider = FlakySearchProvider()
+    synthesizer = ResearchSynthesizer(
+        search_provider=search_provider,
+        source_provider=FakeSourceProvider({}),
+        llm_provider=FakeLLMProvider({}),
+        tool_max_attempts=2,
+        retry_delay_seconds=0,
+    )
+
+    with pytest.raises(ResearchSynthesisError) as captured:
+        asyncio.run(synthesizer.synthesize(ResearchRequest(question="What is known?")))
+
+    assert captured.value.code == "no_search_results"
+    assert search_provider.calls == 2
 
 
 def test_empty_model_synthesis_is_rejected_even_when_sources_exist() -> None:

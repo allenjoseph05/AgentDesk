@@ -4,11 +4,25 @@ import asyncio
 import json
 
 import pytest
+from pydantic import BaseModel
 
 from agents.analyst import DECISION_ANALYSIS_PROMPT, DecisionAnalysisError, DecisionAnalyzer
 from packages.contracts import AnalysisRequest, DecisionAnalysis
-from packages.llm import FakeLLMProvider
+from packages.llm import FakeLLMProvider, Message
 from packages.testing import load_research_fixture
+
+
+class HangingProvider:
+    async def generate_structured[ResponseT: BaseModel](
+        self,
+        *,
+        system_prompt: str,
+        messages: list[Message],
+        response_model: type[ResponseT],
+    ) -> ResponseT:
+        del system_prompt, messages, response_model
+        await asyncio.Future()
+        raise AssertionError("The analysis deadline should cancel this call.")
 
 
 def _request_and_analysis() -> tuple[AnalysisRequest, DecisionAnalysis]:
@@ -117,3 +131,16 @@ def test_analysis_rejects_output_with_no_evidence_references() -> None:
         _analyze(request, candidate)
 
     assert error.value.code == "ungrounded_analysis"
+
+
+def test_analysis_translates_model_deadline_into_a_typed_failure() -> None:
+    request, _ = _request_and_analysis()
+
+    with pytest.raises(DecisionAnalysisError) as error:
+        asyncio.run(
+            DecisionAnalyzer(HangingProvider(), model_timeout_seconds=0.001).analyze(
+                request
+            )
+        )
+
+    assert error.value.code == "analysis_timeout"
