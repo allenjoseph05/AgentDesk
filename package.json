@@ -17,6 +17,7 @@
     "dev:hello": "python scripts/run_python.py -m uvicorn agents.hello.main:app --reload --host 127.0.0.1 --port 8004",
     "dev:research": "python scripts/run_python.py -m uvicorn agents.researcher.main:app --reload --host 127.0.0.1 --port 8005",
     "dev:analyst": "python scripts/run_python.py -m uvicorn agents.analyst.main:app --reload --host 127.0.0.1 --port 8006",
+    "dev:verifier": "python scripts/run_python.py -m uvicorn agents.verifier.main:app --reload --host 127.0.0.1 --port 8007",
     "hello": "python scripts/run_python.py -m agents.hello.client",
     "hello:stream": "python scripts/run_python.py -m agents.hello.stream_client",
     "dev:web": "npm run dev --workspace @agentdesk/web",
