@@ -4,11 +4,25 @@ import asyncio
 import json
 
 import pytest
+from pydantic import BaseModel
 
 from agents.verifier import CLAIM_VERIFICATION_PROMPT, ClaimVerificationError, ClaimVerifier
 from packages.contracts import EvidenceBundle, VerificationReport
-from packages.llm import FakeLLMProvider
+from packages.llm import FakeLLMProvider, Message
 from packages.testing import load_research_fixture
+
+
+class HangingProvider:
+    async def generate_structured[ResponseT: BaseModel](
+        self,
+        *,
+        system_prompt: str,
+        messages: list[Message],
+        response_model: type[ResponseT],
+    ) -> ResponseT:
+        del system_prompt, messages, response_model
+        await asyncio.Future()
+        raise AssertionError("The verification deadline should cancel this call.")
 
 
 def _bundle_and_report(
@@ -123,3 +137,14 @@ def test_insufficient_evidence_is_a_valid_completed_result() -> None:
     assert len(report.results) == len(bundle.claims)
     assert {result.verdict for result in report.results} == {"insufficient_evidence"}
     assert all(result.evidence_ids == ["benchmark-a", "benchmark-b"] for result in report.results)
+
+
+def test_verification_translates_model_deadline_into_a_typed_failure() -> None:
+    bundle, _ = _bundle_and_report()
+
+    with pytest.raises(ClaimVerificationError) as error:
+        asyncio.run(
+            ClaimVerifier(HangingProvider(), model_timeout_seconds=0.001).verify(bundle)
+        )
+
+    assert error.value.code == "verification_timeout"

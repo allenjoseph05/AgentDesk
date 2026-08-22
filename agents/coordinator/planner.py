@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from functools import partial
 from typing import Literal
 
 from pydantic import AnyHttpUrl, Field, model_validator
@@ -11,6 +12,7 @@ from agents.coordinator.registry import AgentRegistry
 from packages.contracts import ResearchRequest
 from packages.contracts.base import ContractModel, NonEmptyText
 from packages.llm import LLMProvider, LLMProviderError, Message
+from packages.resilience import OperationPolicy, OperationTimeoutError, run_with_policy
 
 PLANNER_PROMPT = """You plan the fixed AgentDesk compare-options workflow.
 Return only the requested PlanDraft structure. Produce exactly one web-research step and one
@@ -21,6 +23,7 @@ and constraints. Do not perform research or analysis in the plan and do not reve
 """
 
 REQUIRED_WORKFLOW_SKILLS = ("web-research", "decision-analysis")
+DEFAULT_PLANNER_ATTEMPT_TIMEOUT_SECONDS = 30.0
 
 
 class PlanDraftStep(ContractModel):
@@ -101,12 +104,14 @@ class DecisionPlanner:
         llm_provider: LLMProvider,
         registry: AgentRegistry,
         max_attempts: int = 2,
+        attempt_timeout_seconds: float = DEFAULT_PLANNER_ATTEMPT_TIMEOUT_SECONDS,
     ) -> None:
         if max_attempts < 1 or max_attempts > 5:
             raise ValueError("Planner max_attempts must be between 1 and 5.")
         self._llm_provider = llm_provider
         self._registry = registry
         self._max_attempts = max_attempts
+        self._attempt_policy = OperationPolicy(timeout_seconds=attempt_timeout_seconds)
 
     async def plan(self, request: ResearchRequest) -> WorkflowPlan:
         """Return an executable plan or one bounded, typed failure."""
@@ -120,28 +125,34 @@ class DecisionPlanner:
 
         last_error_code = "invalid_plan"
         for attempt in range(1, self._max_attempts + 1):
+            context = _planner_context(
+                validated_request,
+                self._registry,
+                validation_feedback=(last_error_code if attempt > 1 else None),
+            )
             try:
-                draft = await self._llm_provider.generate_structured(
-                    system_prompt=PLANNER_PROMPT,
-                    messages=[
-                        Message(
-                            role="user",
-                            content=_planner_context(
-                                validated_request,
-                                self._registry,
-                                validation_feedback=(
-                                    last_error_code if attempt > 1 else None
-                                ),
-                            ),
-                        )
-                    ],
-                    response_model=PlanDraft,
+                draft = await run_with_policy(
+                    "planner.generate",
+                    partial(
+                        self._llm_provider.generate_structured,
+                        system_prompt=PLANNER_PROMPT,
+                        messages=[
+                            Message(
+                                role="user",
+                                content=context,
+                            )
+                        ],
+                        response_model=PlanDraft,
+                    ),
+                    policy=self._attempt_policy,
                 )
                 return _resolve_plan(validated_request, draft, self._registry)
             except PlannerValidationError as error:
                 last_error_code = error.code
             except LLMProviderError:
                 last_error_code = "provider_output_invalid"
+            except OperationTimeoutError:
+                last_error_code = "provider_timeout"
 
         raise PlanningFailedError(
             "attempts_exhausted",

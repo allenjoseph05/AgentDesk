@@ -13,6 +13,8 @@ from pydantic import ValidationError
 from agents.coordinator.main import create_app
 from agents.coordinator.registry import (
     AGENT_ENDPOINTS_ENV,
+    REGISTRY_MAX_ATTEMPTS_ENV,
+    REGISTRY_RETRY_DELAY_ENV,
     REGISTRY_TIMEOUT_ENV,
     AgentEndpointConfig,
     AgentRegistry,
@@ -62,6 +64,8 @@ def test_environment_configuration_controls_agent_base_urls_and_timeout() -> Non
                 }
             ),
             REGISTRY_TIMEOUT_ENV: "2.5",
+            REGISTRY_MAX_ATTEMPTS_ENV: "4",
+            REGISTRY_RETRY_DELAY_ENV: "0.25",
         }
     )
 
@@ -76,6 +80,8 @@ def test_environment_configuration_controls_agent_base_urls_and_timeout() -> Non
         "https://analyst.example",
     ]
     assert settings.request_timeout_seconds == 2.5
+    assert settings.max_attempts == 4
+    assert settings.retry_delay_seconds == 0.25
 
 
 def test_default_configuration_includes_the_verifier_service() -> None:
@@ -176,6 +182,59 @@ def test_invalid_and_unreachable_cards_are_rejected_with_diagnostics() -> None:
         ("unavailable", "fetch_failed"),
         ("wrong-origin", "invalid_card"),
     ]
+
+
+def test_discovery_retries_transient_get_failures_but_not_permanent_responses() -> None:
+    transient_url = "https://transient.example"
+    transient_attempts = 0
+
+    def transient_handler(request: httpx.Request) -> httpx.Response:
+        nonlocal transient_attempts
+        transient_attempts += 1
+        if transient_attempts == 1:
+            raise httpx.ConnectError("temporarily unavailable", request=request)
+        return httpx.Response(200, json=_card_json(transient_url))
+
+    transient_registry = AgentRegistry(
+        AgentRegistrySettings(
+            endpoints=[AgentEndpointConfig(agent_id="research", base_url=transient_url)],
+            request_timeout_seconds=1,
+            max_attempts=3,
+            retry_delay_seconds=0,
+        ),
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(transient_handler)),
+    )
+
+    assert asyncio.run(transient_registry.refresh()) == ()
+    assert transient_attempts == 2
+
+    permanent_attempts = 0
+
+    def permanent_handler(_: httpx.Request) -> httpx.Response:
+        nonlocal permanent_attempts
+        permanent_attempts += 1
+        return httpx.Response(404)
+
+    permanent_registry = AgentRegistry(
+        AgentRegistrySettings(
+            endpoints=[
+                AgentEndpointConfig(
+                    agent_id="missing",
+                    base_url="https://missing.example",
+                )
+            ],
+            request_timeout_seconds=1,
+            max_attempts=3,
+            retry_delay_seconds=0,
+        ),
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(permanent_handler)),
+    )
+
+    diagnostics = asyncio.run(permanent_registry.refresh())
+    assert [(item.agent_id, item.code) for item in diagnostics] == [
+        ("missing", "fetch_failed")
+    ]
+    assert permanent_attempts == 1
 
 
 def test_controlled_refresh_atomically_replaces_the_skill_snapshot() -> None:

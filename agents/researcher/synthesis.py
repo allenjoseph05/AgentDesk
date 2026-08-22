@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Awaitable, Callable
+from functools import partial
 from typing import Literal
 
 from pydantic import Field
@@ -11,6 +12,7 @@ from pydantic import Field
 from agents.researcher.tools import (
     ResearchToolFailure,
     SearchProvider,
+    SearchProviderError,
     SearchQuery,
     SourceDocument,
     SourceProvider,
@@ -19,6 +21,7 @@ from agents.researcher.tools import (
 from packages.contracts import Evidence, EvidenceBundle, ResearchRequest
 from packages.contracts.base import ContractModel, NonEmptyText
 from packages.llm import LLMProvider, Message
+from packages.resilience import OperationPolicy, OperationTimeoutError, run_with_policy
 
 RESEARCH_SYNTHESIS_PROMPT = """You are the evidence-synthesis stage of a research agent.
 Return only the requested EvidenceBundle structure. Use only the supplied source IDs and source
@@ -28,6 +31,9 @@ a final recommendation, or produce decision analysis; a separate Analyst Agent o
 """
 
 _SEARCH_LIMIT_BY_DEPTH = {"fast": 3, "normal": 5, "deep": 10}
+DEFAULT_TOOL_TIMEOUT_SECONDS = 10.0
+DEFAULT_MODEL_TIMEOUT_SECONDS = 45.0
+DEFAULT_TOOL_MAX_ATTEMPTS = 2
 
 ResearchPhase = Literal["searching", "fetching", "synthesizing"]
 
@@ -61,10 +67,21 @@ class ResearchSynthesizer:
         search_provider: SearchProvider,
         source_provider: SourceProvider,
         llm_provider: LLMProvider,
+        tool_timeout_seconds: float = DEFAULT_TOOL_TIMEOUT_SECONDS,
+        model_timeout_seconds: float = DEFAULT_MODEL_TIMEOUT_SECONDS,
+        tool_max_attempts: int = DEFAULT_TOOL_MAX_ATTEMPTS,
+        retry_delay_seconds: float = 0.1,
     ) -> None:
         self._search_provider = search_provider
         self._source_provider = source_provider
         self._llm_provider = llm_provider
+        self._tool_policy = OperationPolicy(
+            timeout_seconds=tool_timeout_seconds,
+            max_attempts=tool_max_attempts,
+            idempotent=True,
+            retry_delay_seconds=retry_delay_seconds,
+        )
+        self._model_policy = OperationPolicy(timeout_seconds=model_timeout_seconds)
 
     async def synthesize(
         self,
@@ -81,12 +98,27 @@ class ResearchSynthesizer:
                 message="Searching for relevant sources.",
             ),
         )
-        results = await self._search_provider.search(
-            SearchQuery(
-                text=_search_text(validated_request),
-                limit=_SEARCH_LIMIT_BY_DEPTH[validated_request.desired_depth],
-            )
+        query = SearchQuery(
+            text=_search_text(validated_request),
+            limit=_SEARCH_LIMIT_BY_DEPTH[validated_request.desired_depth],
         )
+        try:
+            results = await run_with_policy(
+                "research.search",
+                lambda: self._search_provider.search(query),
+                policy=self._tool_policy,
+                should_retry=_retryable_research_tool_error,
+            )
+        except OperationTimeoutError as error:
+            raise SearchProviderError(
+                ResearchToolFailure(
+                    code="search_timeout",
+                    message="The search provider exceeded its operation deadline.",
+                    provider="search-provider",
+                    operation="search",
+                    retryable=True,
+                )
+            ) from error
         if not results:
             raise ResearchSynthesisError(
                 "no_search_results",
@@ -112,7 +144,24 @@ class ResearchSynthesizer:
         failures: list[ResearchToolFailure] = []
         for result in results:
             try:
-                document = await self._source_provider.fetch(result)
+                document = await run_with_policy(
+                    "research.fetch",
+                    partial(self._source_provider.fetch, result),
+                    policy=self._tool_policy,
+                    should_retry=_retryable_research_tool_error,
+                )
+            except OperationTimeoutError:
+                failures.append(
+                    ResearchToolFailure(
+                        code="fetch_timeout",
+                        message="The source provider exceeded its operation deadline.",
+                        provider="source-provider",
+                        operation="fetch",
+                        retryable=True,
+                        source_id=result.source_id,
+                    )
+                )
+                continue
             except SourceProviderError as error:
                 failures.append(error.failure)
                 continue
@@ -143,13 +192,26 @@ class ResearchSynthesizer:
             ),
         )
 
-        candidate = await self._llm_provider.generate_structured(
-            system_prompt=RESEARCH_SYNTHESIS_PROMPT,
-            messages=[
-                Message(role="user", content=_synthesis_context(validated_request, documents))
-            ],
-            response_model=EvidenceBundle,
-        )
+        try:
+            candidate = await run_with_policy(
+                "research.synthesis",
+                lambda: self._llm_provider.generate_structured(
+                    system_prompt=RESEARCH_SYNTHESIS_PROMPT,
+                    messages=[
+                        Message(
+                            role="user",
+                            content=_synthesis_context(validated_request, documents),
+                        )
+                    ],
+                    response_model=EvidenceBundle,
+                ),
+                policy=self._model_policy,
+            )
+        except OperationTimeoutError as error:
+            raise ResearchSynthesisError(
+                "synthesis_timeout",
+                "Evidence synthesis exceeded its operation deadline.",
+            ) from error
         return _ground_bundle(validated_request, documents, failures, candidate)
 
 
@@ -159,6 +221,12 @@ async def _report_progress(
 ) -> None:
     if handler is not None:
         await handler(progress)
+
+
+def _retryable_research_tool_error(error: Exception) -> bool:
+    return isinstance(error, (SearchProviderError, SourceProviderError)) and (
+        error.failure.retryable
+    )
 
 
 def _search_text(request: ResearchRequest) -> str:
