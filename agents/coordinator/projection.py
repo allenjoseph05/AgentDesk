@@ -7,6 +7,11 @@ from typing import Any, cast
 
 from ag_ui.core import StateDeltaEvent, StateSnapshotEvent
 
+from agents.coordinator.agui_security import (
+    AgUiBoundaryError,
+    require_patch_size,
+    require_state_size,
+)
 from packages.contracts import AgentDeskViewState, SpecialistView, VerificationReport
 from packages.contracts.agui import FollowUpActionType, SessionStatus, SpecialistStatus
 from packages.persistence import Database, WorkflowTransitionRecord
@@ -33,7 +38,9 @@ class AgUiEventProjection:
         return self._last_sequence
 
     def snapshot_event(self) -> StateSnapshotEvent:
-        return StateSnapshotEvent(snapshot=self._state.to_ag_ui())
+        snapshot = self._state.to_ag_ui()
+        _validate_state_size(snapshot)
+        return StateSnapshotEvent(snapshot=snapshot)
 
     def project(
         self,
@@ -159,11 +166,13 @@ def state_delta(
     """Build deterministic top-level RFC 6902 replace operations."""
     before = previous.to_ag_ui()
     after = target.to_ag_ui()
-    return [
+    delta = [
         {"op": "replace", "path": f"/{_escape_pointer(key)}", "value": deepcopy(value)}
         for key, value in after.items()
         if before.get(key) != value
     ]
+    _validate_patch_size(delta)
+    return delta
 
 
 def apply_projected_delta(
@@ -171,6 +180,7 @@ def apply_projected_delta(
     delta: list[Any],
 ) -> AgentDeskViewState:
     """Apply the projector's constrained RFC 6902 output and revalidate state."""
+    _validate_patch_size(delta)
     document = previous.to_ag_ui()
     for operation in delta:
         if not isinstance(operation, dict) or operation.get("op") != "replace":
@@ -182,7 +192,22 @@ def apply_projected_delta(
         if key not in document or "value" not in operation:
             raise ProjectionError("Projected delta cannot add or remove state fields.")
         document[key] = deepcopy(operation["value"])
+    _validate_state_size(document)
     return AgentDeskViewState.model_validate(document)
+
+
+def _validate_state_size(value: Any) -> None:
+    try:
+        require_state_size(value)
+    except AgUiBoundaryError as error:
+        raise ProjectionError(str(error)) from error
+
+
+def _validate_patch_size(value: Any) -> None:
+    try:
+        require_patch_size(value)
+    except AgUiBoundaryError as error:
+        raise ProjectionError(str(error)) from error
 
 
 def _latest_agent_views(tasks: tuple[AgentTaskRecord, ...]) -> list[SpecialistView]:

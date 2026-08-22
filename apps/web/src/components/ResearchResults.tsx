@@ -296,7 +296,7 @@ function EvidenceList({ evidence }: { evidence: Evidence[] }) {
                 </div>
                 <h5>
                   {item.sourceUrl === null ? item.title : (
-                    <a href={item.sourceUrl} target="_blank" rel="noreferrer">
+                    <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer">
                       {item.title}<span className="external-link-note"> (opens source)</span>
                     </a>
                   )}

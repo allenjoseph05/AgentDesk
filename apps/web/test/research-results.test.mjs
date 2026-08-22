@@ -139,7 +139,7 @@ test("empty and long linked evidence layouts remain explicit and safe", async ()
   partial.state.evidence[0].sourceUrl = longUrl;
   const longMarkup = await renderResults(partial.state);
   assert.match(longMarkup, new RegExp(longTitle, "u"));
-  assert.match(longMarkup, /target="_blank" rel="noreferrer"/u);
+  assert.match(longMarkup, /target="_blank" rel="noopener noreferrer"/u);
   assert.match(longMarkup, /opens source/u);
 
   const styles = await readFile(new URL("../src/styles.css", import.meta.url), "utf8");

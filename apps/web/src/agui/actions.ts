@@ -1,14 +1,17 @@
 import { z } from "zod";
 
 export const AG_UI_ACTION_SCHEMA_VERSION = "1.0" as const;
+export const MAX_AG_UI_FORWARDED_PROPS_BYTES = 32 * 1024;
+const MAX_ACTION_TEXT_LENGTH = 16 * 1024;
+const MAX_ACTION_LIST_LENGTH = 20;
 
-const nonEmptyText = z.string().trim().min(1);
+const nonEmptyText = z.string().trim().min(1).max(MAX_ACTION_TEXT_LENGTH);
 const startResearchPayloadSchema = z
   .object({
     question: nonEmptyText,
-    options: z.array(nonEmptyText).default([]),
-    constraints: z.array(nonEmptyText).default([]),
-    criteria: z.array(nonEmptyText).default([]),
+    options: z.array(nonEmptyText).max(MAX_ACTION_LIST_LENGTH).default([]),
+    constraints: z.array(nonEmptyText).max(MAX_ACTION_LIST_LENGTH).default([]),
+    criteria: z.array(nonEmptyText).max(MAX_ACTION_LIST_LENGTH).default([]),
     desiredDepth: z.enum(["fast", "normal", "deep"]).default("normal"),
   })
   .strict();
@@ -42,7 +45,7 @@ export const AgentDeskActionSchema = z.discriminatedUnion("type", [
       sessionId: nonEmptyText,
       payload: z
         .object({
-          focusAreas: z.array(nonEmptyText).default([]),
+          focusAreas: z.array(nonEmptyText).max(MAX_ACTION_LIST_LENGTH).default([]),
           desiredDepth: z.enum(["normal", "deep"]).default("deep"),
         })
         .strict(),
@@ -82,6 +85,13 @@ export type FocusOnCriterionAction = Extract<AgentDeskAction, { type: "focus_on_
 export type RetryFailedAgentAction = Extract<AgentDeskAction, { type: "retry_failed_agent" }>;
 
 export function parseAgentDeskAction(value: unknown): AgentDeskAction {
+  const serialized = JSON.stringify(value);
+  if (
+    serialized === undefined ||
+    new TextEncoder().encode(serialized).byteLength > MAX_AG_UI_FORWARDED_PROPS_BYTES
+  ) {
+    throw new Error("AgentDesk action exceeds the allowed size.");
+  }
   if (
     typeof value === "object" &&
     value !== null &&

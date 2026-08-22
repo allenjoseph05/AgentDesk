@@ -18,6 +18,12 @@ sessions = sa.Table(
     "sessions",
     metadata,
     sa.Column("id", sa.String(255), primary_key=True),
+    sa.Column(
+        "owner_id",
+        sa.String(255),
+        nullable=False,
+        server_default="local-development",
+    ),
     sa.Column("ag_ui_thread_id", sa.String(255), nullable=False),
     sa.Column("last_run_id", sa.String(255)),
     sa.Column("last_action_id", sa.String(255)),
@@ -36,6 +42,7 @@ sessions = sa.Table(
     ),
 )
 sa.Index("ix_sessions_thread_updated", sessions.c.ag_ui_thread_id, sessions.c.updated_at)
+sa.Index("ix_sessions_owner_updated", sessions.c.owner_id, sessions.c.updated_at)
 sa.Index("ix_sessions_status_updated", sessions.c.status, sessions.c.updated_at)
 
 workflow_transitions = sa.Table(

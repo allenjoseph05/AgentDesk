@@ -3,9 +3,16 @@
 import re
 from typing import Annotated, Any, Literal
 
-from pydantic import AliasChoices, AwareDatetime, Field, RootModel, model_validator
+from pydantic import (
+    AliasChoices,
+    AwareDatetime,
+    Field,
+    RootModel,
+    StringConstraints,
+    model_validator,
+)
 
-from packages.contracts.base import ContractModel, NonEmptyText
+from packages.contracts.base import ContractModel
 from packages.contracts.domain import (
     Claim,
     DecisionAnalysis,
@@ -17,6 +24,16 @@ from packages.contracts.domain import (
 
 AG_UI_STATE_SCHEMA_VERSION: Literal["1.0"] = "1.0"
 AG_UI_ACTION_SCHEMA_VERSION: Literal["1.0"] = "1.0"
+MAX_AG_UI_TEXT_LENGTH = 16 * 1024
+MAX_AG_UI_ACTION_LIST_LENGTH = 20
+AgUiText = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=MAX_AG_UI_TEXT_LENGTH,
+    ),
+]
 
 
 def _camelize(value: Any, *, transform_keys: bool = True) -> Any:
@@ -85,19 +102,19 @@ FollowUpActionType = Literal[
 class SpecialistView(ContractModel):
     """Renderable status for one independently deployed specialist."""
 
-    agent_id: NonEmptyText = Field(
+    agent_id: AgUiText = Field(
         validation_alias=AliasChoices("agentId", "agent_id"),
         serialization_alias="agentId",
     )
-    name: NonEmptyText
-    skill: NonEmptyText
+    name: AgUiText
+    skill: AgUiText
     status: SpecialistStatus
-    remote_task_id: NonEmptyText | None = Field(
+    remote_task_id: AgUiText | None = Field(
         default=None,
         validation_alias=AliasChoices("remoteTaskId", "remote_task_id"),
         serialization_alias="remoteTaskId",
     )
-    message: NonEmptyText | None = None
+    message: AgUiText | None = None
 
 
 class AgentDeskViewState(ContractModel):
@@ -108,14 +125,14 @@ class AgentDeskViewState(ContractModel):
         validation_alias=AliasChoices("schemaVersion", "schema_version"),
         serialization_alias="schemaVersion",
     )
-    session_id: NonEmptyText | None = Field(
+    session_id: AgUiText | None = Field(
         default=None,
         validation_alias=AliasChoices("sessionId", "session_id"),
         serialization_alias="sessionId",
     )
-    question: NonEmptyText | None = None
+    question: AgUiText | None = None
     status: SessionStatus = "idle"
-    active_step: NonEmptyText | None = Field(
+    active_step: AgUiText | None = Field(
         default=None,
         validation_alias=AliasChoices("activeStep", "active_step"),
         serialization_alias="activeStep",
@@ -139,8 +156,8 @@ class AgentDeskViewState(ContractModel):
         serialization_alias="recommendationChallenge",
     )
     verification: VerificationReport | None = None
-    warnings: list[NonEmptyText] = Field(default_factory=list)
-    errors: list[NonEmptyText] = Field(default_factory=list)
+    warnings: list[AgUiText] = Field(default_factory=list)
+    errors: list[AgUiText] = Field(default_factory=list)
     available_actions: list[FollowUpActionType] = Field(
         default_factory=list,
         validation_alias=AliasChoices("availableActions", "available_actions"),
@@ -193,10 +210,16 @@ class AgentDeskViewState(ContractModel):
 
 
 class StartResearchPayload(ContractModel):
-    question: NonEmptyText
-    options: list[NonEmptyText] = Field(default_factory=list)
-    constraints: list[NonEmptyText] = Field(default_factory=list)
-    criteria: list[NonEmptyText] = Field(default_factory=list)
+    question: AgUiText
+    options: list[AgUiText] = Field(
+        default_factory=list, max_length=MAX_AG_UI_ACTION_LIST_LENGTH
+    )
+    constraints: list[AgUiText] = Field(
+        default_factory=list, max_length=MAX_AG_UI_ACTION_LIST_LENGTH
+    )
+    criteria: list[AgUiText] = Field(
+        default_factory=list, max_length=MAX_AG_UI_ACTION_LIST_LENGTH
+    )
     desired_depth: Depth = Field(
         default="normal",
         validation_alias=AliasChoices("desiredDepth", "desired_depth"),
@@ -205,12 +228,13 @@ class StartResearchPayload(ContractModel):
 
 
 class ChallengeRecommendationPayload(ContractModel):
-    challenge: NonEmptyText | None = None
+    challenge: AgUiText | None = None
 
 
 class ResearchDeeperPayload(ContractModel):
-    focus_areas: list[NonEmptyText] = Field(
+    focus_areas: list[AgUiText] = Field(
         default_factory=list,
+        max_length=MAX_AG_UI_ACTION_LIST_LENGTH,
         validation_alias=AliasChoices("focusAreas", "focus_areas"),
         serialization_alias="focusAreas",
     )
@@ -222,15 +246,15 @@ class ResearchDeeperPayload(ContractModel):
 
 
 class FocusOnCriterionPayload(ContractModel):
-    criterion: NonEmptyText
+    criterion: AgUiText
 
 
 class RetryFailedAgentPayload(ContractModel):
-    agent_id: NonEmptyText = Field(
+    agent_id: AgUiText = Field(
         validation_alias=AliasChoices("agentId", "agent_id"),
         serialization_alias="agentId",
     )
-    remote_task_id: NonEmptyText | None = Field(
+    remote_task_id: AgUiText | None = Field(
         default=None,
         validation_alias=AliasChoices("remoteTaskId", "remote_task_id"),
         serialization_alias="remoteTaskId",
@@ -243,7 +267,7 @@ class _ActionBase(ContractModel):
         validation_alias=AliasChoices("schemaVersion", "schema_version"),
         serialization_alias="schemaVersion",
     )
-    action_id: NonEmptyText = Field(
+    action_id: AgUiText = Field(
         validation_alias=AliasChoices("actionId", "action_id"),
         serialization_alias="actionId",
     )
@@ -261,7 +285,7 @@ class StartResearchAction(_ActionBase):
 
 class ChallengeRecommendationAction(_ActionBase):
     type: Literal["challenge_recommendation"]
-    session_id: NonEmptyText = Field(
+    session_id: AgUiText = Field(
         validation_alias=AliasChoices("sessionId", "session_id"),
         serialization_alias="sessionId",
     )
@@ -270,7 +294,7 @@ class ChallengeRecommendationAction(_ActionBase):
 
 class ResearchDeeperAction(_ActionBase):
     type: Literal["research_deeper"]
-    session_id: NonEmptyText = Field(
+    session_id: AgUiText = Field(
         validation_alias=AliasChoices("sessionId", "session_id"),
         serialization_alias="sessionId",
     )
@@ -279,7 +303,7 @@ class ResearchDeeperAction(_ActionBase):
 
 class FocusOnCriterionAction(_ActionBase):
     type: Literal["focus_on_criterion"]
-    session_id: NonEmptyText = Field(
+    session_id: AgUiText = Field(
         validation_alias=AliasChoices("sessionId", "session_id"),
         serialization_alias="sessionId",
     )
@@ -288,7 +312,7 @@ class FocusOnCriterionAction(_ActionBase):
 
 class RetryFailedAgentAction(_ActionBase):
     type: Literal["retry_failed_agent"]
-    session_id: NonEmptyText = Field(
+    session_id: AgUiText = Field(
         validation_alias=AliasChoices("sessionId", "session_id"),
         serialization_alias="sessionId",
     )

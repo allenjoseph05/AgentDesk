@@ -11,6 +11,7 @@ from sqlalchemy.pool import StaticPool
 
 from agents.coordinator.persistence import (
     ArtifactProvenanceError,
+    WorkflowPersistenceError,
     WorkflowPersistenceService,
 )
 from agents.coordinator.workflow_state import WorkflowStateMachine
@@ -408,6 +409,26 @@ def test_duplicate_action_is_rejected_durably_and_rolls_back_new_session(
     with database.transaction() as repositories:
         assert repositories.runs.get_by_action("action-1") is not None
         assert repositories.sessions.get("session-2") is None
+
+
+def test_follow_up_session_access_is_bound_to_its_durable_owner(
+    database: Database,
+) -> None:
+    service, machine = _initialized_service(database)
+
+    with pytest.raises(WorkflowPersistenceError, match="authenticated principal"):
+        service.continue_session(
+            session_id="session-1",
+            ag_ui_thread_id="thread-1",
+            run_id="run-other-owner",
+            action_id="action-other-owner",
+            action_type="research_deeper",
+            started_at=machine.snapshot.updated_at,
+            owner_id="different-user",
+        )
+
+    with database.transaction() as repositories:
+        assert repositories.runs.get("run-other-owner") is None
 
 
 def test_bundle_level_research_context_is_durable(database: Database) -> None:

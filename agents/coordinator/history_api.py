@@ -6,6 +6,7 @@ from typing import Annotated, cast
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 
+from agents.coordinator.agui_security import request_principal_id
 from agents.coordinator.history import (
     ResearchHistoryService,
     SessionHistoryDetail,
@@ -28,14 +29,21 @@ async def list_sessions(
     thread_id: Annotated[str | None, Query(alias="threadId", min_length=1)] = None,
 ) -> SessionHistoryPage:
     """List recent persisted sessions for the web history sidebar."""
-    return _service(request).list_sessions(limit=limit, thread_id=thread_id)
+    return _service(request).list_sessions(
+        limit=limit,
+        thread_id=thread_id,
+        owner_id=request_principal_id(request),
+    )
 
 
 @router.get("/{session_id}", response_model=SessionHistoryDetail)
 async def get_session(session_id: str, request: Request) -> SessionHistoryDetail:
     """Rehydrate one terminal session without rerunning its workflow."""
     try:
-        return _service(request).get_terminal_session(session_id)
+        return _service(request).get_terminal_session(
+            session_id,
+            owner_id=request_principal_id(request),
+        )
     except SessionHistoryNotFoundError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

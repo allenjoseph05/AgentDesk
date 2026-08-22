@@ -15,6 +15,7 @@ from agents.coordinator.persistence import WorkflowPersistenceService
 from agents.coordinator.projection import (
     AgUiEventProjection,
     DurableAgUiProjector,
+    ProjectionError,
     apply_projected_delta,
 )
 from agents.coordinator.workflow_state import WorkflowStateMachine
@@ -27,6 +28,28 @@ from packages.persistence import AgentTaskRecord, Database, metadata
 from packages.testing import load_research_fixture
 
 NOW = datetime(2026, 8, 17, 12, 0, tzinfo=UTC)
+
+
+def test_projection_rejects_oversized_snapshots_and_patches() -> None:
+    baseline = AgentDeskViewState(
+        session_id="session-1",
+        question="Question",
+        status="completed",
+        last_updated_at=NOW,
+    )
+    oversized_warnings = ["x" * (16 * 1024) for _ in range(17)]
+    oversized = AgentDeskViewState(
+        session_id="session-1",
+        question="Question",
+        status="completed",
+        warnings=oversized_warnings,
+        last_updated_at=NOW,
+    )
+
+    with pytest.raises(ProjectionError, match="state exceeds"):
+        AgUiEventProjection(oversized).snapshot_event()
+    with pytest.raises(ProjectionError, match="patch exceeds"):
+        AgUiEventProjection(baseline).project(oversized)
 
 
 @pytest.fixture
