@@ -57,8 +57,10 @@ export function AgentDeskRuntimeProvider({
 }: AgentDeskRuntimeProviderProps) {
   const agentRef = useRef<ReturnType<typeof createCoordinatorAgent> | null>(null);
   agentRef.current ??= createAgent();
+  const agent = agentRef.current;
   const submissionGateRef = useRef<ActionSubmissionGate | null>(null);
   submissionGateRef.current ??= new ActionSubmissionGate();
+  const submissionGate = submissionGateRef.current;
   const stateStore = useAgentDeskStateStore();
 
   const [phase, setPhase] = useState<RuntimePhase>("idle");
@@ -91,8 +93,7 @@ export function AgentDeskRuntimeProvider({
       return false;
     }
 
-    const gate = submissionGateRef.current!;
-    if (!gate.begin(action.actionId)) {
+    if (!submissionGate.begin(action.actionId)) {
       return false;
     }
 
@@ -101,7 +102,7 @@ export function AgentDeskRuntimeProvider({
     setPhase("connecting");
     setMessage("Connecting to the Coordinator...");
     try {
-      await runAgentDeskAction(agentRef.current!, action, userMessage, {
+      await runAgentDeskAction(agent, action, userMessage, {
         onDelta: stateStore.applyDelta,
         onRunning: () => setPhase("running"),
         onSnapshot: stateStore.replaceSnapshot,
@@ -123,10 +124,10 @@ export function AgentDeskRuntimeProvider({
       setPhase("error");
       return false;
     } finally {
-      gate.finish(action.actionId);
+      submissionGate.finish(action.actionId);
       setActiveAction(null);
     }
-  }, [stateStore]);
+  }, [agent, stateStore, submissionGate]);
 
   const startResearch = useCallback(
     (question: string) =>
@@ -194,11 +195,12 @@ export function AgentDeskRuntimeProvider({
       researchDeeper,
       retryFailedAgent,
       startResearch,
-      threadId: agentRef.current!.threadId,
+      threadId: agent.threadId,
       timeline,
     }),
     [
       activeAction,
+      agent,
       cancelRun,
       challengeRecommendation,
       error,

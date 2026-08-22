@@ -203,7 +203,11 @@ function ComparisonTable({ analysis }: { analysis: Analysis }) {
         </div>
         <span>Scores out of 10</span>
       </div>
-      <div className="comparison-scroll" tabIndex={0}>
+      <section
+        className="comparison-scroll"
+        aria-label="Decision comparison table"
+        tabIndex={0}
+      >
         <table>
           <caption>Decision criteria and option scores</caption>
           <thead>
@@ -231,7 +235,7 @@ function ComparisonTable({ analysis }: { analysis: Analysis }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </section>
     </section>
   );
 }
