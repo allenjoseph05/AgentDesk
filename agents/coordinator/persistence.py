@@ -102,9 +102,11 @@ class WorkflowPersistenceService:
         action_id: str,
         action_type: str,
         question: str,
+        owner_id: str = "local-development",
     ) -> None:
         session = _session_record(
             snapshot,
+            owner_id=owner_id,
             ag_ui_thread_id=ag_ui_thread_id,
             question=question,
             created_at=snapshot.updated_at,
@@ -132,6 +134,7 @@ class WorkflowPersistenceService:
         action_id: str,
         action_type: str,
         started_at: datetime,
+        owner_id: str = "local-development",
     ) -> None:
         """Attach a new Coordinator run to an existing browser session."""
         run = CoordinatorRunRecord(
@@ -144,6 +147,10 @@ class WorkflowPersistenceService:
         )
         with self._database.transaction() as repositories:
             session = repositories.sessions.require(session_id)
+            if session.owner_id != owner_id:
+                raise WorkflowPersistenceError(
+                    "Coordinator session does not belong to the authenticated principal."
+                )
             if session.ag_ui_thread_id != ag_ui_thread_id:
                 raise WorkflowPersistenceError(
                     "Coordinator session does not belong to the AG-UI thread."
@@ -247,6 +254,7 @@ class WorkflowPersistenceService:
             repositories.sessions.replace(
                 _session_record(
                     snapshot,
+                    owner_id=current.owner_id,
                     ag_ui_thread_id=current.ag_ui_thread_id,
                     question=current.question,
                     created_at=current.created_at,
@@ -484,6 +492,7 @@ class WorkflowPersistenceService:
 def _session_record(
     snapshot: WorkflowSnapshot,
     *,
+    owner_id: str,
     ag_ui_thread_id: str,
     question: str,
     created_at: datetime,
@@ -492,6 +501,7 @@ def _session_record(
 ) -> SessionRecord:
     return SessionRecord(
         id=snapshot.session_id,
+        owner_id=owner_id,
         ag_ui_thread_id=ag_ui_thread_id,
         last_run_id=last_run_id,
         last_action_id=last_action_id,

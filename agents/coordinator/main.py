@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.responses import Response
 
 from agents.coordinator.agui import router as ag_ui_router
+from agents.coordinator.agui_security import (
+    CORRELATION_HEADER,
+    AgUiBoundaryError,
+    AgUiSecurityMiddleware,
+)
 from agents.coordinator.execution import create_orchestration_executor
 from agents.coordinator.history import ResearchHistoryService
 from agents.coordinator.history_api import router as history_router
@@ -19,12 +29,18 @@ from agents.coordinator.run_adapter import (
 )
 from agents.coordinator.run_tasks import A2ATaskFactory
 from packages.config import load_project_environment
-from packages.observability import configure_structured_logging, configure_tracing
+from packages.observability import (
+    CorrelationIds,
+    configure_structured_logging,
+    configure_tracing,
+    log_event,
+)
 from packages.persistence import Database
 
 load_project_environment()
 configure_structured_logging()
 TRACING = configure_tracing("agentdesk-coordinator")
+LOGGER = logging.getLogger(__name__)
 
 
 def create_app(
@@ -63,6 +79,30 @@ def create_app(
         version="0.1.0",
         lifespan=lifespan,
     )
+    application.add_middleware(AgUiSecurityMiddleware)
+
+    @application.exception_handler(AgUiBoundaryError)
+    async def ag_ui_boundary_error(
+        request: Request,
+        error: AgUiBoundaryError,
+    ) -> JSONResponse:
+        return _protocol_error_response(request, error)
+
+    @application.exception_handler(RequestValidationError)
+    async def request_validation_error(
+        request: Request,
+        error: RequestValidationError,
+    ) -> Response:
+        if request.url.path != "/ag-ui":
+            return await request_validation_exception_handler(request, error)
+        return _protocol_error_response(
+            request,
+            AgUiBoundaryError(
+                "invalid_agui_input",
+                "The AG-UI request does not match the supported protocol shape.",
+                status_code=422,
+            ),
+        )
     executor = command_executor or (
         A2ATaskCommandExecutor(task_factory)
         if task_factory is not None
@@ -93,6 +133,36 @@ def create_app(
         }
 
     return application
+
+
+def _protocol_error_response(
+    request: Request,
+    error: AgUiBoundaryError,
+) -> JSONResponse:
+    correlation_id = getattr(
+        request.state,
+        "agentdesk_correlation_id",
+        "unavailable",
+    )
+    log_event(
+        LOGGER,
+        "agui.protocol_rejected",
+        level=logging.WARNING,
+        ids=CorrelationIds(correlation_id=correlation_id, agent="coordinator"),
+        outcome="failed",
+        error_code=error.code,
+    )
+    return JSONResponse(
+        status_code=error.status_code,
+        content={
+            "error": {
+                "code": error.code,
+                "message": str(error),
+                "correlationId": correlation_id,
+            }
+        },
+        headers={CORRELATION_HEADER: correlation_id},
+    )
 
 
 app = create_app()

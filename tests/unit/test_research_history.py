@@ -54,7 +54,11 @@ def database() -> Iterator[Database]:
         database.dispose()
 
 
-def _seed_completed_session(database: Database) -> None:
+def _seed_completed_session(
+    database: Database,
+    *,
+    owner_id: str = "local-development",
+) -> None:
     fixture = load_research_fixture("postgresql-vs-mongodb-golden")
     assert fixture.evidence_bundle is not None
     assert fixture.decision_analysis is not None
@@ -72,6 +76,7 @@ def _seed_completed_session(database: Database) -> None:
         action_id="action-history",
         action_type="start_research",
         question="Should we use PostgreSQL or MongoDB?",
+        owner_id=owner_id,
     )
     for task_id, agent_id, skill, remote_task_id in (
         ("research-task", "researcher", "web-research", "remote-research"),
@@ -224,3 +229,24 @@ def test_history_filters_by_thread_and_rejects_unfinished_or_missing_detail(
         {"detail": "Session has not reached a terminal state."},
     )
     assert (missing_status, missing) == (404, {"detail": "Session was not found."})
+
+
+def test_history_does_not_disclose_sessions_owned_by_another_principal(
+    database: Database,
+) -> None:
+    _seed_completed_session(database, owner_id="user-alice")
+    app = create_app(database=database, command_executor=ExplodingExecutor())
+
+    @app.middleware("http")
+    async def authenticated_as_bob(request, call_next):
+        request.state.agentdesk_principal_id = "user-bob"
+        return await call_next(request)
+
+    list_status, listed = asyncio.run(_get_json(app, "/api/sessions"))
+    detail_status, detail = asyncio.run(
+        _get_json(app, "/api/sessions/session-history")
+    )
+
+    assert list_status == 200
+    assert listed == {"sessions": []}
+    assert (detail_status, detail) == (404, {"detail": "Session was not found."})

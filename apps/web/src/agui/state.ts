@@ -1,16 +1,25 @@
 import { z } from "zod";
 
 export const AG_UI_STATE_SCHEMA_VERSION = "1.0" as const;
+export const MAX_AG_UI_STATE_BYTES = 256 * 1024;
+export const MAX_RENDERED_TEXT_LENGTH = 16 * 1024;
 
-const nonEmptyText = z.string().trim().min(1);
+const nonEmptyText = z.string().trim().min(1).max(MAX_RENDERED_TEXT_LENGTH);
 const unitInterval = z.number().finite().min(0).max(1);
 const optionScore = z.number().finite().min(0).max(10);
+const safeHttpUrl = z
+  .string()
+  .url()
+  .refine((value) => {
+    const protocol = new URL(value).protocol;
+    return protocol === "http:" || protocol === "https:";
+  }, "Source URLs must use HTTP or HTTPS.");
 
 const evidenceSchema = z
   .object({
     id: nonEmptyText,
     title: nonEmptyText,
-    sourceUrl: z.string().url().nullable(),
+    sourceUrl: safeHttpUrl.nullable(),
     sourceType: z.enum([
       "official_documentation",
       "primary_source",
@@ -207,6 +216,7 @@ export const INITIAL_AGENTDESK_STATE: AgentDeskViewState = {
 };
 
 export function parseAgentDeskViewState(value: unknown): AgentDeskViewState {
+  requireJsonSize(value, MAX_AG_UI_STATE_BYTES, "AG-UI state");
   if (
     typeof value === "object" &&
     value !== null &&
@@ -225,4 +235,16 @@ export function parseAgentDeskViewState(value: unknown): AgentDeskViewState {
     );
   }
   return result.data;
+}
+
+function requireJsonSize(value: unknown, maximum: number, label: string): void {
+  let encoded: string;
+  try {
+    encoded = JSON.stringify(value);
+  } catch {
+    throw new Error(`${label} must be JSON-safe.`);
+  }
+  if (encoded === undefined || new TextEncoder().encode(encoded).byteLength > maximum) {
+    throw new Error(`${label} exceeds the allowed size.`);
+  }
 }

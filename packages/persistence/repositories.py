@@ -152,11 +152,11 @@ class SessionRepository(_Repository):
             validated.id,
             current,
             validated,
-            ("ag_ui_thread_id", "question", "created_at"),
+            ("owner_id", "ag_ui_thread_id", "question", "created_at"),
         )
         values = validated.model_dump(
             mode="python",
-            exclude={"id", "ag_ui_thread_id", "question", "created_at"},
+            exclude={"id", "owner_id", "ag_ui_thread_id", "question", "created_at"},
         )
         self._require_update(
             sa.update(sessions).where(sessions.c.id == validated.id).values(**values),
@@ -164,10 +164,18 @@ class SessionRepository(_Repository):
             record_id=validated.id,
         )
 
-    def list_by_thread(self, ag_ui_thread_id: str) -> tuple[SessionRecord, ...]:
+    def list_by_thread(
+        self,
+        ag_ui_thread_id: str,
+        *,
+        owner_id: str,
+    ) -> tuple[SessionRecord, ...]:
         rows = self._connection.execute(
             sa.select(sessions)
-            .where(sessions.c.ag_ui_thread_id == ag_ui_thread_id)
+            .where(
+                sessions.c.ag_ui_thread_id == ag_ui_thread_id,
+                sessions.c.owner_id == owner_id,
+            )
             .order_by(sessions.c.updated_at.desc(), sessions.c.id)
         ).mappings()
         return tuple(_session_record(row) for row in rows)
@@ -176,11 +184,14 @@ class SessionRepository(_Repository):
         self,
         *,
         limit: int = 50,
+        owner_id: str | None = None,
         ag_ui_thread_id: str | None = None,
     ) -> tuple[SessionRecord, ...]:
         if limit < 1:
             raise ValueError("Session history limit must be positive.")
         statement = sa.select(sessions)
+        if owner_id is not None:
+            statement = statement.where(sessions.c.owner_id == owner_id)
         if ag_ui_thread_id is not None:
             statement = statement.where(
                 sessions.c.ag_ui_thread_id == ag_ui_thread_id

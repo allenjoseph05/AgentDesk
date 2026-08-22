@@ -78,22 +78,29 @@ class ResearchHistoryService:
         *,
         limit: int = 50,
         thread_id: str | None = None,
+        owner_id: str = "local-development",
     ) -> SessionHistoryPage:
         if limit < 1 or limit > 100:
             raise ValueError("Session history limit must be between 1 and 100.")
         with self._database.transaction() as repositories:
             records = repositories.sessions.list_recent(
                 limit=limit,
+                owner_id=owner_id,
                 ag_ui_thread_id=thread_id,
             )
         return SessionHistoryPage(
             sessions=[_history_item(record) for record in records]
         )
 
-    def get_terminal_session(self, session_id: str) -> SessionHistoryDetail:
+    def get_terminal_session(
+        self,
+        session_id: str,
+        *,
+        owner_id: str = "local-development",
+    ) -> SessionHistoryDetail:
         with self._database.transaction() as repositories:
             session = repositories.sessions.get(session_id)
-        if session is None:
+        if session is None or session.owner_id != owner_id:
             raise SessionHistoryNotFoundError(session_id)
         if session.status not in TERMINAL_SESSION_STATUSES:
             raise SessionHistoryNotReadyError(session_id)

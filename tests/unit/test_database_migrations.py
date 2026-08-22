@@ -98,6 +98,7 @@ def test_migration_creates_required_tables_correlations_and_indexes() -> None:
             }
             assert {
                 "ag_ui_thread_id",
+                "owner_id",
                 "last_run_id",
                 "last_action_id",
                 "state_schema_version",
@@ -113,6 +114,7 @@ def test_migration_creates_required_tables_correlations_and_indexes() -> None:
             }
             assert {
                 "ix_sessions_thread_updated",
+                "ix_sessions_owner_updated",
                 "ix_coordinator_runs_session_started",
                 "ix_agent_tasks_session_status",
                 "ix_agent_tasks_remote_task",

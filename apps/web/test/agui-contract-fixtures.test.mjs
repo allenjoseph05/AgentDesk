@@ -71,6 +71,14 @@ test("frontend state rejects values outside the Python domain contract", () => {
   const incompleteAnalysis = structuredClone(fixture.state);
   incompleteAnalysis.analysis.argumentsFor = [];
   assert.throws(() => parseAgentDeskViewState(incompleteAnalysis), /Invalid AG-UI state/);
+
+  const unsafeUrl = structuredClone(fixture.state);
+  unsafeUrl.evidence[0].sourceUrl = "javascript:alert(1)";
+  assert.throws(() => parseAgentDeskViewState(unsafeUrl), /HTTP or HTTPS/);
+
+  const oversizedState = structuredClone(fixture.state);
+  oversizedState.warnings = Array.from({ length: 17 }, () => "x".repeat(16 * 1024));
+  assert.throws(() => parseAgentDeskViewState(oversizedState), /exceeds the allowed size/);
 });
 
 test("frontend payload defaults mirror Python contract defaults", () => {

@@ -27,6 +27,7 @@ from ag_ui.core import (
 from ag_ui.encoder import EventEncoder
 from pydantic import ValidationError
 
+from agents.coordinator.agui_security import MAX_AG_UI_MESSAGE_BYTES
 from agents.coordinator.projection import AgUiEventProjection
 from agents.coordinator.run_tasks import A2ATaskFactory, ActiveA2ATask
 from packages.contracts import AgentDeskAction, AgentDeskViewState, ResearchRequest, SpecialistView
@@ -53,6 +54,7 @@ class RunCorrelation:
     run_id: str
     action_id: str
     session_id: str
+    principal_id: str = "local-development"
 
 
 @dataclass(frozen=True)
@@ -161,6 +163,7 @@ class CoordinatorActivityUpdate:
         values = (self.message_id, self.activity_type, self.agent_id, self.summary)
         if any(not value.strip() for value in values):
             raise ValueError("Coordinator activity fields cannot be blank.")
+        _validate_rendered_text(self.summary)
 
 
 @dataclass(frozen=True)
@@ -177,6 +180,8 @@ class CoordinatorRunOutcome:
             raise ValueError("Failed Coordinator outcomes require an error code.")
         if self.status != "failed" and self.error_code is not None:
             raise ValueError("Only failed Coordinator outcomes may carry an error code.")
+        if self.message is not None:
+            _validate_rendered_text(self.message)
         task_keys = [
             (task.agent_id, task.remote_task_id) for task in self.remote_tasks
         ]
@@ -229,15 +234,16 @@ class RunAdmissionRegistry:
         *,
         input_data: RunAgentInput,
         action: AgentDeskAction,
+        principal_id: str = "local-development",
     ) -> RunCorrelation:
-        fingerprint = _action_fingerprint(input_data.thread_id, action)
+        fingerprint = _action_fingerprint(input_data.thread_id, action, principal_id)
         async with self._lock:
             existing = self._admissions.get(action.root.action_id)
             if existing is not None:
                 raise DuplicateActionError(
                     conflicting=existing.fingerprint != fingerprint
                 )
-            correlation = _correlation(input_data, action)
+            correlation = _correlation(input_data, action, principal_id)
             self._admissions[action.root.action_id] = _Admission(
                 fingerprint=fingerprint,
                 correlation=correlation,
@@ -261,6 +267,8 @@ class CoordinatorRunAdapter:
         self,
         input_data: RunAgentInput,
         encoder: EventEncoder,
+        *,
+        principal_id: str = "local-development",
     ) -> AsyncIterator[str]:
         request_ids = CorrelationIds(
             context_id=input_data.thread_id,
@@ -299,7 +307,7 @@ class CoordinatorRunAdapter:
             return
 
         try:
-            correlation = _correlation(input_data, action)
+            correlation = _correlation(input_data, action, principal_id)
             command = _to_command(action, correlation, user_message)
             initial_state = _initial_state(input_data, command)
         except (ValidationError, ValueError):
@@ -323,6 +331,7 @@ class CoordinatorRunAdapter:
             correlation = await self._admissions.admit(
                 input_data=input_data,
                 action=action,
+                principal_id=principal_id,
             )
         except DuplicateActionError as error:
             code = (
@@ -567,6 +576,11 @@ def _latest_user_text(input_data: RunAgentInput) -> str:
     raise ActionMessageMismatchError("A non-empty user message is required.")
 
 
+def _validate_rendered_text(value: str) -> None:
+    if len(value.encode("utf-8")) > MAX_AG_UI_MESSAGE_BYTES:
+        raise ValueError("Rendered AG-UI text exceeds the allowed size.")
+
+
 def _validate_action_message(action: AgentDeskAction, user_message: str) -> None:
     root = action.root
     expected: str | None = None
@@ -673,9 +687,17 @@ def _finished_result(
     }
 
 
-def _action_fingerprint(thread_id: str, action: AgentDeskAction) -> str:
+def _action_fingerprint(
+    thread_id: str,
+    action: AgentDeskAction,
+    principal_id: str,
+) -> str:
     return json.dumps(
-        {"threadId": thread_id, "action": action.to_ag_ui()},
+        {
+            "threadId": thread_id,
+            "principalId": principal_id,
+            "action": action.to_ag_ui(),
+        },
         sort_keys=True,
         separators=(",", ":"),
     )
@@ -684,12 +706,14 @@ def _action_fingerprint(thread_id: str, action: AgentDeskAction) -> str:
 def _correlation(
     input_data: RunAgentInput,
     action: AgentDeskAction,
+    principal_id: str = "local-development",
 ) -> RunCorrelation:
     return RunCorrelation(
         thread_id=input_data.thread_id,
         run_id=input_data.run_id,
         action_id=action.root.action_id,
         session_id=action.root.session_id or input_data.run_id,
+        principal_id=principal_id,
     )
 
 

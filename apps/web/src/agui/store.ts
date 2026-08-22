@@ -14,7 +14,8 @@ const replaceOperationSchema = z
   })
   .strict();
 
-const stateDeltaSchema = z.array(replaceOperationSchema).min(1);
+const stateDeltaSchema = z.array(replaceOperationSchema).min(1).max(32);
+const MAX_AG_UI_PATCH_BYTES = 128 * 1024;
 
 export interface RehydrationRequest {
   cause: "snapshot" | "delta";
@@ -58,6 +59,13 @@ export class AgentDeskStateStore {
 
   readonly applyDelta = (delta: unknown): boolean => {
     try {
+      const serialized = JSON.stringify(delta);
+      if (
+        serialized === undefined ||
+        new TextEncoder().encode(serialized).byteLength > MAX_AG_UI_PATCH_BYTES
+      ) {
+        throw new Error("AG-UI state patch exceeds the allowed size.");
+      }
       const operations = stateDeltaSchema.parse(delta);
       let candidate: Record<string, unknown> = structuredClone(this.state);
       for (const operation of operations) {

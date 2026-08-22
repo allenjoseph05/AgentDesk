@@ -49,6 +49,7 @@ AgentTaskPersistenceStatus = Literal[
 
 class SessionRecord(ContractModel):
     id: NonEmptyText
+    owner_id: NonEmptyText = "local-development"
     ag_ui_thread_id: NonEmptyText
     last_run_id: NonEmptyText | None = None
     last_action_id: NonEmptyText | None = None

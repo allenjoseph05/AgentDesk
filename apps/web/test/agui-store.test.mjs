@@ -61,6 +61,17 @@ test("malformed patches preserve the last valid state and request rehydration", 
   assert.equal(store.getSnapshot(), lastValidState);
   assert.equal(store.replaceSnapshot({ schemaVersion: "99" }), false);
   assert.equal(store.getSnapshot(), lastValidState);
+  assert.equal(
+    store.applyDelta([
+      {
+        op: "replace",
+        path: "/warnings",
+        value: ["x".repeat(128 * 1024)],
+      },
+    ]),
+    false,
+  );
+  assert.equal(store.getSnapshot(), lastValidState);
 
   assert.deepEqual(
     requests.map(({ cause, sessionId }) => ({ cause, sessionId })),
@@ -68,6 +79,7 @@ test("malformed patches preserve the last valid state and request rehydration", 
       { cause: "delta", sessionId: fixture.state.sessionId },
       { cause: "delta", sessionId: fixture.state.sessionId },
       { cause: "snapshot", sessionId: fixture.state.sessionId },
+      { cause: "delta", sessionId: fixture.state.sessionId },
     ],
   );
 });

@@ -17,6 +17,7 @@ from ag_ui.encoder import EventEncoder
 
 from agents.coordinator.run_adapter import (
     ChallengeRecommendationCommand,
+    CoordinatorActivityUpdate,
     CoordinatorCommand,
     CoordinatorRunAdapter,
     CoordinatorRunOutcome,
@@ -31,6 +32,21 @@ from agents.coordinator.run_adapter import (
 from packages.contracts import AgentDeskViewState
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def test_rendered_stream_text_is_bounded_before_encoding() -> None:
+    oversized = "x" * (16 * 1024 + 1)
+
+    with pytest.raises(ValueError, match="Rendered AG-UI text"):
+        CoordinatorRunOutcome(status="completed", message=oversized)
+    with pytest.raises(ValueError, match="Rendered AG-UI text"):
+        CoordinatorActivityUpdate(
+            message_id="activity-1",
+            activity_type="specialist-progress",
+            agent_id="researcher",
+            status="working",
+            summary=oversized,
+        )
 
 
 def _start_action(

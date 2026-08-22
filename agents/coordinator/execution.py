@@ -258,6 +258,7 @@ class OrchestrationCommandExecutor:
                 action_id=command.correlation.action_id,
                 action_type="start_research",
                 question=command.request.question,
+                owner_id=command.correlation.principal_id,
             )
             initialized = True
             self._persistence.start_run(command.correlation.run_id)
@@ -1119,6 +1120,7 @@ class OrchestrationCommandExecutor:
             action_id=command.correlation.action_id,
             action_type=_action_type(command),
             started_at=started_at,
+            owner_id=command.correlation.principal_id,
         )
         self._persistence.start_run(command.correlation.run_id)
 
@@ -1150,6 +1152,7 @@ class OrchestrationCommandExecutor:
                 action_id=command.correlation.action_id,
                 action_type=action_type,
                 started_at=started_at,
+                owner_id=command.correlation.principal_id,
             )
             self._persistence.start_run(command.correlation.run_id)
             self._persistence.finish_run(
