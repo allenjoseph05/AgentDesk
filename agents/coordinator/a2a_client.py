@@ -18,10 +18,12 @@ from google.protobuf.json_format import MessageToDict
 from pydantic import BaseModel, ValidationError
 
 from agents.coordinator.registry import RegisteredAgent
+from packages.auth import AuthenticationSettings
 from packages.contracts import ArtifactEnvelope
 from packages.observability import inject_trace_context
 
 RemoteErrorCode = Literal[
+    "authentication_failed",
     "timeout",
     "transport_failure",
     "remote_task_failed",
@@ -66,6 +68,18 @@ class RemoteTransportError(RemoteCallError):
         )
 
 
+class RemoteAuthenticationError(RemoteCallError):
+    """A specialist rejected the configured service credential."""
+
+    def __init__(self, *, agent_id: str, remote_task_id: str | None = None) -> None:
+        super().__init__(
+            "authentication_failed",
+            f"Remote agent {agent_id} rejected service authentication.",
+            agent_id=agent_id,
+            remote_task_id=remote_task_id,
+        )
+
+
 @dataclass(frozen=True)
 class RemoteTaskResult[PayloadT: BaseModel]:
     """Validated terminal artifact plus remote correlation identifiers."""
@@ -82,6 +96,15 @@ RemoteTaskStartedHandler = Callable[[str], Awaitable[None]]
 class A2AClientAdapter:
     """Execute one typed request through the official A2A SDK."""
 
+    def __init__(
+        self,
+        auth_settings: AuthenticationSettings | None = None,
+        *,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> None:
+        self._auth_settings = auth_settings or AuthenticationSettings.from_environment()
+        self._transport = transport
+
     async def execute[PayloadT: BaseModel](
         self,
         *,
@@ -94,7 +117,12 @@ class A2AClientAdapter:
     ) -> RemoteTaskResult[PayloadT]:
         if timeout_seconds <= 0:
             raise ValueError("Remote execution timeout must be positive.")
-        http_client = httpx.AsyncClient(timeout=None)
+        http_client = httpx.AsyncClient(
+            timeout=None,
+            headers=self._auth_settings.service_headers(),
+            event_hooks={"response": [_reject_auth_response]},
+            transport=self._transport,
+        )
         client = None
         started_task_id: str | None = None
 
@@ -128,6 +156,11 @@ class A2AClientAdapter:
                 agent_id=agent.agent_id, remote_task_id=started_task_id
             ) from error
         except (A2AError, httpx.HTTPError, OSError, ValueError) as error:
+            if _is_authentication_failure(error):
+                raise RemoteAuthenticationError(
+                    agent_id=agent.agent_id,
+                    remote_task_id=started_task_id,
+                ) from error
             raise RemoteTransportError(
                 agent_id=agent.agent_id, remote_task_id=started_task_id
             ) from error
@@ -150,7 +183,12 @@ class A2AClientAdapter:
             raise ValueError("Remote cancellation timeout must be positive.")
         if not remote_task_id.strip():
             raise ValueError("Remote task ID cannot be blank.")
-        http_client = httpx.AsyncClient(timeout=None)
+        http_client = httpx.AsyncClient(
+            timeout=None,
+            headers=self._auth_settings.service_headers(),
+            event_hooks={"response": [_reject_auth_response]},
+            transport=self._transport,
+        )
         client = None
         try:
             client = ClientFactory(
@@ -181,6 +219,11 @@ class A2AClientAdapter:
                 agent_id=agent.agent_id, remote_task_id=remote_task_id
             ) from error
         except (A2AError, httpx.HTTPError, OSError, ValueError) as error:
+            if _is_authentication_failure(error):
+                raise RemoteAuthenticationError(
+                    agent_id=agent.agent_id,
+                    remote_task_id=remote_task_id,
+                ) from error
             raise RemoteTransportError(
                 agent_id=agent.agent_id, remote_task_id=remote_task_id
             ) from error
@@ -291,3 +334,25 @@ class A2AClientAdapter:
             agent_id=agent.agent_id,
             remote_task_id=remote_task_id,
         )
+
+
+async def _reject_auth_response(response: httpx.Response) -> None:
+    if response.status_code in {401, 403}:
+        raise httpx.HTTPStatusError(
+            "Remote service authentication failed.",
+            request=response.request,
+            response=response,
+        )
+
+
+def _is_authentication_failure(error: BaseException) -> bool:
+    current: BaseException | None = error
+    observed: set[int] = set()
+    while current is not None and id(current) not in observed:
+        observed.add(id(current))
+        if isinstance(current, httpx.HTTPStatusError) and (
+            current.response.status_code in {401, 403}
+        ):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
