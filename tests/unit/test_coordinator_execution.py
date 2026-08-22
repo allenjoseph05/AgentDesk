@@ -17,6 +17,7 @@ from sqlalchemy.pool import StaticPool
 from agents.analyst.agent_card import create_agent_card as create_analyst_card
 from agents.coordinator.a2a_client import RemoteTaskResult
 from agents.coordinator.execution import OrchestrationCommandExecutor
+from agents.coordinator.history import ResearchHistoryService
 from agents.coordinator.orchestrator import WorkflowExecution
 from agents.coordinator.persistence import WorkflowPersistenceService
 from agents.coordinator.planner import WorkflowPlan
@@ -105,13 +106,16 @@ class BlockingOrchestrator:
         *,
         fixture_id: str = "postgresql-vs-mongodb-golden",
         fail_analysis: bool = False,
+        emit_late_task_on_cancel: bool = False,
     ) -> None:
         self.started = asyncio.Event()
         self.release = asyncio.Event()
         self.fixture_id = fixture_id
         self.fail_analysis = fail_analysis
+        self.emit_late_task_on_cancel = emit_late_task_on_cancel
         self.challenge_requests: list[AnalysisRequest] = []
         self.execute_calls = 0
+        self.cancel_calls: list[tuple[str, str, float]] = []
 
     async def execute(
         self,
@@ -124,7 +128,6 @@ class BlockingOrchestrator:
         analysis_remote_task_id = f"analysis-task-{70 + self.execute_calls}"
         assert request.options == ["PostgreSQL", "MongoDB"]
         assert plan == _plan()
-        self.started.set()
         research_agent = RegisteredAgent(
             agent_id="researcher",
             base_url="https://research.example",
@@ -133,7 +136,18 @@ class BlockingOrchestrator:
         on_started = callbacks.get("on_remote_task_started")
         if on_started is not None:
             await on_started(research_agent, research_remote_task_id)
-        await self.release.wait()
+        self.started.set()
+        try:
+            await self.release.wait()
+        except asyncio.CancelledError:
+            if self.emit_late_task_on_cancel and on_started is not None:
+                late_agent = RegisteredAgent(
+                    agent_id="analyst",
+                    base_url="https://analyst.example",
+                    card=create_analyst_card("https://analyst.example"),
+                )
+                await on_started(late_agent, "analysis-late-task-75")
+            raise
         fixture = load_research_fixture(self.fixture_id)
         assert fixture.evidence_bundle is not None
         assert fixture.decision_analysis is not None
@@ -184,6 +198,15 @@ class BlockingOrchestrator:
             await on_analysis_completed(analysis_agent, execution.analysis)
             await on_analysis_completed(analysis_agent, execution.analysis)
         return execution
+
+    async def cancel(self, **kwargs: Any) -> None:
+        self.cancel_calls.append(
+            (
+                kwargs["agent"].agent_id,
+                kwargs["remote_task_id"],
+                kwargs["timeout_seconds"],
+            )
+        )
 
     async def challenge(
         self,
@@ -548,6 +571,69 @@ def test_analysis_failure_finishes_partial_and_preserves_evidence(
         analyses = repositories.artifacts.list_analysis("coordinator-run-71")
     assert run is not None and run.status == "partial"
     assert analyses == ()
+
+
+def test_browser_abort_cancels_remote_tasks_and_rehydrates_terminal_state(
+    database: Database,
+) -> None:
+    orchestrator = BlockingOrchestrator(emit_late_task_on_cancel=True)
+    executor = OrchestrationCommandExecutor(
+        planner=RecordingPlanner(),
+        orchestrator=orchestrator,
+        persistence=WorkflowPersistenceService(database),
+        projector=DurableAgUiProjector(database),
+        clock=AdvancingClock(),
+    )
+    adapter = CoordinatorRunAdapter(executor=executor)
+
+    async def scenario() -> None:
+        stream = adapter.stream(
+            _input(),
+            EventEncoder(accept="text/event-stream"),
+        )
+
+        async def consume() -> None:
+            _ = [_decode(item) async for item in stream]
+
+        consumer = asyncio.create_task(consume())
+        await orchestrator.started.wait()
+        consumer.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await consumer
+
+    asyncio.run(scenario())
+
+    assert [(agent_id, task_id) for agent_id, task_id, _ in orchestrator.cancel_calls] == [
+        ("researcher", "research-task-71"),
+        ("analyst", "analysis-late-task-75"),
+    ]
+    with database.transaction() as repositories:
+        session = repositories.sessions.require("coordinator-run-71")
+        run = repositories.runs.get("coordinator-run-71")
+        tasks = repositories.agent_tasks.list_by_session("coordinator-run-71")
+        transitions = repositories.transitions.list_by_session("coordinator-run-71")
+    assert session.status == "cancelled"
+    assert run is not None and run.status == "cancelled"
+    assert [(task.agent_id, task.status) for task in tasks] == [
+        ("analyst", "cancelled"),
+        ("researcher", "cancelled"),
+    ]
+    analyst_task = next(task for task in tasks if task.agent_id == "analyst")
+    assert analyst_task.remote_task_id == "analysis-late-task-75"
+    assert [transition.to_status for transition in transitions[-2:]] == [
+        "cancelling",
+        "cancelled",
+    ]
+
+    rehydrated = ResearchHistoryService(database).get_terminal_session(
+        "coordinator-run-71"
+    )
+    assert rehydrated.state.status == "cancelled"
+    assert [(agent.agent_id, agent.status) for agent in rehydrated.state.agents] == [
+        ("analyst", "cancelled"),
+        ("researcher", "cancelled"),
+    ]
+    assert rehydrated.state.analysis is None
 
 
 def test_follow_up_run_is_correlated_to_existing_thread_and_session(

@@ -230,6 +230,44 @@ def test_agent_task_terminal_outcome_is_durable_and_idempotent(
     assert task.finished_at == finished_at
 
 
+def test_cancelled_tasks_accept_late_correlation_without_resurrection(
+    database: Database,
+) -> None:
+    service, machine = _initialized_service(database)
+    for agent_id, task_id, skill in (
+        ("researcher", "research-task", "web-research"),
+        ("analyst", "analysis-task", "decision-analysis"),
+    ):
+        service.create_agent_task(
+            _task(
+                agent_id,
+                task_id,
+                skill=skill,
+                started_at=machine.snapshot.updated_at,
+            )
+        )
+    finished_at = machine.snapshot.updated_at + timedelta(seconds=1)
+
+    assert service.cancel_run_agent_tasks(
+        session_id="session-1",
+        run_id="run-1",
+        finished_at=finished_at,
+    ) == ("analysis-task", "research-task")
+    assert service.register_remote_task(
+        "analysis-task",
+        remote_task_id="late-analysis-task",
+    )
+
+    with database.transaction() as repositories:
+        tasks = repositories.agent_tasks.list_by_session("session-1")
+    assert [(task.id, task.status) for task in tasks] == [
+        ("analysis-task", "cancelled"),
+        ("research-task", "cancelled"),
+    ]
+    assert tasks[0].remote_task_id == "late-analysis-task"
+    assert all(task.finished_at == finished_at for task in tasks)
+
+
 def test_evidence_and_analysis_replay_is_exactly_once(database: Database) -> None:
     fixture = load_research_fixture("postgresql-vs-mongodb-golden")
     assert fixture.evidence_bundle is not None

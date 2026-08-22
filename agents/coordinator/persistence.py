@@ -289,6 +289,41 @@ class WorkflowPersistenceService:
             repositories.agent_tasks.replace(replacement)
             return True
 
+    def cancel_run_agent_tasks(
+        self,
+        *,
+        session_id: str,
+        run_id: str,
+        finished_at: datetime,
+    ) -> tuple[str, ...]:
+        """Make every non-terminal specialist task in one run durably cancelled."""
+        cancelled: list[str] = []
+        with self._database.transaction() as repositories:
+            run = repositories.runs.get(run_id)
+            if run is None or run.session_id != session_id:
+                raise WorkflowPersistenceError(
+                    "Coordinator run does not belong to the cancellation session."
+                )
+            for task in repositories.agent_tasks.list_by_session(session_id):
+                if task.run_id != run_id or task.status in {
+                    "completed",
+                    "failed",
+                    "cancelled",
+                }:
+                    continue
+                repositories.agent_tasks.replace(
+                    AgentTaskRecord.model_validate(
+                        task.model_copy(
+                            update={
+                                "status": "cancelled",
+                                "finished_at": finished_at,
+                            }
+                        ).model_dump(mode="python")
+                    )
+                )
+                cancelled.append(task.id)
+        return tuple(cancelled)
+
     def register_remote_task(
         self,
         task_id: str,
@@ -321,7 +356,11 @@ class WorkflowPersistenceService:
                     update={
                         "remote_task_id": remote_task_id,
                         "a2a_context_id": a2a_context_id,
-                        "status": "submitted",
+                        "status": (
+                            current.status
+                            if current.status in {"completed", "failed", "cancelled"}
+                            else "submitted"
+                        ),
                     }
                 )
             )

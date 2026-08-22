@@ -135,6 +135,7 @@ class RecordingRemoteClient:
         self._evidence = evidence
         self._analysis = analysis
         self.calls: list[dict[str, Any]] = []
+        self.cancel_calls: list[dict[str, Any]] = []
 
     async def execute(self, **kwargs: Any):
         self.calls.append(kwargs)
@@ -148,6 +149,9 @@ class RecordingRemoteClient:
             assert request.evidence_bundle == self._evidence
             return _result("analyst", "analysis-task-42", self._analysis)
         raise AssertionError("Unexpected remote payload model.")
+
+    async def cancel(self, **kwargs: Any) -> None:
+        self.cancel_calls.append(kwargs)
 
 
 class TimeoutRemoteClient:
@@ -217,6 +221,30 @@ def test_orchestrator_routes_challenge_to_the_analyst_artifact_contract() -> Non
     assert remote.calls[0]["artifact_name"] == "recommendation-challenge"
     assert remote.calls[0]["payload_model"] is RecommendationChallenge
     assert result.artifact.payload == fixture.recommendation_challenge
+
+
+def test_orchestrator_propagates_remote_cancellation_through_a2a_client() -> None:
+    _, evidence, analysis = _fixture_values()
+    remote = RecordingRemoteClient(evidence, analysis)
+    registry = _registry()
+    analyst = registry.get("analyst")
+    assert analyst is not None
+
+    asyncio.run(
+        WorkflowOrchestrator(registry=registry, remote_client=remote).cancel(
+            agent=analyst,
+            remote_task_id="analysis-task-cancel",
+            timeout_seconds=4,
+        )
+    )
+
+    assert remote.cancel_calls == [
+        {
+            "agent": analyst,
+            "remote_task_id": "analysis-task-cancel",
+            "timeout_seconds": 4,
+        }
+    ]
 
 
 def test_orchestrator_reports_remote_task_lifecycle() -> None:
