@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import math
+from functools import partial
 
 from packages.contracts import AnalysisRequest, DecisionAnalysis, RecommendationChallenge
+from packages.limits import LimitSettings, RequestBudget
 from packages.llm import LLMProvider, Message
 from packages.resilience import OperationPolicy, OperationTimeoutError, run_with_policy
 
@@ -57,9 +59,11 @@ class DecisionAnalyzer:
         llm_provider: LLMProvider,
         *,
         model_timeout_seconds: float = DEFAULT_MODEL_TIMEOUT_SECONDS,
+        limit_settings: LimitSettings | None = None,
     ) -> None:
         self._llm_provider = llm_provider
         self._model_policy = OperationPolicy(timeout_seconds=model_timeout_seconds)
+        self._limit_settings = limit_settings or LimitSettings.from_environment()
 
     async def analyze(self, request: AnalysisRequest) -> DecisionAnalysis:
         """Return analysis whose structure and references match the supplied request."""
@@ -69,22 +73,27 @@ class DecisionAnalyzer:
                 "unsupported_mode",
                 "Decision analysis requires compare_options mode.",
             )
+        budget = RequestBudget(self._limit_settings)
         try:
             candidate = await run_with_policy(
                 "analysis.generate",
-                lambda: self._llm_provider.generate_structured(
-                    system_prompt=DECISION_ANALYSIS_PROMPT,
-                    messages=[
-                        Message(
-                            role="user",
-                            content=json.dumps(
-                                validated_request.model_dump(mode="json"),
-                                ensure_ascii=False,
-                                separators=(",", ":"),
-                            ),
-                        )
-                    ],
-                    response_model=DecisionAnalysis,
+                partial(
+                    budget.call_llm,
+                    partial(
+                        self._llm_provider.generate_structured,
+                        system_prompt=DECISION_ANALYSIS_PROMPT,
+                        messages=[
+                            Message(
+                                role="user",
+                                content=json.dumps(
+                                    validated_request.model_dump(mode="json"),
+                                    ensure_ascii=False,
+                                    separators=(",", ":"),
+                                ),
+                            )
+                        ],
+                        response_model=DecisionAnalysis,
+                    ),
                 ),
                 policy=self._model_policy,
             )
@@ -103,22 +112,27 @@ class DecisionAnalyzer:
                 "unsupported_mode",
                 "Recommendation challenge requires challenge_current_recommendation mode.",
             )
+        budget = RequestBudget(self._limit_settings)
         try:
             candidate = await run_with_policy(
                 "analysis.challenge",
-                lambda: self._llm_provider.generate_structured(
-                    system_prompt=RECOMMENDATION_CHALLENGE_PROMPT,
-                    messages=[
-                        Message(
-                            role="user",
-                            content=json.dumps(
-                                validated_request.model_dump(mode="json"),
-                                ensure_ascii=False,
-                                separators=(",", ":"),
-                            ),
-                        )
-                    ],
-                    response_model=RecommendationChallenge,
+                partial(
+                    budget.call_llm,
+                    partial(
+                        self._llm_provider.generate_structured,
+                        system_prompt=RECOMMENDATION_CHALLENGE_PROMPT,
+                        messages=[
+                            Message(
+                                role="user",
+                                content=json.dumps(
+                                    validated_request.model_dump(mode="json"),
+                                    ensure_ascii=False,
+                                    separators=(",", ":"),
+                                ),
+                            )
+                        ],
+                        response_model=RecommendationChallenge,
+                    ),
                 ),
                 policy=self._model_policy,
             )

@@ -20,6 +20,7 @@ from agents.researcher import (
     create_fixture_providers,
 )
 from packages.contracts import Claim, Evidence, EvidenceBundle, ResearchRequest
+from packages.limits import LimitExceededError, LimitSettings
 from packages.llm import FakeLLMProvider
 from packages.testing import load_research_fixture
 
@@ -269,6 +270,26 @@ def test_retryable_search_failure_is_replayed_only_within_the_safe_budget() -> N
 
     assert captured.value.code == "no_search_results"
     assert search_provider.calls == 2
+
+
+def test_tool_budget_counts_actual_search_and_fetch_attempts() -> None:
+    fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+    search_provider, source_provider = create_fixture_providers(
+        "postgresql-vs-mongodb-golden"
+    )
+    synthesizer = ResearchSynthesizer(
+        search_provider=search_provider,
+        source_provider=source_provider,
+        llm_provider=FakeLLMProvider({}),
+        limit_settings=LimitSettings(tool_request_budget=1),
+    )
+
+    with pytest.raises(LimitExceededError) as captured:
+        asyncio.run(synthesizer.synthesize(fixture.request))
+
+    assert captured.value.code == "tool_request_budget_exceeded"
+    assert len(search_provider.calls) == 1
+    assert source_provider.calls == []
 
 
 def test_empty_model_synthesis_is_rejected_even_when_sources_exist() -> None:

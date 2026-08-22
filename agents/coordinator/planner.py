@@ -11,6 +11,7 @@ from pydantic import AnyHttpUrl, Field, model_validator
 from agents.coordinator.registry import AgentRegistry
 from packages.contracts import ResearchRequest
 from packages.contracts.base import ContractModel, NonEmptyText
+from packages.limits import LimitSettings, RequestBudget
 from packages.llm import LLMProvider, LLMProviderError, Message
 from packages.resilience import OperationPolicy, OperationTimeoutError, run_with_policy
 
@@ -105,6 +106,7 @@ class DecisionPlanner:
         registry: AgentRegistry,
         max_attempts: int = 2,
         attempt_timeout_seconds: float = DEFAULT_PLANNER_ATTEMPT_TIMEOUT_SECONDS,
+        limit_settings: LimitSettings | None = None,
     ) -> None:
         if max_attempts < 1 or max_attempts > 5:
             raise ValueError("Planner max_attempts must be between 1 and 5.")
@@ -112,6 +114,7 @@ class DecisionPlanner:
         self._registry = registry
         self._max_attempts = max_attempts
         self._attempt_policy = OperationPolicy(timeout_seconds=attempt_timeout_seconds)
+        self._limit_settings = limit_settings or LimitSettings.from_environment()
 
     async def plan(self, request: ResearchRequest) -> WorkflowPlan:
         """Return an executable plan or one bounded, typed failure."""
@@ -124,6 +127,7 @@ class DecisionPlanner:
             )
 
         last_error_code = "invalid_plan"
+        budget = RequestBudget(self._limit_settings)
         for attempt in range(1, self._max_attempts + 1):
             context = _planner_context(
                 validated_request,
@@ -131,6 +135,7 @@ class DecisionPlanner:
                 validation_feedback=(last_error_code if attempt > 1 else None),
             )
             try:
+                budget.consume_llm()
                 draft = await run_with_policy(
                     "planner.generate",
                     partial(

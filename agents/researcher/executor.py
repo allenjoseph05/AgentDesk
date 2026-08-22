@@ -21,6 +21,7 @@ from agents.researcher.synthesis import (
 )
 from agents.researcher.tools import ResearchToolError
 from packages.contracts import ArtifactEnvelope, ArtifactProvenance, EvidenceBundle, ResearchRequest
+from packages.limits import LimitExceededError, limit_status_message
 from packages.llm import LLMProviderError
 from packages.observability import CorrelationIds, observed_request, traced_request
 
@@ -90,6 +91,11 @@ class ResearchAgentExecutor(AgentExecutor):
 
         try:
             bundle = await self._synthesizer.synthesize(request, on_progress=report)
+        except LimitExceededError as error:
+            await updater.failed(
+                self._status_message(context, limit_status_message(error))
+            )
+            return
         except ResearchToolError as error:
             await updater.failed(
                 self._status_message(

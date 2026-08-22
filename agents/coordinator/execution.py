@@ -41,6 +41,7 @@ from packages.contracts import (
     ResearchRequest,
     VerificationReport,
 )
+from packages.limits import LimitExceededError, LimitSettings
 from packages.llm import llm_provider_from_environment
 from packages.observability import CorrelationIds, observed_request, traced_request
 from packages.persistence import AgentTaskRecord, Database, RepositoryError
@@ -188,12 +189,14 @@ class OrchestrationCommandExecutor:
         orchestrator: WorkflowRunner,
         persistence: WorkflowPersistenceService,
         projector: DurableAgUiProjector,
+        limit_settings: LimitSettings | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._planner = planner
         self._orchestrator = orchestrator
         self._persistence = persistence
         self._projector = projector
+        self._limits = limit_settings or LimitSettings()
         self._clock = clock or (lambda: datetime.now(UTC))
 
     async def execute(
@@ -252,6 +255,7 @@ class OrchestrationCommandExecutor:
         verification_completed = False
         verification_started = False
         try:
+            self._limits.require_research_depth(command.request.desired_depth)
             self._persistence.initialize(
                 snapshot=machine.snapshot,
                 ag_ui_thread_id=command.correlation.thread_id,
@@ -263,6 +267,10 @@ class OrchestrationCommandExecutor:
             )
             initialized = True
             self._persistence.start_run(command.correlation.run_id)
+            self._persistence.ensure_remote_task_capacity(
+                command.correlation.session_id,
+                3,
+            )
             machine.transition("planning", active_step="plan")
             plan = await self._planner.plan(command.request)
             machine.transition(
@@ -876,6 +884,10 @@ class OrchestrationCommandExecutor:
         try:
             self._continue_follow_up(command, started_at)
             initialized = True
+            self._persistence.ensure_remote_task_capacity(
+                command.correlation.session_id,
+                1,
+            )
             context = self._persistence.load_follow_up_context(
                 command.correlation.session_id
             )
@@ -979,6 +991,10 @@ class OrchestrationCommandExecutor:
         try:
             self._continue_follow_up(command, started_at)
             initialized = True
+            self._persistence.ensure_remote_task_capacity(
+                command.correlation.session_id,
+                2,
+            )
             context = self._persistence.load_follow_up_context(
                 command.correlation.session_id
             )
@@ -1002,6 +1018,7 @@ class OrchestrationCommandExecutor:
                 criteria=criteria,
                 desired_depth=desired_depth,
             )
+            self._limits.require_research_depth(request.desired_depth)
             yield CoordinatorActivityUpdate(
                 message_id=activity_id,
                 activity_type="specialist-follow-up",
@@ -1224,14 +1241,17 @@ def create_orchestration_executor(
     registry: AgentRegistry,
     database: Database,
     auth_settings: AuthenticationSettings | None = None,
+    limit_settings: LimitSettings | None = None,
 ) -> OrchestrationCommandExecutor:
     """Build the production executor without contacting external services eagerly."""
+    limits = limit_settings or LimitSettings.from_environment()
     llm_provider = llm_provider_from_environment()
     planner: WorkflowPlanner
     if llm_provider is not None:
         planner = DecisionPlanner(
             llm_provider=llm_provider,
             registry=registry,
+            limit_settings=limits,
         )
     else:
         planner = _UnavailablePlanner()
@@ -1241,8 +1261,12 @@ def create_orchestration_executor(
             registry=registry,
             remote_client=A2AClientAdapter(auth_settings),
         ),
-        persistence=WorkflowPersistenceService(database),
+        persistence=WorkflowPersistenceService(
+            database,
+            max_remote_tasks_per_session=limits.max_remote_tasks_per_session,
+        ),
         projector=DurableAgUiProjector(database),
+        limit_settings=limits,
     )
 
 
@@ -1297,6 +1321,15 @@ def _failure_code(error: Exception) -> str:
 
 
 def _safe_failure_message(error: Exception) -> str:
+    if isinstance(error, LimitExceededError):
+        return str(error)
+    if _failure_code(error) in {
+        "remote_task_limit_exceeded",
+        "research_depth_limit_exceeded",
+        "llm_request_budget_exceeded",
+        "tool_request_budget_exceeded",
+    }:
+        return str(error)
     if isinstance(error, OrchestrationConfigurationError):
         return str(error)
     if isinstance(error, PlanningFailedError):

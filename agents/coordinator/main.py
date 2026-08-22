@@ -30,6 +30,7 @@ from agents.coordinator.run_adapter import (
 from agents.coordinator.run_tasks import A2ATaskFactory
 from packages.auth import AuthenticationSettings, BrowserAuthenticationMiddleware
 from packages.config import load_project_environment
+from packages.limits import LimitSettings
 from packages.observability import (
     CorrelationIds,
     configure_structured_logging,
@@ -52,6 +53,7 @@ def create_app(
     command_executor: CoordinatorCommandExecutor | None = None,
     database: Database | None = None,
     auth_settings: AuthenticationSettings | None = None,
+    limit_settings: LimitSettings | None = None,
 ) -> FastAPI:
     """Create a Coordinator with application-scoped AG-UI run admission."""
     if task_factory is not None and command_executor is not None:
@@ -117,6 +119,7 @@ def create_app(
             registry=agent_registry,
             database=history_database,
             auth_settings=authentication,
+            limit_settings=limit_settings,
         )
     )
     application.state.ag_ui_run_adapter = CoordinatorRunAdapter(executor=executor)

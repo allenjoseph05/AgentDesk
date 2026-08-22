@@ -40,6 +40,7 @@ from packages.contracts import (
     ResearchRequest,
     VerificationReport,
 )
+from packages.limits import LimitSettings
 from packages.persistence import Database, metadata
 from packages.testing import load_research_fixture
 
@@ -308,6 +309,71 @@ def _input() -> RunAgentInput:
 
 def _decode(event: str) -> dict[str, Any]:
     return json.loads(event.removeprefix("data: "))
+
+
+async def _collect_events(
+    executor: OrchestrationCommandExecutor,
+    input_data: RunAgentInput,
+) -> list[dict[str, Any]]:
+    return [
+        _decode(event)
+        async for event in CoordinatorRunAdapter(executor=executor).stream(
+            input_data,
+            EventEncoder(accept="text/event-stream"),
+        )
+    ]
+
+
+def test_research_depth_limit_is_useful_and_prevents_planning(
+    database: Database,
+) -> None:
+    planner = RecordingPlanner()
+    orchestrator = BlockingOrchestrator()
+    limits = LimitSettings(max_research_depth="fast")
+    executor = OrchestrationCommandExecutor(
+        planner=planner,
+        orchestrator=orchestrator,
+        persistence=WorkflowPersistenceService(
+            database,
+            max_remote_tasks_per_session=limits.max_remote_tasks_per_session,
+        ),
+        projector=DurableAgUiProjector(database),
+        limit_settings=limits,
+    )
+
+    events = asyncio.run(_collect_events(executor, _input()))
+
+    assert events[-1]["type"] == "RUN_ERROR"
+    assert events[-1]["code"] == "research_depth_limit_exceeded"
+    assert "configured maximum of fast" in events[-1]["message"]
+    assert planner.requests == []
+    assert orchestrator.execute_calls == 0
+
+
+def test_session_remote_task_limit_stops_work_before_provider_calls(
+    database: Database,
+) -> None:
+    planner = RecordingPlanner()
+    orchestrator = BlockingOrchestrator()
+    limits = LimitSettings(max_remote_tasks_per_session=2)
+    executor = OrchestrationCommandExecutor(
+        planner=planner,
+        orchestrator=orchestrator,
+        persistence=WorkflowPersistenceService(
+            database,
+            max_remote_tasks_per_session=limits.max_remote_tasks_per_session,
+        ),
+        projector=DurableAgUiProjector(database),
+        limit_settings=limits,
+    )
+
+    events = asyncio.run(_collect_events(executor, _input()))
+
+    assert events[-1]["type"] == "RUN_ERROR"
+    assert events[-1]["code"] == "remote_task_limit_exceeded"
+    assert "Start a new session" in events[-1]["message"]
+    assert planner.requests == []
+    assert orchestrator.execute_calls == 0
 
 
 def _follow_up_input() -> RunAgentInput:

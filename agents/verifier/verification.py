@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+from functools import partial
 
 from packages.contracts import EvidenceBundle, VerificationReport
+from packages.limits import LimitSettings, RequestBudget
 from packages.llm import LLMProvider, Message
 from packages.resilience import OperationPolicy, OperationTimeoutError, run_with_policy
 
@@ -37,31 +39,38 @@ class ClaimVerifier:
         llm_provider: LLMProvider,
         *,
         model_timeout_seconds: float = DEFAULT_MODEL_TIMEOUT_SECONDS,
+        limit_settings: LimitSettings | None = None,
     ) -> None:
         self._llm_provider = llm_provider
         self._model_policy = OperationPolicy(timeout_seconds=model_timeout_seconds)
+        self._limit_settings = limit_settings or LimitSettings.from_environment()
 
     async def verify(self, evidence_bundle: EvidenceBundle) -> VerificationReport:
         """Return a report whose claim and evidence references match the bundle."""
         validated_bundle = EvidenceBundle.model_validate(
             evidence_bundle.model_dump(mode="python")
         )
+        budget = RequestBudget(self._limit_settings)
         try:
             candidate = await run_with_policy(
                 "verification.generate",
-                lambda: self._llm_provider.generate_structured(
-                    system_prompt=CLAIM_VERIFICATION_PROMPT,
-                    messages=[
-                        Message(
-                            role="user",
-                            content=json.dumps(
-                                validated_bundle.model_dump(mode="json"),
-                                ensure_ascii=False,
-                                separators=(",", ":"),
-                            ),
-                        )
-                    ],
-                    response_model=VerificationReport,
+                partial(
+                    budget.call_llm,
+                    partial(
+                        self._llm_provider.generate_structured,
+                        system_prompt=CLAIM_VERIFICATION_PROMPT,
+                        messages=[
+                            Message(
+                                role="user",
+                                content=json.dumps(
+                                    validated_bundle.model_dump(mode="json"),
+                                    ensure_ascii=False,
+                                    separators=(",", ":"),
+                                ),
+                            )
+                        ],
+                        response_model=VerificationReport,
+                    ),
                 ),
                 policy=self._model_policy,
             )
