@@ -1,2 +1,1 @@
-"""Verification specialist service boundary."""
-
+"""Independently deployable AgentDesk Verifier Agent."""
