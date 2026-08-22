@@ -34,9 +34,7 @@ LEGAL_TRANSITIONS: dict[WorkflowStatus, frozenset[WorkflowStatus]] = {
     "created": frozenset({"planning", "cancelling", "failed"}),
     "planning": frozenset({"researching", "cancelling", "failed"}),
     "researching": frozenset({"analyzing", "partial", "cancelling", "failed"}),
-    "analyzing": frozenset(
-        {"verifying", "completed", "partial", "cancelling", "failed"}
-    ),
+    "analyzing": frozenset({"verifying", "completed", "partial", "cancelling", "failed"}),
     "verifying": frozenset({"completed", "partial", "cancelling", "failed"}),
     "cancelling": frozenset({"cancelled", "failed"}),
     "completed": frozenset(),

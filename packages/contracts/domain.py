@@ -67,7 +67,7 @@ class EvidenceBundle(ContractModel):
     research_notes: list[NonEmptyText] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_evidence_links(self) -> "EvidenceBundle":
+    def validate_evidence_links(self) -> EvidenceBundle:
         evidence_ids = [item.id for item in self.evidence]
         if len(evidence_ids) != len(set(evidence_ids)):
             raise ValueError("Evidence IDs must be unique within a bundle.")
@@ -95,7 +95,7 @@ class AnalysisRequest(ContractModel):
     current_recommendation: NonEmptyText | None = None
 
     @model_validator(mode="after")
-    def validate_decision_context(self) -> "AnalysisRequest":
+    def validate_decision_context(self) -> AnalysisRequest:
         normalized_options = [option.casefold() for option in self.options]
         if len(normalized_options) != len(set(normalized_options)):
             raise ValueError("Analysis options must be unique.")

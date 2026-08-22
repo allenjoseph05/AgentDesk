@@ -101,11 +101,7 @@ def _warnings(evidence: EvidenceBundle, analysis: DecisionAnalysis) -> list[str]
     warnings: list[str] = []
     entries = [
         *(("Evidence gap", item) for item in evidence.unknowns),
-        *(
-            ("Claim caveat", caveat)
-            for claim in evidence.claims
-            for caveat in claim.caveats
-        ),
+        *(("Claim caveat", caveat) for claim in evidence.claims for caveat in claim.caveats),
         *(("Research note", item) for item in evidence.research_notes),
         *(("Decision risk", item) for item in analysis.risks),
     ]

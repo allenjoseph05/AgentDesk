@@ -322,9 +322,7 @@ def test_evidence_and_analysis_replay_is_exactly_once(database: Database) -> Non
 
     changed_bundle = fixture.evidence_bundle.model_copy(deep=True)
     changed_bundle.evidence[0].summary = "Conflicting replay content."
-    conflicting_envelope = evidence_envelope.model_copy(
-        update={"payload": changed_bundle}
-    )
+    conflicting_envelope = evidence_envelope.model_copy(update={"payload": changed_bundle})
     with pytest.raises(RepositoryConflictError):
         service.persist_evidence("session-1", "research-task", conflicting_envelope)
 
@@ -332,9 +330,7 @@ def test_evidence_and_analysis_replay_is_exactly_once(database: Database) -> Non
         evidence = repositories.artifacts.list_evidence("session-1")
         claims = repositories.artifacts.list_claims("session-1")
         analyses = repositories.artifacts.list_analysis("session-1")
-        research_artifact = repositories.artifacts.get_research_artifact_by_task(
-            "research-task"
-        )
+        research_artifact = repositories.artifacts.get_research_artifact_by_task("research-task")
     assert len(evidence) == len(fixture.evidence_bundle.evidence)
     assert len(claims) == len(fixture.evidence_bundle.claims)
     assert len(analyses) == 1
@@ -365,12 +361,8 @@ def test_recommendation_challenge_replay_is_exactly_once(database: Database) -> 
         payload=fixture.recommendation_challenge,
     )
 
-    assert service.persist_recommendation_challenge(
-        "session-1", "challenge-task", envelope
-    )
-    assert not service.persist_recommendation_challenge(
-        "session-1", "challenge-task", envelope
-    )
+    assert service.persist_recommendation_challenge("session-1", "challenge-task", envelope)
+    assert not service.persist_recommendation_challenge("session-1", "challenge-task", envelope)
 
     conflicting = fixture.recommendation_challenge.model_copy(
         update={"strongest_counterargument": "Conflicting replay content."},
@@ -510,12 +502,8 @@ def test_verification_report_replay_is_exactly_once(database: Database) -> None:
         payload=fixture.verification_report,
     )
 
-    assert service.persist_verification_report(
-        "session-1", "verification-task", envelope
-    )
-    assert not service.persist_verification_report(
-        "session-1", "verification-task", envelope
-    )
+    assert service.persist_verification_report("session-1", "verification-task", envelope)
+    assert not service.persist_verification_report("session-1", "verification-task", envelope)
 
     conflicting_report = fixture.verification_report.model_copy(deep=True)
     conflicting_report.results[0].rationale = "Conflicting replay rationale."

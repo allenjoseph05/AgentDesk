@@ -103,9 +103,7 @@ class WorkflowPersistenceService:
         latest_analysis = analyses[-1].analysis
         options = tuple(
             dict.fromkeys(
-                option
-                for criterion in latest_analysis.criteria
-                for option in criterion.scores
+                option for criterion in latest_analysis.criteria for option in criterion.scores
             )
         )
         criteria = tuple(item.criterion for item in latest_analysis.criteria)
@@ -204,15 +202,11 @@ class WorkflowPersistenceService:
         with self._database.transaction() as repositories:
             current = repositories.runs.get(run_id)
             if current is None:
-                raise WorkflowPersistenceError(
-                    f"Coordinator run {run_id} does not exist."
-                )
+                raise WorkflowPersistenceError(f"Coordinator run {run_id} does not exist.")
             if current.status == "running":
                 return False
             if current.status != "accepted":
-                raise WorkflowPersistenceError(
-                    f"Coordinator run {run_id} is already terminal."
-                )
+                raise WorkflowPersistenceError(f"Coordinator run {run_id} is already terminal.")
             repositories.runs.replace(current.model_copy(update={"status": "running"}))
             return True
 
@@ -227,9 +221,7 @@ class WorkflowPersistenceService:
         with self._database.transaction() as repositories:
             current = repositories.runs.get(run_id)
             if current is None:
-                raise WorkflowPersistenceError(
-                    f"Coordinator run {run_id} does not exist."
-                )
+                raise WorkflowPersistenceError(f"Coordinator run {run_id} does not exist.")
             replacement = CoordinatorRunRecord.model_validate(
                 current.model_copy(
                     update={"status": status, "finished_at": finished_at}
@@ -326,9 +318,7 @@ class WorkflowPersistenceService:
                     "error_message": error_message,
                 }
             )
-            replacement = AgentTaskRecord.model_validate(
-                replacement.model_dump(mode="python")
-            )
+            replacement = AgentTaskRecord.model_validate(replacement.model_dump(mode="python"))
             if current.status in {"completed", "failed", "cancelled"}:
                 if current != replacement:
                     raise RepositoryConflictError("agent task outcome", task_id)
@@ -508,12 +498,10 @@ class WorkflowPersistenceService:
             task = repositories.agent_tasks.require(task_id)
             _validate_provenance(session_id, task, envelope)
             claim_ids = {
-                record.claim.id
-                for record in repositories.artifacts.list_claims(session_id)
+                record.claim.id for record in repositories.artifacts.list_claims(session_id)
             }
             evidence_ids = {
-                record.evidence.id
-                for record in repositories.artifacts.list_evidence(session_id)
+                record.evidence.id for record in repositories.artifacts.list_evidence(session_id)
             }
             _validate_verification_report(envelope.payload, claim_ids, evidence_ids)
             return repositories.artifacts.put_verification_report(
@@ -602,9 +590,7 @@ def _validate_verification_report(
 ) -> None:
     result_claim_ids = [result.claim_id for result in report.results]
     if len(result_claim_ids) != len(set(result_claim_ids)):
-        raise WorkflowPersistenceError(
-            "Verification report repeats a claim verdict."
-        )
+        raise WorkflowPersistenceError("Verification report repeats a claim verdict.")
     if set(result_claim_ids) != claim_ids:
         raise WorkflowPersistenceError(
             "Verification report must cover every durable claim exactly once."

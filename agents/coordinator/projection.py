@@ -78,12 +78,8 @@ class DurableAgUiProjector:
             claims = repositories.artifacts.list_claims(session_id)
             research_artifacts = repositories.artifacts.list_research_artifacts(session_id)
             analyses = repositories.artifacts.list_analysis(session_id)
-            challenges = repositories.artifacts.list_recommendation_challenges(
-                session_id
-            )
-            verification_reports = repositories.artifacts.list_verification_reports(
-                session_id
-            )
+            challenges = repositories.artifacts.list_recommendation_challenges(session_id)
+            verification_reports = repositories.artifacts.list_verification_reports(session_id)
 
         agents = _latest_agent_views(tasks)
         failed_agents = [agent for agent in agents if agent.status == "failed"]
@@ -98,14 +94,9 @@ class DurableAgUiProjector:
                 f"Evidence gap: {unknown}" for unknown in record.envelope.payload.unknowns
             )
             warnings.extend(
-                f"Research note: {note}"
-                for note in record.envelope.payload.research_notes
+                f"Research note: {note}" for note in record.envelope.payload.research_notes
             )
-        verification = (
-            verification_reports[-1].envelope.payload
-            if verification_reports
-            else None
-        )
+        verification = verification_reports[-1].envelope.payload if verification_reports else None
         if verification is not None:
             warnings.extend(_verification_warnings(verification))
         warnings = list(dict.fromkeys(warnings))
@@ -115,18 +106,14 @@ class DurableAgUiProjector:
             question=session.question,
             status=status,
             active_step=(
-                session.active_step
-                if session.status != "created"
-                else "accept-research-request"
+                session.active_step if session.status != "created" else "accept-research-request"
             ),
             agents=agents,
             evidence=[record.evidence for record in evidence],
             evidence_count=len(evidence),
             claims=[record.claim for record in claims],
             analysis=analyses[-1].analysis if analyses else None,
-            recommendation_challenge=(
-                challenges[-1].envelope.payload if challenges else None
-            ),
+            recommendation_challenge=(challenges[-1].envelope.payload if challenges else None),
             verification=verification,
             warnings=warnings,
             errors=errors,

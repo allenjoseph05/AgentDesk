@@ -231,9 +231,7 @@ def test_discovery_retries_transient_get_failures_but_not_permanent_responses() 
     )
 
     diagnostics = asyncio.run(permanent_registry.refresh())
-    assert [(item.agent_id, item.code) for item in diagnostics] == [
-        ("missing", "fetch_failed")
-    ]
+    assert [(item.agent_id, item.code) for item in diagnostics] == [("missing", "fetch_failed")]
     assert permanent_attempts == 1
 
 
@@ -262,11 +260,7 @@ def test_coordinator_startup_refreshes_registry_and_reports_readiness() -> None:
     base_url = "https://research.example"
     registry = _registry(
         _settings(("research", base_url)),
-        {
-            f"{base_url}/.well-known/agent-card.json": httpx.Response(
-                200, json=_card_json(base_url)
-            )
-        },
+        {f"{base_url}/.well-known/agent-card.json": httpx.Response(200, json=_card_json(base_url))},
     )
     app = create_app(registry=registry)
 

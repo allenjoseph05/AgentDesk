@@ -264,9 +264,9 @@ def test_partial_evidence_produces_an_explicitly_cautious_analysis() -> None:
     assert "provisional" in caution_text
     assert "unavailable" in caution_text
     assert "missing" in caution_text
-    assert {
-        claim_id for item in analysis.criteria for claim_id in item.supporting_claim_ids
-    } == {"claim-partial"}
+    assert {claim_id for item in analysis.criteria for claim_id in item.supporting_claim_ids} == {
+        "claim-partial"
+    }
 
 
 def test_invalid_evidence_input_is_rejected_over_a2a() -> None:
@@ -289,9 +289,7 @@ def test_challenge_mode_returns_a_separate_artifact_over_a2a() -> None:
 
     artifact = next(event for event in events if event["kind"] == "artifact")
     assert artifact["name"] == "recommendation-challenge"
-    challenge = ArtifactEnvelope[RecommendationChallenge].model_validate(
-        artifact["data"]
-    ).payload
+    challenge = ArtifactEnvelope[RecommendationChallenge].model_validate(artifact["data"]).payload
     assert challenge.current_recommendation == "PostgreSQL"
     assert challenge.strongest_alternative == "MongoDB"
     assert events[-1]["state"] == "TASK_STATE_COMPLETED"

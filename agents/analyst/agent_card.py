@@ -33,9 +33,7 @@ def create_agent_card(base_url: str) -> AgentCard:
                     "evidence and challenge an existing recommendation when requested."
                 ),
                 tags=["analysis", "decisions", "scoring", "evidence", "challenge"],
-                examples=[
-                    "Compare PostgreSQL and MongoDB using the supplied evidence bundle."
-                ],
+                examples=["Compare PostgreSQL and MongoDB using the supplied evidence bundle."],
             )
         ],
     )

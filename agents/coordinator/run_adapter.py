@@ -182,9 +182,7 @@ class CoordinatorRunOutcome:
             raise ValueError("Only failed Coordinator outcomes may carry an error code.")
         if self.message is not None:
             _validate_rendered_text(self.message)
-        task_keys = [
-            (task.agent_id, task.remote_task_id) for task in self.remote_tasks
-        ]
+        task_keys = [(task.agent_id, task.remote_task_id) for task in self.remote_tasks]
         if len(task_keys) != len(set(task_keys)):
             raise ValueError("Remote task correlations must be unique.")
 
@@ -240,9 +238,7 @@ class RunAdmissionRegistry:
         async with self._lock:
             existing = self._admissions.get(action.root.action_id)
             if existing is not None:
-                raise DuplicateActionError(
-                    conflicting=existing.fingerprint != fingerprint
-                )
+                raise DuplicateActionError(conflicting=existing.fingerprint != fingerprint)
             correlation = _correlation(input_data, action, principal_id)
             self._admissions[action.root.action_id] = _Admission(
                 fingerprint=fingerprint,
@@ -310,7 +306,7 @@ class CoordinatorRunAdapter:
             correlation = _correlation(input_data, action, principal_id)
             command = _to_command(action, correlation, user_message)
             initial_state = _initial_state(input_data, command)
-        except (ValidationError, ValueError):
+        except ValidationError, ValueError:
             log_event(
                 LOGGER,
                 "agui.request",
@@ -334,9 +330,7 @@ class CoordinatorRunAdapter:
                 principal_id=principal_id,
             )
         except DuplicateActionError as error:
-            code = (
-                "duplicate_action_conflict" if error.conflicting else "duplicate_action"
-            )
+            code = "duplicate_action_conflict" if error.conflicting else "duplicate_action"
             log_event(
                 LOGGER,
                 "agui.request",

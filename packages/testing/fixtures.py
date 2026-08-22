@@ -45,7 +45,7 @@ class ResearchFixture(ContractModel):
     failure: FixtureFailure | None = None
 
     @model_validator(mode="after")
-    def validate_outcome(self) -> "ResearchFixture":
+    def validate_outcome(self) -> ResearchFixture:
         if self.kind == "failure":
             if self.failure is None or self.evidence_bundle is not None:
                 raise ValueError("Failure fixtures require only a failure outcome.")

@@ -274,9 +274,7 @@ def test_retryable_search_failure_is_replayed_only_within_the_safe_budget() -> N
 
 def test_tool_budget_counts_actual_search_and_fetch_attempts() -> None:
     fixture = load_research_fixture("postgresql-vs-mongodb-golden")
-    search_provider, source_provider = create_fixture_providers(
-        "postgresql-vs-mongodb-golden"
-    )
+    search_provider, source_provider = create_fixture_providers("postgresql-vs-mongodb-golden")
     synthesizer = ResearchSynthesizer(
         search_provider=search_provider,
         source_provider=source_provider,

@@ -73,9 +73,7 @@ def test_demo_request_keeps_one_trace_across_coordinator_and_specialist() -> Non
     client = spans["a2a.send"]
     specialist = spans["a2a.receive"]
     assert root_trace_id == specialist_trace_id
-    assert {span.context.trace_id for span in (root, client, specialist)} == {
-        root.context.trace_id
-    }
+    assert {span.context.trace_id for span in (root, client, specialist)} == {root.context.trace_id}
     assert client.parent is not None and client.parent.span_id == root.context.span_id
     assert specialist.parent is not None
     assert specialist.parent.span_id == client.context.span_id

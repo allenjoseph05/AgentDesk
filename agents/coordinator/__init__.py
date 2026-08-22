@@ -1,2 +1,1 @@
 """Coordinator service package."""
-

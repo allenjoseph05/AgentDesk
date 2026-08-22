@@ -33,11 +33,7 @@ class CorrelationIds:
         """Return a child scope, retaining parent values omitted by the child."""
         return replace(
             self,
-            **{
-                name: value
-                for name, value in vars(other).items()
-                if value is not None
-            },
+            **{name: value for name, value in vars(other).items() if value is not None},
         )
 
 

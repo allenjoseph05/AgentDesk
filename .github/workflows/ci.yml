@@ -39,10 +39,21 @@ jobs:
           cache: npm
       - run: npm ci --workspaces --include-workspace-root
       - run: python scripts/setup.py
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: python scripts/run_python.py -m alembic upgrade head
+      - name: Python lint and formatting
+        run: npm run lint:python
+      - name: Python type checking
+        run: npm run typecheck:python
+      - name: Apply database migrations
+        run: python scripts/run_python.py -m alembic upgrade head
         env:
           DATABASE_URL: postgresql+psycopg://agentdesk:agentdesk@127.0.0.1:5432/agentdesk
-      - run: npm test
-      - run: npm run build
+      - name: Python tests
+        run: npm run test:python
+      - name: Frontend lint
+        run: npm run lint:web
+      - name: Frontend type checking
+        run: npm run typecheck:web
+      - name: Frontend tests
+        run: npm run test:web
+      - name: Frontend build
+        run: npm run build

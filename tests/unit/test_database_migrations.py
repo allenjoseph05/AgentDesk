@@ -42,9 +42,7 @@ def _config(database_path: Path) -> Config:
 @contextmanager
 def _database_paths(*labels: str) -> Iterator[tuple[Path, ...]]:
     TEST_DATABASE_ROOT.mkdir(exist_ok=True)
-    paths = tuple(
-        TEST_DATABASE_ROOT / f"{label}-{uuid4().hex}.db" for label in labels
-    )
+    paths = tuple(TEST_DATABASE_ROOT / f"{label}-{uuid4().hex}.db" for label in labels)
     try:
         yield paths
     finally:
@@ -61,8 +59,7 @@ def _schema_signature(database_path: Path) -> dict[str, Any]:
                 "columns": [column["name"] for column in inspector.get_columns(table)],
                 "indexes": sorted(index["name"] for index in inspector.get_indexes(table)),
                 "foreign_keys": sorted(
-                    tuple(key["constrained_columns"])
-                    for key in inspector.get_foreign_keys(table)
+                    tuple(key["constrained_columns"]) for key in inspector.get_foreign_keys(table)
                 ),
             }
             for table in sorted(EXPECTED_TABLES)
@@ -93,9 +90,7 @@ def test_migration_creates_required_tables_correlations_and_indexes() -> None:
         engine = sa.create_engine(f"sqlite:///{database.as_posix()}")
         try:
             inspector = sa.inspect(engine)
-            assert set(inspector.get_table_names()) == EXPECTED_TABLES | {
-                "alembic_version"
-            }
+            assert set(inspector.get_table_names()) == EXPECTED_TABLES | {"alembic_version"}
             assert {
                 "ag_ui_thread_id",
                 "owner_id",
@@ -108,9 +103,7 @@ def test_migration_creates_required_tables_correlations_and_indexes() -> None:
             }
 
             indexes = {
-                index["name"]
-                for table in EXPECTED_TABLES
-                for index in inspector.get_indexes(table)
+                index["name"] for table in EXPECTED_TABLES for index in inspector.get_indexes(table)
             }
             assert {
                 "ix_sessions_thread_updated",
@@ -141,9 +134,7 @@ def test_upgrade_is_idempotent_and_downgrade_returns_to_base() -> None:
         try:
             assert sa.inspect(engine).get_table_names() == ["alembic_version"]
             with engine.connect() as connection:
-                rows = connection.exec_driver_sql(
-                    "SELECT version_num FROM alembic_version"
-                ).all()
+                rows = connection.exec_driver_sql("SELECT version_num FROM alembic_version").all()
                 assert rows == []
         finally:
             engine.dispose()

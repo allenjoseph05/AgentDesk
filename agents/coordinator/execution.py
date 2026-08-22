@@ -59,12 +59,8 @@ class WorkflowRunner(Protocol):
         request: ResearchRequest,
         plan: WorkflowPlan,
         *,
-        on_remote_task_started: (
-            Callable[[RegisteredAgent, str], Awaitable[None]] | None
-        ) = None,
-        on_remote_task_finished: (
-            Callable[[RegisteredAgent, str], Awaitable[None]] | None
-        ) = None,
+        on_remote_task_started: (Callable[[RegisteredAgent, str], Awaitable[None]] | None) = None,
+        on_remote_task_finished: (Callable[[RegisteredAgent, str], Awaitable[None]] | None) = None,
         on_research_completed: (
             Callable[
                 [RegisteredAgent, RemoteTaskResult[EvidenceBundle]],
@@ -85,27 +81,17 @@ class WorkflowRunner(Protocol):
         self,
         evidence_bundle: EvidenceBundle,
         *,
-        on_verification_scheduled: (
-            Callable[[RegisteredAgent], Awaitable[None]] | None
-        ) = None,
-        on_remote_task_started: (
-            Callable[[RegisteredAgent, str], Awaitable[None]] | None
-        ) = None,
-        on_remote_task_finished: (
-            Callable[[RegisteredAgent, str], Awaitable[None]] | None
-        ) = None,
+        on_verification_scheduled: (Callable[[RegisteredAgent], Awaitable[None]] | None) = None,
+        on_remote_task_started: (Callable[[RegisteredAgent, str], Awaitable[None]] | None) = None,
+        on_remote_task_finished: (Callable[[RegisteredAgent, str], Awaitable[None]] | None) = None,
     ) -> RemoteTaskResult[VerificationReport]: ...
 
     async def challenge(
         self,
         request: AnalysisRequest,
         *,
-        on_remote_task_started: (
-            Callable[[RegisteredAgent, str], Awaitable[None]] | None
-        ) = None,
-        on_remote_task_finished: (
-            Callable[[RegisteredAgent, str], Awaitable[None]] | None
-        ) = None,
+        on_remote_task_started: (Callable[[RegisteredAgent, str], Awaitable[None]] | None) = None,
+        on_remote_task_finished: (Callable[[RegisteredAgent, str], Awaitable[None]] | None) = None,
     ) -> RemoteTaskResult[RecommendationChallenge]: ...
 
     async def cancel(
@@ -127,8 +113,7 @@ class _UnavailablePlanner:
     async def plan(self, request: ResearchRequest) -> WorkflowPlan:
         del request
         raise OrchestrationConfigurationError(
-            "Coordinator planning requires OPENAI_API_KEY and "
-            "AGENTDESK_COORDINATOR_MODEL."
+            "Coordinator planning requires OPENAI_API_KEY and AGENTDESK_COORDINATOR_MODEL."
         )
 
 
@@ -160,10 +145,7 @@ class _RemoteCancellationScope:
             self._cancelled = True
             active = tuple(self._active.items())
         await asyncio.gather(
-            *(
-                self._cancel_one(agent, remote_task_id)
-                for remote_task_id, agent in active
-            )
+            *(self._cancel_one(agent, remote_task_id) for remote_task_id, agent in active)
         )
 
     async def _cancel_one(
@@ -199,9 +181,7 @@ class OrchestrationCommandExecutor:
         self._limits = limit_settings or LimitSettings()
         self._clock = clock or (lambda: datetime.now(UTC))
 
-    async def execute(
-        self, command: CoordinatorCommand
-    ) -> AsyncIterator[CoordinatorRunUpdate]:
+    async def execute(self, command: CoordinatorCommand) -> AsyncIterator[CoordinatorRunUpdate]:
         correlation = command.correlation
         ids = CorrelationIds(
             session_id=correlation.session_id,
@@ -278,12 +258,8 @@ class OrchestrationCommandExecutor:
                 active_step="research",
                 completed_steps=["plan"],
             )
-            research_step = next(
-                step for step in plan.steps if step.skill == "web-research"
-            )
-            analysis_step = next(
-                step for step in plan.steps if step.skill == "decision-analysis"
-            )
+            research_step = next(step for step in plan.steps if step.skill == "web-research")
+            analysis_step = next(step for step in plan.steps if step.skill == "decision-analysis")
             analysis_agent_id = analysis_step.provider_agent_id
             research_task_id = _agent_task_id(
                 command.correlation.session_id,
@@ -364,9 +340,7 @@ class OrchestrationCommandExecutor:
                     )
                     analysis_started = True
                     sequence += 1
-                    await updates.put(
-                        CoordinatorStepUpdate(step_name="analysis", status="started")
-                    )
+                    await updates.put(CoordinatorStepUpdate(step_name="analysis", status="started"))
                     await updates.put(
                         CoordinatorActivityUpdate(
                             message_id=analysis_activity_id,
@@ -390,9 +364,7 @@ class OrchestrationCommandExecutor:
                     remote_task_id=remote_task_id,
                 )
                 sequence += 1
-                await updates.put(
-                    CoordinatorStepUpdate(step_name="research", status="started")
-                )
+                await updates.put(CoordinatorStepUpdate(step_name="research", status="started"))
                 await updates.put(
                     CoordinatorActivityUpdate(
                         message_id=activity_id,
@@ -466,9 +438,7 @@ class OrchestrationCommandExecutor:
                         summary="Research evidence was accepted.",
                     )
                 )
-                await updates.put(
-                    CoordinatorStepUpdate(step_name="research", status="finished")
-                )
+                await updates.put(CoordinatorStepUpdate(step_name="research", status="finished"))
                 assert analysis_activity_id is not None
                 await updates.put(
                     CoordinatorActivityUpdate(
@@ -525,9 +495,7 @@ class OrchestrationCommandExecutor:
                         summary="Decision analysis was accepted.",
                     )
                 )
-                await updates.put(
-                    CoordinatorStepUpdate(step_name="analysis", status="finished")
-                )
+                await updates.put(CoordinatorStepUpdate(step_name="analysis", status="finished"))
 
             async def verification_scheduled(agent: RegisteredAgent) -> None:
                 nonlocal sequence
@@ -595,9 +563,7 @@ class OrchestrationCommandExecutor:
                 assert verification_activity_id is not None
                 verification_started = True
                 sequence += 1
-                await updates.put(
-                    CoordinatorStepUpdate(step_name="verification", status="started")
-                )
+                await updates.put(CoordinatorStepUpdate(step_name="verification", status="started"))
                 await updates.put(
                     CoordinatorActivityUpdate(
                         message_id=verification_activity_id,
@@ -700,8 +666,7 @@ class OrchestrationCommandExecutor:
                 yield CoordinatorRunOutcome(
                     status="partial",
                     message=(
-                        "Research and analysis remain available, but verification "
-                        "did not complete."
+                        "Research and analysis remain available, but verification did not complete."
                     ),
                     remote_tasks=(
                         _remote_correlation(execution.research),
@@ -850,8 +815,7 @@ class OrchestrationCommandExecutor:
                     yield CoordinatorRunOutcome(
                         status="partial",
                         message=(
-                            "Research evidence remains available, but analysis did not "
-                            "complete."
+                            "Research evidence remains available, but analysis did not complete."
                         ),
                     )
                     return
@@ -888,9 +852,7 @@ class OrchestrationCommandExecutor:
                 command.correlation.session_id,
                 1,
             )
-            context = self._persistence.load_follow_up_context(
-                command.correlation.session_id
-            )
+            context = self._persistence.load_follow_up_context(command.correlation.session_id)
             request = AnalysisRequest(
                 question=context.question,
                 options=list(context.options),
@@ -995,9 +957,7 @@ class OrchestrationCommandExecutor:
                 command.correlation.session_id,
                 2,
             )
-            context = self._persistence.load_follow_up_context(
-                command.correlation.session_id
-            )
+            context = self._persistence.load_follow_up_context(command.correlation.session_id)
             if isinstance(command, ResearchDeeperCommand):
                 criteria = list(command.focus_areas or context.criteria)
                 desired_depth = command.desired_depth
@@ -1037,12 +997,8 @@ class OrchestrationCommandExecutor:
             )
             execution = await asyncio.shield(orchestration_task)
             finished_at = self._clock()
-            research_step = next(
-                step for step in plan.steps if step.skill == "web-research"
-            )
-            analysis_step = next(
-                step for step in plan.steps if step.skill == "decision-analysis"
-            )
+            research_step = next(step for step in plan.steps if step.skill == "web-research")
+            analysis_step = next(step for step in plan.steps if step.skill == "decision-analysis")
             research_task_id = _agent_task_id(
                 command.correlation.session_id,
                 command.correlation.run_id,
@@ -1126,9 +1082,7 @@ class OrchestrationCommandExecutor:
 
     def _continue_follow_up(
         self,
-        command: ChallengeRecommendationCommand
-        | ResearchDeeperCommand
-        | FocusOnCriterionCommand,
+        command: ChallengeRecommendationCommand | ResearchDeeperCommand | FocusOnCriterionCommand,
         started_at: datetime,
     ) -> None:
         self._persistence.continue_session(
@@ -1144,9 +1098,7 @@ class OrchestrationCommandExecutor:
 
     def _finish_follow_up_run(
         self,
-        command: ChallengeRecommendationCommand
-        | ResearchDeeperCommand
-        | FocusOnCriterionCommand,
+        command: ChallengeRecommendationCommand | ResearchDeeperCommand | FocusOnCriterionCommand,
         status: Literal["failed", "cancelled"],
     ) -> None:
         with suppress(WorkflowPersistenceError):
@@ -1178,7 +1130,7 @@ class OrchestrationCommandExecutor:
                 status="failed",
                 finished_at=self._clock(),
             )
-        except (RepositoryError, WorkflowPersistenceError):
+        except RepositoryError, WorkflowPersistenceError:
             return CoordinatorRunOutcome(
                 status="failed",
                 message="The requested Coordinator session could not be continued.",

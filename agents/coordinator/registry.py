@@ -104,25 +104,19 @@ class AgentRegistrySettings(ContractModel):
                 AgentEndpointConfig.model_validate(
                     {
                         "agent_id": "researcher",
-                        "base_url": source.get(
-                            "RESEARCH_AGENT_URL", DEFAULT_RESEARCH_AGENT_URL
-                        ),
+                        "base_url": source.get("RESEARCH_AGENT_URL", DEFAULT_RESEARCH_AGENT_URL),
                     }
                 ),
                 AgentEndpointConfig.model_validate(
                     {
                         "agent_id": "analyst",
-                        "base_url": source.get(
-                            "ANALYST_AGENT_URL", DEFAULT_ANALYST_AGENT_URL
-                        ),
+                        "base_url": source.get("ANALYST_AGENT_URL", DEFAULT_ANALYST_AGENT_URL),
                     }
                 ),
                 AgentEndpointConfig.model_validate(
                     {
                         "agent_id": "verifier",
-                        "base_url": source.get(
-                            "VERIFIER_AGENT_URL", DEFAULT_VERIFIER_AGENT_URL
-                        ),
+                        "base_url": source.get("VERIFIER_AGENT_URL", DEFAULT_VERIFIER_AGENT_URL),
                     }
                 ),
             ]
@@ -218,8 +212,7 @@ class AgentRegistry:
 
         self._agents = agents
         self._providers_by_skill = {
-            skill_id: tuple(skill_providers)
-            for skill_id, skill_providers in providers.items()
+            skill_id: tuple(skill_providers) for skill_id, skill_providers in providers.items()
         }
         self._diagnostics = tuple(diagnostics)
         return self._diagnostics

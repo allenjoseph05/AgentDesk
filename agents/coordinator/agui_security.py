@@ -45,11 +45,7 @@ class AgUiSecurityMiddleware:
         self._application = application
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if (
-            scope["type"] != "http"
-            or scope["path"] != "/ag-ui"
-            or scope["method"] != "POST"
-        ):
+        if scope["type"] != "http" or scope["path"] != "/ag-ui" or scope["method"] != "POST":
             await self._application(scope, receive, send)
             return
 
@@ -112,12 +108,8 @@ class AgUiSecurityMiddleware:
             if message["type"] == "http.response.start":
                 response_headers = list(message.get("headers", ()))
                 correlation_header = CORRELATION_HEADER.encode("ascii")
-                if not any(
-                    name.lower() == correlation_header for name, _ in response_headers
-                ):
-                    response_headers.append(
-                        (correlation_header, correlation_id.encode("ascii"))
-                    )
+                if not any(name.lower() == correlation_header for name, _ in response_headers):
+                    response_headers.append((correlation_header, correlation_id.encode("ascii")))
                 message["headers"] = response_headers
             await send(message)
 
@@ -232,9 +224,7 @@ def require_patch_size(value: Any) -> None:
 
 def _require_json_size(value: Any, *, maximum: int, code: str, message: str) -> None:
     try:
-        encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode(
-            "utf-8"
-        )
+        encoded = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     except (TypeError, ValueError) as error:
         raise AgUiBoundaryError("invalid_json_value", "AG-UI data must be JSON-safe.") from error
     if len(encoded) > maximum:

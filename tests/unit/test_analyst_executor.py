@@ -65,9 +65,7 @@ def _configured_executor() -> tuple[AnalystAgentExecutor, AnalysisRequest]:
         criteria=fixture.request.criteria,
         evidence_bundle=fixture.evidence_bundle,
     )
-    analyzer = DecisionAnalyzer(
-        FakeLLMProvider({DecisionAnalysis: fixture.decision_analysis})
-    )
+    analyzer = DecisionAnalyzer(FakeLLMProvider({DecisionAnalysis: fixture.decision_analysis}))
     return AnalystAgentExecutor(analyzer), request
 
 

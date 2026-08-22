@@ -61,8 +61,7 @@ def upgrade() -> None:
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("finished_at", sa.DateTime(timezone=True)),
         sa.CheckConstraint(
-            "status IN ('accepted', 'running', 'completed', 'partial', "
-            "'failed', 'cancelled')",
+            "status IN ('accepted', 'running', 'completed', 'partial', 'failed', 'cancelled')",
             name="ck_coordinator_runs_status",
         ),
         sa.ForeignKeyConstraint(
@@ -100,8 +99,7 @@ def upgrade() -> None:
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("finished_at", sa.DateTime(timezone=True)),
         sa.CheckConstraint(
-            "status IN ('pending', 'submitted', 'working', 'completed', "
-            "'failed', 'cancelled')",
+            "status IN ('pending', 'submitted', 'working', 'completed', 'failed', 'cancelled')",
             name="ck_agent_tasks_status",
         ),
         sa.ForeignKeyConstraint(

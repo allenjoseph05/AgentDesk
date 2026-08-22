@@ -88,9 +88,7 @@ class ResearchHistoryService:
                 owner_id=owner_id,
                 ag_ui_thread_id=thread_id,
             )
-        return SessionHistoryPage(
-            sessions=[_history_item(record) for record in records]
-        )
+        return SessionHistoryPage(sessions=[_history_item(record) for record in records])
 
     def get_terminal_session(
         self,

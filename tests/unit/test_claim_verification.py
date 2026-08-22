@@ -45,13 +45,11 @@ def test_verification_returns_one_grounded_verdict_per_claim() -> None:
 
     report = asyncio.run(ClaimVerifier(provider).verify(bundle))
 
-    assert [result.claim_id for result in report.results] == [
-        claim.id for claim in bundle.claims
-    ]
+    assert [result.claim_id for result in report.results] == [claim.id for claim in bundle.claims]
     assert all(result.evidence_ids for result in report.results)
-    assert {
-        evidence_id for result in report.results for evidence_id in result.evidence_ids
-    } <= {evidence.id for evidence in bundle.evidence}
+    assert {evidence_id for result in report.results for evidence_id in result.evidence_ids} <= {
+        evidence.id for evidence in bundle.evidence
+    }
 
     assert len(provider.calls) == 1
     call = provider.calls[0]
@@ -69,9 +67,7 @@ def test_verification_normalizes_results_to_claim_order() -> None:
 
     report = _verify(bundle, reversed_candidate)
 
-    assert [result.claim_id for result in report.results] == [
-        claim.id for claim in bundle.claims
-    ]
+    assert [result.claim_id for result in report.results] == [claim.id for claim in bundle.claims]
 
 
 def test_verification_rejects_missing_claim_results() -> None:
@@ -143,8 +139,6 @@ def test_verification_translates_model_deadline_into_a_typed_failure() -> None:
     bundle, _ = _bundle_and_report()
 
     with pytest.raises(ClaimVerificationError) as error:
-        asyncio.run(
-            ClaimVerifier(HangingProvider(), model_timeout_seconds=0.001).verify(bundle)
-        )
+        asyncio.run(ClaimVerifier(HangingProvider(), model_timeout_seconds=0.001).verify(bundle))
 
     assert error.value.code == "verification_timeout"

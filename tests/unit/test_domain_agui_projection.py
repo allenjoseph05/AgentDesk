@@ -334,10 +334,13 @@ def test_duplicate_and_out_of_order_updates_cannot_regress_frontend_state() -> N
 
     assert first is not None
     assert latest is not None
-    assert apply_projected_delta(
-        apply_projected_delta(baseline, first.delta),
-        latest.delta,
-    ) == analyzing
+    assert (
+        apply_projected_delta(
+            apply_projected_delta(baseline, first.delta),
+            latest.delta,
+        )
+        == analyzing
+    )
     assert stale is None
     assert duplicate is None
     assert projection.state == analyzing

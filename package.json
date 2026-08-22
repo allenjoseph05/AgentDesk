@@ -21,9 +21,15 @@
     "hello": "python scripts/run_python.py -m agents.hello.client",
     "hello:stream": "python scripts/run_python.py -m agents.hello.stream_client",
     "dev:web": "npm run dev --workspace @agentdesk/web",
-    "lint": "python scripts/run_python.py -m ruff check . && npm run lint --workspace @agentdesk/web",
-    "typecheck": "python scripts/run_python.py -m mypy && npm run typecheck --workspace @agentdesk/web",
-    "test": "python scripts/run_python.py -m pytest && npm test --workspace @agentdesk/web",
+    "lint:python": "python scripts/run_python.py -m ruff check . && python scripts/run_python.py -m ruff format --check agents packages scripts tests",
+    "lint:web": "npm run lint --workspace @agentdesk/web",
+    "lint": "npm run lint:python && npm run lint:web",
+    "typecheck:python": "python scripts/run_python.py -m mypy",
+    "typecheck:web": "npm run typecheck --workspace @agentdesk/web",
+    "typecheck": "npm run typecheck:python && npm run typecheck:web",
+    "test:python": "python scripts/run_python.py -m pytest",
+    "test:web": "npm test --workspace @agentdesk/web",
+    "test": "npm run test:python && npm run test:web",
     "build": "npm run build --workspace @agentdesk/web"
   }
 }

@@ -47,9 +47,7 @@ class ClaimVerifier:
 
     async def verify(self, evidence_bundle: EvidenceBundle) -> VerificationReport:
         """Return a report whose claim and evidence references match the bundle."""
-        validated_bundle = EvidenceBundle.model_validate(
-            evidence_bundle.model_dump(mode="python")
-        )
+        validated_bundle = EvidenceBundle.model_validate(evidence_bundle.model_dump(mode="python"))
         budget = RequestBudget(self._limit_settings)
         try:
             candidate = await run_with_policy(
@@ -119,8 +117,7 @@ def _validate_report(
         if unknown_evidence_ids := set(result.evidence_ids) - known_evidence_ids:
             raise ClaimVerificationError(
                 "unknown_evidence_reference",
-                "Verification referenced unknown evidence: "
-                f"{sorted(unknown_evidence_ids)}",
+                f"Verification referenced unknown evidence: {sorted(unknown_evidence_ids)}",
             )
 
     ordered_results = [results_by_claim[claim.id] for claim in evidence_bundle.claims]

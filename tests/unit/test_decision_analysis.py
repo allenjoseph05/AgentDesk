@@ -55,9 +55,9 @@ def test_analysis_returns_complete_weighted_scores_grounded_in_supplied_claims()
     assert [item.criterion for item in analysis.criteria] == request.criteria
     assert sum(item.weight for item in analysis.criteria) == pytest.approx(1)
     assert all(set(item.scores) == set(request.options) for item in analysis.criteria)
-    assert {
-        claim_id for item in analysis.criteria for claim_id in item.supporting_claim_ids
-    } <= {claim.id for claim in request.evidence_bundle.claims}
+    assert {claim_id for item in analysis.criteria for claim_id in item.supporting_claim_ids} <= {
+        claim.id for claim in request.evidence_bundle.claims
+    }
     assert analysis.arguments_against
     assert analysis.assumptions
     assert analysis.risks
@@ -138,9 +138,7 @@ def test_analysis_translates_model_deadline_into_a_typed_failure() -> None:
 
     with pytest.raises(DecisionAnalysisError) as error:
         asyncio.run(
-            DecisionAnalyzer(HangingProvider(), model_timeout_seconds=0.001).analyze(
-                request
-            )
+            DecisionAnalyzer(HangingProvider(), model_timeout_seconds=0.001).analyze(request)
         )
 
     assert error.value.code == "analysis_timeout"

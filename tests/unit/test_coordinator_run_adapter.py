@@ -101,9 +101,7 @@ def _input(
             "threadId": "thread-1",
             "runId": run_id,
             "state": state or {},
-            "messages": [
-                {"id": "message-1", "role": "user", "content": message}
-            ],
+            "messages": [{"id": "message-1", "role": "user", "content": message}],
             "tools": [],
             "context": [],
             "forwardedProps": {"agentdesk": action},
@@ -129,9 +127,7 @@ class RecordingExecutor:
         self.outcome = outcome or CoordinatorRunOutcome(status="completed")
         self.commands: list[CoordinatorCommand] = []
 
-    async def execute(
-        self, command: CoordinatorCommand
-    ) -> AsyncIterator[CoordinatorRunOutcome]:
+    async def execute(self, command: CoordinatorCommand) -> AsyncIterator[CoordinatorRunOutcome]:
         self.commands.append(command)
         yield self.outcome
 
@@ -238,10 +234,7 @@ def test_initial_snapshot_is_emitted_before_executor_delegation() -> None:
             EventEncoder(accept="text/event-stream"),
         )
 
-        first_three = [
-            json.loads((await anext(stream)).removeprefix("data: "))
-            for _ in range(3)
-        ]
+        first_three = [json.loads((await anext(stream)).removeprefix("data: ")) for _ in range(3)]
         assert [event["type"] for event in first_three] == [
             "RUN_STARTED",
             "STEP_STARTED",
@@ -525,6 +518,5 @@ def test_run_adapter_has_no_specialist_implementation_imports() -> None:
     }
 
     assert not any(
-        module.startswith(("agents.researcher", "agents.analyst"))
-        for module in imported_modules
+        module.startswith(("agents.researcher", "agents.analyst")) for module in imported_modules
     )

@@ -70,9 +70,7 @@ class VerifierAgentExecutor(AgentExecutor):
         try:
             report = await self._verifier.verify(evidence_bundle)
         except LimitExceededError as error:
-            await updater.failed(
-                self._status_message(context, limit_status_message(error))
-            )
+            await updater.failed(self._status_message(context, limit_status_message(error)))
             return
         except ClaimVerificationError as error:
             await updater.failed(

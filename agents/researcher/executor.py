@@ -92,9 +92,7 @@ class ResearchAgentExecutor(AgentExecutor):
         try:
             bundle = await self._synthesizer.synthesize(request, on_progress=report)
         except LimitExceededError as error:
-            await updater.failed(
-                self._status_message(context, limit_status_message(error))
-            )
+            await updater.failed(self._status_message(context, limit_status_message(error)))
             return
         except ResearchToolError as error:
             await updater.failed(
