@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import suppress
 from datetime import UTC, datetime
@@ -40,7 +41,10 @@ from packages.contracts import (
     VerificationReport,
 )
 from packages.llm import llm_provider_from_environment
+from packages.observability import CorrelationIds, observed_request
 from packages.persistence import AgentTaskRecord, Database, RepositoryError
+
+LOGGER = logging.getLogger(__name__)
 
 
 class WorkflowPlanner(Protocol):
@@ -192,6 +196,24 @@ class OrchestrationCommandExecutor:
         self._clock = clock or (lambda: datetime.now(UTC))
 
     async def execute(
+        self, command: CoordinatorCommand
+    ) -> AsyncIterator[CoordinatorRunUpdate]:
+        correlation = command.correlation
+        with observed_request(
+            LOGGER,
+            "coordinator.command",
+            CorrelationIds(
+                session_id=correlation.session_id,
+                context_id=correlation.thread_id,
+                correlation_id=correlation.run_id,
+                action_id=correlation.action_id,
+                agent="coordinator",
+            ),
+        ):
+            async for update in self._execute_command(command):
+                yield update
+
+    async def _execute_command(
         self, command: CoordinatorCommand
     ) -> AsyncIterator[CoordinatorRunUpdate]:
         if isinstance(command, ChallengeRecommendationCommand):

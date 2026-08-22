@@ -1,5 +1,6 @@
 """A2A executor for evidence-bound decision analysis."""
 
+import logging
 from datetime import UTC, datetime
 
 from a2a.helpers.proto_helpers import (
@@ -26,9 +27,11 @@ from packages.contracts import (
     RecommendationChallenge,
 )
 from packages.llm import LLMProviderError
+from packages.observability import CorrelationIds, observed_request
 
 FINAL_ANALYSIS_ARTIFACT = "decision-analysis"
 FINAL_CHALLENGE_ARTIFACT = "recommendation-challenge"
+LOGGER = logging.getLogger(__name__)
 
 
 class AnalystAgentExecutor(AgentExecutor):
@@ -38,6 +41,10 @@ class AnalystAgentExecutor(AgentExecutor):
         self._analyzer = analyzer
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        with observed_request(LOGGER, "a2a.request", self._log_ids(context)):
+            await self._execute(context, event_queue)
+
+    async def _execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.message is None or context.task_id is None or context.context_id is None:
             raise ValueError("Analysis tasks require message, task, and context identifiers.")
 
@@ -103,10 +110,23 @@ class AnalystAgentExecutor(AgentExecutor):
         await updater.complete(self._status_message(context, completion_message))
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
+        with observed_request(LOGGER, "a2a.cancel", self._log_ids(context)):
+            await self._cancel(context, event_queue)
+
+    async def _cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.task_id is None or context.context_id is None:
             raise ValueError("Cancellation requires task and context identifiers.")
         updater = TaskUpdater(event_queue, context.task_id, context.context_id)
         await updater.cancel(self._status_message(context, "Analysis task cancelled."))
+
+    @staticmethod
+    def _log_ids(context: RequestContext) -> CorrelationIds:
+        return CorrelationIds(
+            context_id=context.context_id,
+            correlation_id=context.context_id,
+            agent="analyst",
+            remote_task_id=context.task_id,
+        )
 
     @staticmethod
     def _status_message(context: RequestContext, text: str) -> Message:

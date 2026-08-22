@@ -19,9 +19,11 @@ from agents.coordinator.run_adapter import (
 )
 from agents.coordinator.run_tasks import A2ATaskFactory
 from packages.config import load_project_environment
+from packages.observability import configure_structured_logging
 from packages.persistence import Database
 
 load_project_environment()
+configure_structured_logging()
 
 
 def create_app(

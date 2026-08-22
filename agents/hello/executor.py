@@ -1,6 +1,7 @@
 """Deterministic executor for the standalone hello agent."""
 
 import asyncio
+import logging
 
 from a2a.helpers.proto_helpers import (
     new_task_from_user_message,
@@ -12,8 +13,11 @@ from a2a.server.events.event_queue import EventQueue
 from a2a.server.tasks import TaskUpdater
 from a2a.types import Message, TaskState
 
+from packages.observability import CorrelationIds, observed_request
+
 STREAM_PREFIX = "stream:"
 STREAM_STEP_DELAY_SECONDS = 0.15
+LOGGER = logging.getLogger(__name__)
 
 
 class HelloAgentExecutor(AgentExecutor):
@@ -23,6 +27,10 @@ class HelloAgentExecutor(AgentExecutor):
         self._stream_step_delay_seconds = stream_step_delay_seconds
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        with observed_request(LOGGER, "a2a.request", self._log_ids(context)):
+            await self._execute(context, event_queue)
+
+    async def _execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         user_input = context.get_user_input().strip()
         if user_input.casefold().startswith(STREAM_PREFIX):
             await self._execute_streaming_task(context, event_queue, user_input)
@@ -37,6 +45,10 @@ class HelloAgentExecutor(AgentExecutor):
         await event_queue.enqueue_event(response)
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
+        with observed_request(LOGGER, "a2a.cancel", self._log_ids(context)):
+            await self._cancel(context, event_queue)
+
+    async def _cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.task_id is None or context.context_id is None:
             raise ValueError("Cancellation requires task and context identifiers.")
 
@@ -47,6 +59,15 @@ class HelloAgentExecutor(AgentExecutor):
                 context_id=context.context_id,
                 task_id=context.task_id,
             )
+        )
+
+    @staticmethod
+    def _log_ids(context: RequestContext) -> CorrelationIds:
+        return CorrelationIds(
+            context_id=context.context_id,
+            correlation_id=context.context_id,
+            agent="hello",
+            remote_task_id=context.task_id,
         )
 
     async def _execute_streaming_task(

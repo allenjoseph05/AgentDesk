@@ -1,5 +1,6 @@
 """A2A executor for streamed research evidence synthesis."""
 
+import logging
 from datetime import UTC, datetime
 
 from a2a.helpers.proto_helpers import (
@@ -21,9 +22,11 @@ from agents.researcher.synthesis import (
 from agents.researcher.tools import ResearchToolError
 from packages.contracts import ArtifactEnvelope, ArtifactProvenance, EvidenceBundle, ResearchRequest
 from packages.llm import LLMProviderError
+from packages.observability import CorrelationIds, observed_request
 
 PARTIAL_SOURCES_ARTIFACT = "research-sources"
 FINAL_EVIDENCE_ARTIFACT = "evidence-bundle"
+LOGGER = logging.getLogger(__name__)
 
 
 class ResearchAgentExecutor(AgentExecutor):
@@ -33,6 +36,10 @@ class ResearchAgentExecutor(AgentExecutor):
         self._synthesizer = synthesizer
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
+        with observed_request(LOGGER, "a2a.request", self._log_ids(context)):
+            await self._execute(context, event_queue)
+
+    async def _execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.message is None or context.task_id is None or context.context_id is None:
             raise ValueError("Research tasks require message, task, and context identifiers.")
 
@@ -112,10 +119,23 @@ class ResearchAgentExecutor(AgentExecutor):
         await updater.complete(self._status_message(context, "Evidence synthesis completed."))
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
+        with observed_request(LOGGER, "a2a.cancel", self._log_ids(context)):
+            await self._cancel(context, event_queue)
+
+    async def _cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.task_id is None or context.context_id is None:
             raise ValueError("Cancellation requires task and context identifiers.")
         updater = TaskUpdater(event_queue, context.task_id, context.context_id)
         await updater.cancel(self._status_message(context, "Research task cancelled."))
+
+    @staticmethod
+    def _log_ids(context: RequestContext) -> CorrelationIds:
+        return CorrelationIds(
+            context_id=context.context_id,
+            correlation_id=context.context_id,
+            agent="researcher",
+            remote_task_id=context.task_id,
+        )
 
     @staticmethod
     def _status_message(context: RequestContext, text: str) -> Message:
