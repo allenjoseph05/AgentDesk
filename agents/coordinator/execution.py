@@ -10,6 +10,7 @@ from typing import Literal, Protocol
 from uuid import NAMESPACE_URL, uuid5
 
 from agents.coordinator.a2a_client import RemoteTaskResult
+from agents.coordinator.cancellation import CancellationCoordinator
 from agents.coordinator.orchestrator import WorkflowExecution, WorkflowOrchestrator
 from agents.coordinator.persistence import WorkflowPersistenceError, WorkflowPersistenceService
 from agents.coordinator.planner import DecisionPlanner, PlanningFailedError, WorkflowPlan
@@ -54,6 +55,9 @@ class WorkflowRunner(Protocol):
         on_remote_task_started: (
             Callable[[RegisteredAgent, str], Awaitable[None]] | None
         ) = None,
+        on_remote_task_finished: (
+            Callable[[RegisteredAgent, str], Awaitable[None]] | None
+        ) = None,
         on_research_completed: (
             Callable[
                 [RegisteredAgent, RemoteTaskResult[EvidenceBundle]],
@@ -82,6 +86,14 @@ class WorkflowRunner(Protocol):
         ) = None,
     ) -> RemoteTaskResult[RecommendationChallenge]: ...
 
+    async def cancel(
+        self,
+        *,
+        agent: RegisteredAgent,
+        remote_task_id: str,
+        timeout_seconds: float,
+    ) -> None: ...
+
 
 class OrchestrationConfigurationError(RuntimeError):
     """The production planning provider has not been configured."""
@@ -96,6 +108,53 @@ class _UnavailablePlanner:
             "Coordinator planning requires OPENAI_API_KEY and "
             "AGENTDESK_COORDINATOR_MODEL."
         )
+
+
+class _RemoteCancellationScope:
+    """Track remote work for follow-up runs that do not reopen session state."""
+
+    def __init__(self, canceller: WorkflowRunner, *, timeout_seconds: float = 10) -> None:
+        self._canceller = canceller
+        self._timeout_seconds = timeout_seconds
+        self._active: dict[str, RegisteredAgent] = {}
+        self._cancelled = False
+        self._lock = asyncio.Lock()
+
+    async def register(self, agent: RegisteredAgent, remote_task_id: str) -> None:
+        async with self._lock:
+            cancel_immediately = self._cancelled
+            if not cancel_immediately:
+                self._active[remote_task_id] = agent
+        if cancel_immediately:
+            await self._cancel_one(agent, remote_task_id)
+
+    async def complete(self, agent: RegisteredAgent, remote_task_id: str) -> None:
+        del agent
+        async with self._lock:
+            self._active.pop(remote_task_id, None)
+
+    async def cancel(self) -> None:
+        async with self._lock:
+            self._cancelled = True
+            active = tuple(self._active.items())
+        await asyncio.gather(
+            *(
+                self._cancel_one(agent, remote_task_id)
+                for remote_task_id, agent in active
+            )
+        )
+
+    async def _cancel_one(
+        self,
+        agent: RegisteredAgent,
+        remote_task_id: str,
+    ) -> None:
+        with suppress(Exception):
+            await self._canceller.cancel(
+                agent=agent,
+                remote_task_id=remote_task_id,
+                timeout_seconds=self._timeout_seconds,
+            )
 
 
 class OrchestrationCommandExecutor:
@@ -136,9 +195,14 @@ class OrchestrationCommandExecutor:
             clock=self._clock,
             on_transition=self._persistence.persist_transition,
         )
+        cancellation = CancellationCoordinator(
+            state_machine=machine,
+            remote_canceller=self._orchestrator,
+        )
         initialized = False
         orchestration_task: asyncio.Task[WorkflowExecution] | None = None
         sequence = 0
+        research_task_id: str | None = None
         analysis_task_id: str | None = None
         analysis_activity_id: str | None = None
         analysis_agent_id: str | None = None
@@ -222,6 +286,21 @@ class OrchestrationCommandExecutor:
                 remote_task_id: str,
             ) -> None:
                 nonlocal analysis_started, sequence
+                if machine.snapshot.status in TERMINAL_STATUSES | {"cancelling"}:
+                    if machine.snapshot.status in {"cancelling", "cancelled"}:
+                        await cancellation.register(agent, remote_task_id)
+                        task_id = (
+                            analysis_task_id
+                            if agent.agent_id == analysis_step.provider_agent_id
+                            else research_task_id
+                        )
+                        if task_id is not None:
+                            self._persistence.register_remote_task(
+                                task_id,
+                                remote_task_id=remote_task_id,
+                            )
+                    return
+                await cancellation.register(agent, remote_task_id)
                 if agent.agent_id == analysis_step.provider_agent_id:
                     if analysis_completed:
                         return
@@ -278,11 +357,20 @@ class OrchestrationCommandExecutor:
                     )
                 )
 
+            async def remote_task_finished(
+                agent: RegisteredAgent,
+                remote_task_id: str,
+            ) -> None:
+                del agent
+                await cancellation.complete(remote_task_id)
+
             async def research_task_completed(
                 agent: RegisteredAgent,
                 result: RemoteTaskResult[EvidenceBundle],
             ) -> None:
                 nonlocal research_completed, sequence
+                if machine.snapshot.status in TERMINAL_STATUSES | {"cancelling"}:
+                    return
                 if agent.agent_id != research_step.provider_agent_id:
                     raise RuntimeError("Research result provider does not match the plan.")
                 self._persistence.register_remote_task(
@@ -345,6 +433,8 @@ class OrchestrationCommandExecutor:
                 result: RemoteTaskResult[DecisionAnalysis],
             ) -> None:
                 nonlocal analysis_completed, sequence
+                if machine.snapshot.status in TERMINAL_STATUSES | {"cancelling"}:
+                    return
                 if agent.agent_id != analysis_step.provider_agent_id:
                     raise RuntimeError("Analysis result provider does not match the plan.")
                 assert analysis_task_id is not None
@@ -392,6 +482,7 @@ class OrchestrationCommandExecutor:
                     command.request,
                     plan,
                     on_remote_task_started=remote_task_started,
+                    on_remote_task_finished=remote_task_finished,
                     on_research_completed=research_task_completed,
                     on_analysis_completed=analysis_task_completed,
                 )
@@ -417,12 +508,22 @@ class OrchestrationCommandExecutor:
                 sequence=sequence,
             )
         except asyncio.CancelledError:
+            if initialized and machine.snapshot.status not in TERMINAL_STATUSES:
+                await cancellation.cancel("The browser cancelled the Coordinator run.")
+                self._persistence.cancel_run_agent_tasks(
+                    session_id=command.correlation.session_id,
+                    run_id=command.correlation.run_id,
+                    finished_at=machine.snapshot.updated_at,
+                )
+                self._persistence.finish_run(
+                    command.correlation.run_id,
+                    status="cancelled",
+                    finished_at=machine.snapshot.updated_at,
+                )
             if orchestration_task is not None and not orchestration_task.done():
                 orchestration_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await orchestration_task
-            if initialized:
-                self._cancel_run(command, machine)
             raise
         except Exception as error:
             terminal_status = "failed"
@@ -489,6 +590,8 @@ class OrchestrationCommandExecutor:
         started_at = self._clock()
         initialized = False
         activity_id = f"challenge:{command.correlation.run_id}"
+        remote_scope = _RemoteCancellationScope(self._orchestrator)
+        challenge_task: asyncio.Task[RemoteTaskResult[RecommendationChallenge]] | None = None
         try:
             self._continue_follow_up(command, started_at)
             initialized = True
@@ -510,7 +613,14 @@ class OrchestrationCommandExecutor:
                 status="waiting",
                 summary="Analyst is preparing a counteranalysis.",
             )
-            result = await self._orchestrator.challenge(request)
+            challenge_task = asyncio.create_task(
+                self._orchestrator.challenge(
+                    request,
+                    on_remote_task_started=remote_scope.register,
+                    on_remote_task_finished=remote_scope.complete,
+                )
+            )
+            result = await asyncio.shield(challenge_task)
             task_id = _agent_task_id(
                 command.correlation.session_id,
                 command.correlation.run_id,
@@ -553,6 +663,11 @@ class OrchestrationCommandExecutor:
                 summary="Counteranalysis was accepted.",
             )
         except asyncio.CancelledError:
+            await remote_scope.cancel()
+            if challenge_task is not None and not challenge_task.done():
+                challenge_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await challenge_task
             if initialized:
                 self._finish_follow_up_run(command, "cancelled")
             raise
@@ -578,6 +693,8 @@ class OrchestrationCommandExecutor:
         started_at = self._clock()
         initialized = False
         activity_id = f"follow-up:{command.correlation.run_id}"
+        remote_scope = _RemoteCancellationScope(self._orchestrator)
+        orchestration_task: asyncio.Task[WorkflowExecution] | None = None
         try:
             self._continue_follow_up(command, started_at)
             initialized = True
@@ -612,7 +729,15 @@ class OrchestrationCommandExecutor:
                 summary="Follow-up research and analysis are queued.",
             )
             plan = await self._planner.plan(request)
-            execution = await self._orchestrator.execute(request, plan)
+            orchestration_task = asyncio.create_task(
+                self._orchestrator.execute(
+                    request,
+                    plan,
+                    on_remote_task_started=remote_scope.register,
+                    on_remote_task_finished=remote_scope.complete,
+                )
+            )
+            execution = await asyncio.shield(orchestration_task)
             finished_at = self._clock()
             research_step = next(
                 step for step in plan.steps if step.skill == "web-research"
@@ -675,6 +800,11 @@ class OrchestrationCommandExecutor:
                 summary="Follow-up research and analysis were accepted.",
             )
         except asyncio.CancelledError:
+            await remote_scope.cancel()
+            if orchestration_task is not None and not orchestration_task.done():
+                orchestration_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await orchestration_task
             if initialized:
                 self._finish_follow_up_run(command, "cancelled")
             raise
@@ -758,27 +888,6 @@ class OrchestrationCommandExecutor:
             status="failed",
             message="Follow-up orchestration is introduced in AD-074.",
             error_code="follow_up_not_implemented",
-        )
-
-    def _cancel_run(
-        self,
-        command: StartResearchCommand,
-        machine: WorkflowStateMachine,
-    ) -> None:
-        if machine.snapshot.status not in TERMINAL_STATUSES:
-            machine.transition(
-                "cancelling",
-                active_step="cancel",
-                reason="The browser cancelled the Coordinator run.",
-            )
-            machine.transition(
-                "cancelled",
-                reason="The browser cancelled the Coordinator run.",
-            )
-        self._persistence.finish_run(
-            command.correlation.run_id,
-            status="cancelled",
-            finished_at=machine.snapshot.updated_at,
         )
 
     def _fail_run(

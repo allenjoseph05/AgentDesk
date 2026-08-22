@@ -154,6 +154,20 @@ class WorkflowOrchestrator:
             on_remote_task_finished=on_remote_task_finished,
         )
 
+    async def cancel(
+        self,
+        *,
+        agent: RegisteredAgent,
+        remote_task_id: str,
+        timeout_seconds: float,
+    ) -> None:
+        """Propagate a Coordinator cancellation through the A2A client boundary."""
+        await self._remote_client.cancel(
+            agent=agent,
+            remote_task_id=remote_task_id,
+            timeout_seconds=timeout_seconds,
+        )
+
     async def _execute_remote[PayloadT: BaseModel](
         self,
         *,
