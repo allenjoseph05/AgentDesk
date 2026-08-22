@@ -19,6 +19,7 @@ from pydantic import BaseModel, ValidationError
 
 from agents.coordinator.registry import RegisteredAgent
 from packages.contracts import ArtifactEnvelope
+from packages.observability import inject_trace_context
 
 RemoteErrorCode = Literal[
     "timeout",
@@ -161,7 +162,10 @@ class A2AClientAdapter:
             ).create(agent.card)
             async with asyncio.timeout(timeout_seconds):
                 cancelled_task = await client.cancel_task(
-                    CancelTaskRequest(id=remote_task_id)
+                    CancelTaskRequest(
+                        id=remote_task_id,
+                        metadata=inject_trace_context(),
+                    )
                 )
             if cancelled_task.status.state != TaskState.TASK_STATE_CANCELED:
                 raise RemoteCallError(
@@ -209,6 +213,7 @@ class A2AClientAdapter:
                 role=Role.ROLE_USER,
             )
         )
+        send_request.metadata.update(inject_trace_context())
         async for response in client.send_message(send_request):
             if response.HasField("task"):
                 remote_task_id = response.task.id

@@ -84,6 +84,10 @@ def log_event(
     correlation = _correlation_ids.get() or CorrelationIds()
     if ids is not None:
         correlation = correlation.merged(ids)
+    # Imported lazily to keep the logging module usable during tracing setup.
+    from packages.observability.tracing import current_trace_ids
+
+    trace_id, span_id = current_trace_ids()
     payload: dict[str, str | None] = {
         "timestamp": datetime.now(UTC).isoformat(),
         "level": logging.getLevelName(level).lower(),
@@ -96,6 +100,8 @@ def log_event(
         "remote_task_id": _safe_identifier(correlation.remote_task_id),
         "outcome": outcome,
         "error_code": _safe_identifier(error_code),
+        "trace_id": trace_id,
+        "span_id": span_id,
     }
     logger.log(level, json.dumps(payload, separators=(",", ":"), sort_keys=True))
 

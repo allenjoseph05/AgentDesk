@@ -27,7 +27,7 @@ from packages.contracts import (
     RecommendationChallenge,
 )
 from packages.llm import LLMProviderError
-from packages.observability import CorrelationIds, observed_request
+from packages.observability import CorrelationIds, observed_request, traced_request
 
 FINAL_ANALYSIS_ARTIFACT = "decision-analysis"
 FINAL_CHALLENGE_ARTIFACT = "recommendation-challenge"
@@ -41,8 +41,10 @@ class AnalystAgentExecutor(AgentExecutor):
         self._analyzer = analyzer
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        with observed_request(LOGGER, "a2a.request", self._log_ids(context)):
-            await self._execute(context, event_queue)
+        ids = self._log_ids(context)
+        with traced_request("a2a.receive", ids, carrier=context.metadata):
+            with observed_request(LOGGER, "a2a.request", ids):
+                await self._execute(context, event_queue)
 
     async def _execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.message is None or context.task_id is None or context.context_id is None:
@@ -110,8 +112,10 @@ class AnalystAgentExecutor(AgentExecutor):
         await updater.complete(self._status_message(context, completion_message))
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
-        with observed_request(LOGGER, "a2a.cancel", self._log_ids(context)):
-            await self._cancel(context, event_queue)
+        ids = self._log_ids(context)
+        with traced_request("a2a.cancel", ids, carrier=context.metadata):
+            with observed_request(LOGGER, "a2a.cancel", ids):
+                await self._cancel(context, event_queue)
 
     async def _cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.task_id is None or context.context_id is None:

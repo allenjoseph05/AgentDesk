@@ -22,7 +22,7 @@ from agents.researcher.synthesis import (
 from agents.researcher.tools import ResearchToolError
 from packages.contracts import ArtifactEnvelope, ArtifactProvenance, EvidenceBundle, ResearchRequest
 from packages.llm import LLMProviderError
-from packages.observability import CorrelationIds, observed_request
+from packages.observability import CorrelationIds, observed_request, traced_request
 
 PARTIAL_SOURCES_ARTIFACT = "research-sources"
 FINAL_EVIDENCE_ARTIFACT = "evidence-bundle"
@@ -36,8 +36,10 @@ class ResearchAgentExecutor(AgentExecutor):
         self._synthesizer = synthesizer
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        with observed_request(LOGGER, "a2a.request", self._log_ids(context)):
-            await self._execute(context, event_queue)
+        ids = self._log_ids(context)
+        with traced_request("a2a.receive", ids, carrier=context.metadata):
+            with observed_request(LOGGER, "a2a.request", ids):
+                await self._execute(context, event_queue)
 
     async def _execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.message is None or context.task_id is None or context.context_id is None:
@@ -119,8 +121,10 @@ class ResearchAgentExecutor(AgentExecutor):
         await updater.complete(self._status_message(context, "Evidence synthesis completed."))
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
-        with observed_request(LOGGER, "a2a.cancel", self._log_ids(context)):
-            await self._cancel(context, event_queue)
+        ids = self._log_ids(context)
+        with traced_request("a2a.cancel", ids, carrier=context.metadata):
+            with observed_request(LOGGER, "a2a.cancel", ids):
+                await self._cancel(context, event_queue)
 
     async def _cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.task_id is None or context.context_id is None:

@@ -62,7 +62,9 @@ def test_log_event_emits_fixed_schema_and_inherited_correlation(
         "outcome": "completed",
         "remote_task_id": "task-1",
         "session_id": "session-1",
+        "span_id": None,
         "timestamp": event["timestamp"],
+        "trace_id": None,
     }
 
 

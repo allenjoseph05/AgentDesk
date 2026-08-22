@@ -18,10 +18,11 @@ from fastapi import FastAPI
 from agents.researcher.agent_card import create_agent_card
 from agents.researcher.executor import ResearchAgentExecutor
 from packages.config import load_project_environment
-from packages.observability import configure_structured_logging
+from packages.observability import configure_structured_logging, configure_tracing
 
 load_project_environment()
 configure_structured_logging()
+TRACING = configure_tracing("agentdesk-researcher")
 
 DEFAULT_BASE_URL = "http://127.0.0.1:8005"
 
@@ -41,8 +42,11 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        yield
-        await request_handler.aclose()
+        try:
+            yield
+        finally:
+            await request_handler.aclose()
+            TRACING.shutdown()
 
     application = FastAPI(
         title="AgentDesk Research Agent",
