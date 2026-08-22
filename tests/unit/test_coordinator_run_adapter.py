@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -275,6 +276,52 @@ def test_run_result_correlates_browser_session_and_remote_a2a_ids() -> None:
             }
         ],
     }
+
+
+def test_request_logs_browser_and_remote_correlation_without_raw_content(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger="agents.coordinator.run_adapter")
+    question = "Should confidential option A beat confidential option B?"
+    outcome = CoordinatorRunOutcome(
+        status="completed",
+        remote_tasks=(
+            RemoteTaskCorrelation(
+                agent_id="researcher",
+                remote_task_id="research-task-42",
+                a2a_context_id="a2a-context-42",
+            ),
+        ),
+    )
+    action = _start_action(question=question)
+
+    asyncio.run(
+        _events(
+            CoordinatorRunAdapter(executor=RecordingExecutor(outcome)),
+            _input(action, question),
+        )
+    )
+
+    logs = [
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if record.name == "agents.coordinator.run_adapter"
+    ]
+    admitted = next(event for event in logs if event["event"] == "agui.request.admitted")
+    remote = next(event for event in logs if event["event"] == "agui.remote_task")
+    assert (
+        admitted["session_id"],
+        admitted["context_id"],
+        admitted["correlation_id"],
+        admitted["action_id"],
+        admitted["agent"],
+    ) == ("run-1", "thread-1", "run-1", "action-start", "coordinator")
+    assert (
+        remote["context_id"],
+        remote["agent"],
+        remote["remote_task_id"],
+    ) == ("a2a-context-42", "researcher", "research-task-42")
+    assert question not in "\n".join(record.getMessage() for record in caplog.records)
 
 
 def test_duplicate_action_id_cannot_delegate_twice() -> None:

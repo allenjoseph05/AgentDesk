@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
 
 from pydantic import BaseModel
 
-from agents.coordinator.a2a_client import A2AClientAdapter, RemoteTaskResult
+from agents.coordinator.a2a_client import A2AClientAdapter, RemoteCallError, RemoteTaskResult
 from agents.coordinator.planner import PlannedStep, WorkflowPlan
 from agents.coordinator.registry import AgentRegistry, RegisteredAgent
 from packages.contracts import (
@@ -19,6 +20,9 @@ from packages.contracts import (
     ResearchRequest,
     VerificationReport,
 )
+from packages.observability import CorrelationIds, log_event
+
+LOGGER = logging.getLogger(__name__)
 
 
 class RemoteAgentClient(Protocol):
@@ -206,15 +210,23 @@ class WorkflowOrchestrator:
         on_remote_task_finished: RemoteTaskLifecycleHandler | None,
     ) -> RemoteTaskResult[PayloadT]:
         remote_task_id: str | None = None
+        agent_ids = CorrelationIds(agent=agent.agent_id)
 
         async def task_started(task_id: str) -> None:
             nonlocal remote_task_id
             remote_task_id = task_id
+            log_event(
+                LOGGER,
+                "a2a.remote_task",
+                ids=CorrelationIds(agent=agent.agent_id, remote_task_id=task_id),
+                outcome="started",
+            )
             if on_remote_task_started is not None:
                 await on_remote_task_started(agent, task_id)
 
+        log_event(LOGGER, "a2a.dispatch", ids=agent_ids, outcome="started")
         try:
-            return await self._remote_client.execute(
+            result = await self._remote_client.execute(
                 agent=agent,
                 request=request,
                 artifact_name=artifact_name,
@@ -222,6 +234,43 @@ class WorkflowOrchestrator:
                 timeout_seconds=self._step_timeout_seconds,
                 on_task_started=task_started,
             )
+            log_event(
+                LOGGER,
+                "a2a.remote_task",
+                ids=CorrelationIds(
+                    context_id=result.remote_context_id,
+                    agent=agent.agent_id,
+                    remote_task_id=result.remote_task_id,
+                ),
+                outcome="completed",
+            )
+            return result
+        except RemoteCallError as error:
+            log_event(
+                LOGGER,
+                "a2a.remote_task",
+                level=logging.ERROR,
+                ids=CorrelationIds(
+                    agent=agent.agent_id,
+                    remote_task_id=error.remote_task_id or remote_task_id,
+                ),
+                outcome="failed",
+                error_code=error.code,
+            )
+            raise
+        except Exception:
+            log_event(
+                LOGGER,
+                "a2a.remote_task",
+                level=logging.ERROR,
+                ids=CorrelationIds(
+                    agent=agent.agent_id,
+                    remote_task_id=remote_task_id,
+                ),
+                outcome="failed",
+                error_code="unexpected_error",
+            )
+            raise
         finally:
             if remote_task_id is not None and on_remote_task_finished is not None:
                 await on_remote_task_finished(agent, remote_task_id)

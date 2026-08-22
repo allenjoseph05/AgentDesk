@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncIterator
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -36,6 +37,9 @@ from packages.contracts.agui import (
     RetryFailedAgentAction,
     StartResearchAction,
 )
+from packages.observability import CorrelationIds, log_event
+
+LOGGER = logging.getLogger(__name__)
 
 TerminalRunStatus = Literal["completed", "partial", "cancelled", "failed"]
 ActivityStatus = Literal["waiting", "working", "completed", "failed", "cancelled"]
@@ -258,6 +262,12 @@ class CoordinatorRunAdapter:
         input_data: RunAgentInput,
         encoder: EventEncoder,
     ) -> AsyncIterator[str]:
+        request_ids = CorrelationIds(
+            context_id=input_data.thread_id,
+            correlation_id=input_data.run_id,
+            agent="coordinator",
+        )
+        log_event(LOGGER, "agui.request", ids=request_ids, outcome="started")
         yield encoder.encode(
             RunStartedEvent(thread_id=input_data.thread_id, run_id=input_data.run_id)
         )
@@ -277,6 +287,14 @@ class CoordinatorRunAdapter:
                 if isinstance(error, ActionMessageMismatchError)
                 else "A valid AgentDesk action envelope is required."
             )
+            log_event(
+                LOGGER,
+                "agui.request",
+                level=logging.WARNING,
+                ids=request_ids,
+                outcome="failed",
+                error_code=code,
+            )
             yield encoder.encode(RunErrorEvent(message=message, code=code))
             return
 
@@ -285,6 +303,14 @@ class CoordinatorRunAdapter:
             command = _to_command(action, correlation, user_message)
             initial_state = _initial_state(input_data, command)
         except (ValidationError, ValueError):
+            log_event(
+                LOGGER,
+                "agui.request",
+                level=logging.WARNING,
+                ids=request_ids,
+                outcome="failed",
+                error_code="invalid_session_state",
+            )
             yield encoder.encode(
                 RunErrorEvent(
                     message="The action does not match the supplied session state.",
@@ -299,17 +325,26 @@ class CoordinatorRunAdapter:
                 action=action,
             )
         except DuplicateActionError as error:
+            code = (
+                "duplicate_action_conflict" if error.conflicting else "duplicate_action"
+            )
+            log_event(
+                LOGGER,
+                "agui.request",
+                level=logging.WARNING,
+                ids=_log_ids(correlation),
+                outcome="failed",
+                error_code=code,
+            )
             yield encoder.encode(
                 RunErrorEvent(
                     message=str(error),
-                    code=(
-                        "duplicate_action_conflict"
-                        if error.conflicting
-                        else "duplicate_action"
-                    ),
+                    code=code,
                 )
             )
             return
+
+        log_event(LOGGER, "agui.request.admitted", ids=_log_ids(correlation))
 
         step_name = _step_name(command)
         projection = AgUiEventProjection(initial_state)
@@ -352,7 +387,29 @@ class CoordinatorRunAdapter:
                     continue
 
                 terminal_seen = True
+                for remote_task in update.remote_tasks:
+                    log_event(
+                        LOGGER,
+                        "agui.remote_task",
+                        ids=CorrelationIds(
+                            session_id=correlation.session_id,
+                            context_id=remote_task.a2a_context_id or correlation.thread_id,
+                            correlation_id=correlation.run_id,
+                            action_id=correlation.action_id,
+                            agent=remote_task.agent_id,
+                            remote_task_id=remote_task.remote_task_id,
+                        ),
+                        outcome="completed",
+                    )
                 if update.status == "failed":
+                    log_event(
+                        LOGGER,
+                        "agui.request",
+                        level=logging.ERROR,
+                        ids=_log_ids(correlation),
+                        outcome="failed",
+                        error_code=update.error_code,
+                    )
                     yield encoder.encode(
                         RunErrorEvent(
                             message=update.message or "The Coordinator run failed.",
@@ -374,6 +431,12 @@ class CoordinatorRunAdapter:
                     )
                     yield encoder.encode(TextMessageEndEvent(message_id=message_id))
                 yield encoder.encode(StepFinishedEvent(step_name=step_name))
+                log_event(
+                    LOGGER,
+                    "agui.request",
+                    ids=_log_ids(correlation),
+                    outcome="completed",
+                )
                 yield encoder.encode(
                     RunFinishedEvent(
                         thread_id=correlation.thread_id,
@@ -383,8 +446,23 @@ class CoordinatorRunAdapter:
                 )
                 return
         except asyncio.CancelledError:
+            log_event(
+                LOGGER,
+                "agui.request",
+                level=logging.WARNING,
+                ids=_log_ids(correlation),
+                outcome="cancelled",
+            )
             raise
         except Exception:
+            log_event(
+                LOGGER,
+                "agui.request",
+                level=logging.ERROR,
+                ids=_log_ids(correlation),
+                outcome="failed",
+                error_code="coordinator_run_failed",
+            )
             yield encoder.encode(
                 RunErrorEvent(
                     message="The Coordinator could not complete this run.",
@@ -394,6 +472,14 @@ class CoordinatorRunAdapter:
             return
 
         if not terminal_seen:
+            log_event(
+                LOGGER,
+                "agui.request",
+                level=logging.ERROR,
+                ids=_log_ids(correlation),
+                outcome="failed",
+                error_code="missing_terminal_outcome",
+            )
             yield encoder.encode(
                 RunErrorEvent(
                     message="The Coordinator ended without a terminal outcome.",
@@ -604,4 +690,14 @@ def _correlation(
         run_id=input_data.run_id,
         action_id=action.root.action_id,
         session_id=action.root.session_id or input_data.run_id,
+    )
+
+
+def _log_ids(correlation: RunCorrelation) -> CorrelationIds:
+    return CorrelationIds(
+        session_id=correlation.session_id,
+        context_id=correlation.thread_id,
+        correlation_id=correlation.run_id,
+        action_id=correlation.action_id,
+        agent="coordinator",
     )
