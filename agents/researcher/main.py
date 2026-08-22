@@ -17,6 +17,7 @@ from fastapi import FastAPI
 
 from agents.researcher.agent_card import create_agent_card
 from agents.researcher.executor import ResearchAgentExecutor
+from packages.auth import AuthenticationSettings, ServiceAuthenticationMiddleware
 from packages.config import load_project_environment
 from packages.observability import configure_structured_logging, configure_tracing
 
@@ -30,6 +31,7 @@ DEFAULT_BASE_URL = "http://127.0.0.1:8005"
 def create_app(
     base_url: str | None = None,
     executor: ResearchAgentExecutor | None = None,
+    auth_settings: AuthenticationSettings | None = None,
 ) -> FastAPI:
     """Create a Research Agent instance with operations and A2A routes."""
     public_url = (base_url or os.getenv("RESEARCH_AGENT_URL") or DEFAULT_BASE_URL).rstrip("/")
@@ -53,6 +55,10 @@ def create_app(
         description="Independent A2A specialist for web research and source synthesis.",
         version="0.1.0",
         lifespan=lifespan,
+    )
+    application.add_middleware(
+        ServiceAuthenticationMiddleware,
+        settings=auth_settings or AuthenticationSettings.from_environment(),
     )
 
     @application.get("/health", tags=["operations"])

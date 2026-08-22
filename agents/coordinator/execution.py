@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from typing import Literal, Protocol
 from uuid import NAMESPACE_URL, uuid5
 
-from agents.coordinator.a2a_client import RemoteTaskResult
+from agents.coordinator.a2a_client import A2AClientAdapter, RemoteTaskResult
 from agents.coordinator.cancellation import CancellationCoordinator
 from agents.coordinator.orchestrator import WorkflowExecution, WorkflowOrchestrator
 from agents.coordinator.persistence import WorkflowPersistenceError, WorkflowPersistenceService
@@ -32,6 +32,7 @@ from agents.coordinator.run_adapter import (
     StartResearchCommand,
 )
 from agents.coordinator.workflow_state import TERMINAL_STATUSES, WorkflowStateMachine
+from packages.auth import AuthenticationSettings
 from packages.contracts import (
     AnalysisRequest,
     DecisionAnalysis,
@@ -1222,6 +1223,7 @@ def create_orchestration_executor(
     *,
     registry: AgentRegistry,
     database: Database,
+    auth_settings: AuthenticationSettings | None = None,
 ) -> OrchestrationCommandExecutor:
     """Build the production executor without contacting external services eagerly."""
     llm_provider = llm_provider_from_environment()
@@ -1235,7 +1237,10 @@ def create_orchestration_executor(
         planner = _UnavailablePlanner()
     return OrchestrationCommandExecutor(
         planner=planner,
-        orchestrator=WorkflowOrchestrator(registry=registry),
+        orchestrator=WorkflowOrchestrator(
+            registry=registry,
+            remote_client=A2AClientAdapter(auth_settings),
+        ),
         persistence=WorkflowPersistenceService(database),
         projector=DurableAgUiProjector(database),
     )

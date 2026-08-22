@@ -17,6 +17,7 @@ from fastapi import FastAPI
 
 from agents.hello.agent_card import create_agent_card
 from agents.hello.executor import HelloAgentExecutor
+from packages.auth import AuthenticationSettings, ServiceAuthenticationMiddleware
 from packages.config import load_project_environment
 from packages.observability import configure_structured_logging, configure_tracing
 
@@ -30,6 +31,7 @@ DEFAULT_BASE_URL = "http://127.0.0.1:8004"
 def create_app(
     base_url: str | None = None,
     executor: HelloAgentExecutor | None = None,
+    auth_settings: AuthenticationSettings | None = None,
 ) -> FastAPI:
     """Create an independently runnable A2A hello-agent application."""
     public_url = (base_url or os.getenv("HELLO_AGENT_URL") or DEFAULT_BASE_URL).rstrip("/")
@@ -52,6 +54,10 @@ def create_app(
         title="AgentDesk Hello Agent",
         version="0.1.0",
         lifespan=lifespan,
+    )
+    application.add_middleware(
+        ServiceAuthenticationMiddleware,
+        settings=auth_settings or AuthenticationSettings.from_environment(),
     )
 
     @application.get("/health", tags=["operations"])

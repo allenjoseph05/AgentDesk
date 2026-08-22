@@ -28,6 +28,7 @@ from agents.coordinator.run_adapter import (
     CoordinatorRunAdapter,
 )
 from agents.coordinator.run_tasks import A2ATaskFactory
+from packages.auth import AuthenticationSettings, BrowserAuthenticationMiddleware
 from packages.config import load_project_environment
 from packages.observability import (
     CorrelationIds,
@@ -50,6 +51,7 @@ def create_app(
     registry_settings: AgentRegistrySettings | None = None,
     command_executor: CoordinatorCommandExecutor | None = None,
     database: Database | None = None,
+    auth_settings: AuthenticationSettings | None = None,
 ) -> FastAPI:
     """Create a Coordinator with application-scoped AG-UI run admission."""
     if task_factory is not None and command_executor is not None:
@@ -60,6 +62,7 @@ def create_app(
     agent_registry = registry or AgentRegistry(
         registry_settings or AgentRegistrySettings.from_environment()
     )
+    authentication = auth_settings or AuthenticationSettings.from_environment()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -80,6 +83,10 @@ def create_app(
         lifespan=lifespan,
     )
     application.add_middleware(AgUiSecurityMiddleware)
+    application.add_middleware(
+        BrowserAuthenticationMiddleware,
+        settings=authentication,
+    )
 
     @application.exception_handler(AgUiBoundaryError)
     async def ag_ui_boundary_error(
@@ -109,6 +116,7 @@ def create_app(
         else create_orchestration_executor(
             registry=agent_registry,
             database=history_database,
+            auth_settings=authentication,
         )
     )
     application.state.ag_ui_run_adapter = CoordinatorRunAdapter(executor=executor)
