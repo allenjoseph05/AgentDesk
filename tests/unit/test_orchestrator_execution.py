@@ -404,13 +404,17 @@ def test_orchestrator_rejects_stale_or_invalid_provider_assignments() -> None:
 class FakeStreamClient:
     def __init__(self, responses: list[StreamResponse]) -> None:
         self._responses = responses
+        self.requests: list[Any] = []
 
-    async def send_message(self, _: Any):
+    async def send_message(self, request: Any):
+        self.requests.append(request)
         for response in self._responses:
             yield response
 
 
-def test_adapter_validates_artifact_and_captures_task_and_context_ids() -> None:
+def test_adapter_validates_artifact_and_captures_task_and_context_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     request, evidence, _ = _fixture_values()
     task_id = "remote-research-task"
     context_id = "remote-workflow-context"
@@ -461,9 +465,15 @@ def test_adapter_validates_artifact_and_captures_task_and_context_ids() -> None:
     async def task_started(started_task_id: str) -> None:
         started_task_ids.append(started_task_id)
 
+    client = FakeStreamClient(responses)
+    monkeypatch.setattr(
+        "agents.coordinator.a2a_client.inject_trace_context",
+        lambda: {"traceparent": "00-11111111111111111111111111111111-2222222222222222-01"},
+    )
+
     async def consume():
         return await A2AClientAdapter()._consume_stream(
-            FakeStreamClient(responses),
+            client,
             agent=agent,
             request=request,
             artifact_name="evidence-bundle",
@@ -477,6 +487,9 @@ def test_adapter_validates_artifact_and_captures_task_and_context_ids() -> None:
     assert result.remote_context_id == context_id
     assert result.artifact.payload == evidence
     assert started_task_ids == [task_id]
+    assert MessageToDict(client.requests[0].metadata) == {
+        "traceparent": "00-11111111111111111111111111111111-2222222222222222-01"
+    }
 
 
 def test_adapter_sends_official_a2a_cancellation_request(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -19,11 +19,12 @@ from agents.coordinator.run_adapter import (
 )
 from agents.coordinator.run_tasks import A2ATaskFactory
 from packages.config import load_project_environment
-from packages.observability import configure_structured_logging
+from packages.observability import configure_structured_logging, configure_tracing
 from packages.persistence import Database
 
 load_project_environment()
 configure_structured_logging()
+TRACING = configure_tracing("agentdesk-coordinator")
 
 
 def create_app(
@@ -47,11 +48,14 @@ def create_app(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         await agent_registry.refresh()
-        yield
-        if owns_registry:
-            await agent_registry.aclose()
-        if owns_database:
-            history_database.dispose()
+        try:
+            yield
+        finally:
+            if owns_registry:
+                await agent_registry.aclose()
+            if owns_database:
+                history_database.dispose()
+            TRACING.shutdown()
 
     application = FastAPI(
         title="AgentDesk Coordinator",

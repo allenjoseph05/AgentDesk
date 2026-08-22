@@ -22,7 +22,7 @@ from packages.contracts import (
     VerificationReport,
 )
 from packages.llm import LLMProviderError
-from packages.observability import CorrelationIds, observed_request
+from packages.observability import CorrelationIds, observed_request, traced_request
 
 FINAL_VERIFICATION_ARTIFACT = "verification-report"
 LOGGER = logging.getLogger(__name__)
@@ -35,8 +35,10 @@ class VerifierAgentExecutor(AgentExecutor):
         self._verifier = verifier
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        with observed_request(LOGGER, "a2a.request", self._log_ids(context)):
-            await self._execute(context, event_queue)
+        ids = self._log_ids(context)
+        with traced_request("a2a.receive", ids, carrier=context.metadata):
+            with observed_request(LOGGER, "a2a.request", ids):
+                await self._execute(context, event_queue)
 
     async def _execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.message is None or context.task_id is None or context.context_id is None:
@@ -91,8 +93,10 @@ class VerifierAgentExecutor(AgentExecutor):
         await updater.complete(self._status_message(context, "Claim verification completed."))
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
-        with observed_request(LOGGER, "a2a.cancel", self._log_ids(context)):
-            await self._cancel(context, event_queue)
+        ids = self._log_ids(context)
+        with traced_request("a2a.cancel", ids, carrier=context.metadata):
+            with observed_request(LOGGER, "a2a.cancel", ids):
+                await self._cancel(context, event_queue)
 
     async def _cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.task_id is None or context.context_id is None:

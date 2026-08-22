@@ -20,7 +20,7 @@ from packages.contracts import (
     ResearchRequest,
     VerificationReport,
 )
-from packages.observability import CorrelationIds, log_event
+from packages.observability import CorrelationIds, log_event, traced_client_call
 
 LOGGER = logging.getLogger(__name__)
 
@@ -193,11 +193,15 @@ class WorkflowOrchestrator:
         timeout_seconds: float,
     ) -> None:
         """Propagate a Coordinator cancellation through the A2A client boundary."""
-        await self._remote_client.cancel(
-            agent=agent,
-            remote_task_id=remote_task_id,
-            timeout_seconds=timeout_seconds,
-        )
+        with traced_client_call(
+            "a2a.cancel",
+            CorrelationIds(agent=agent.agent_id, remote_task_id=remote_task_id),
+        ):
+            await self._remote_client.cancel(
+                agent=agent,
+                remote_task_id=remote_task_id,
+                timeout_seconds=timeout_seconds,
+            )
 
     async def _execute_remote[PayloadT: BaseModel](
         self,
@@ -226,14 +230,15 @@ class WorkflowOrchestrator:
 
         log_event(LOGGER, "a2a.dispatch", ids=agent_ids, outcome="started")
         try:
-            result = await self._remote_client.execute(
-                agent=agent,
-                request=request,
-                artifact_name=artifact_name,
-                payload_model=payload_model,
-                timeout_seconds=self._step_timeout_seconds,
-                on_task_started=task_started,
-            )
+            with traced_client_call("a2a.send", agent_ids):
+                result = await self._remote_client.execute(
+                    agent=agent,
+                    request=request,
+                    artifact_name=artifact_name,
+                    payload_model=payload_model,
+                    timeout_seconds=self._step_timeout_seconds,
+                    on_task_started=task_started,
+                )
             log_event(
                 LOGGER,
                 "a2a.remote_task",

@@ -13,7 +13,7 @@ from a2a.server.events.event_queue import EventQueue
 from a2a.server.tasks import TaskUpdater
 from a2a.types import Message, TaskState
 
-from packages.observability import CorrelationIds, observed_request
+from packages.observability import CorrelationIds, observed_request, traced_request
 
 STREAM_PREFIX = "stream:"
 STREAM_STEP_DELAY_SECONDS = 0.15
@@ -27,8 +27,10 @@ class HelloAgentExecutor(AgentExecutor):
         self._stream_step_delay_seconds = stream_step_delay_seconds
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
-        with observed_request(LOGGER, "a2a.request", self._log_ids(context)):
-            await self._execute(context, event_queue)
+        ids = self._log_ids(context)
+        with traced_request("a2a.receive", ids, carrier=context.metadata):
+            with observed_request(LOGGER, "a2a.request", ids):
+                await self._execute(context, event_queue)
 
     async def _execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         user_input = context.get_user_input().strip()
@@ -45,8 +47,10 @@ class HelloAgentExecutor(AgentExecutor):
         await event_queue.enqueue_event(response)
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
-        with observed_request(LOGGER, "a2a.cancel", self._log_ids(context)):
-            await self._cancel(context, event_queue)
+        ids = self._log_ids(context)
+        with traced_request("a2a.cancel", ids, carrier=context.metadata):
+            with observed_request(LOGGER, "a2a.cancel", ids):
+                await self._cancel(context, event_queue)
 
     async def _cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.task_id is None or context.context_id is None:

@@ -41,7 +41,7 @@ from packages.contracts import (
     VerificationReport,
 )
 from packages.llm import llm_provider_from_environment
-from packages.observability import CorrelationIds, observed_request
+from packages.observability import CorrelationIds, observed_request, traced_request
 from packages.persistence import AgentTaskRecord, Database, RepositoryError
 
 LOGGER = logging.getLogger(__name__)
@@ -199,19 +199,17 @@ class OrchestrationCommandExecutor:
         self, command: CoordinatorCommand
     ) -> AsyncIterator[CoordinatorRunUpdate]:
         correlation = command.correlation
-        with observed_request(
-            LOGGER,
-            "coordinator.command",
-            CorrelationIds(
-                session_id=correlation.session_id,
-                context_id=correlation.thread_id,
-                correlation_id=correlation.run_id,
-                action_id=correlation.action_id,
-                agent="coordinator",
-            ),
-        ):
-            async for update in self._execute_command(command):
-                yield update
+        ids = CorrelationIds(
+            session_id=correlation.session_id,
+            context_id=correlation.thread_id,
+            correlation_id=correlation.run_id,
+            action_id=correlation.action_id,
+            agent="coordinator",
+        )
+        with traced_request("coordinator.request", ids):
+            with observed_request(LOGGER, "coordinator.command", ids):
+                async for update in self._execute_command(command):
+                    yield update
 
     async def _execute_command(
         self, command: CoordinatorCommand
