@@ -19,6 +19,7 @@ from packages.contracts import (
     Evidence,
     EvidenceBundle,
     RecommendationChallenge,
+    VerificationReport,
 )
 from packages.persistence.records import (
     AgentTaskRecord,
@@ -29,6 +30,7 @@ from packages.persistence.records import (
     RecommendationChallengeRecord,
     ResearchArtifactRecord,
     SessionRecord,
+    VerificationReportRecord,
     WorkflowTransitionRecord,
 )
 from packages.persistence.schema import (
@@ -40,6 +42,7 @@ from packages.persistence.schema import (
     recommendation_challenges,
     research_artifacts,
     sessions,
+    verification_reports,
     workflow_transitions,
 )
 
@@ -454,6 +457,48 @@ class ArtifactRepository(_Repository):
         ).mappings()
         return tuple(_recommendation_challenge_record(row) for row in rows)
 
+    def put_verification_report(self, record: VerificationReportRecord) -> bool:
+        validated = VerificationReportRecord.model_validate(
+            record.model_dump(mode="python")
+        )
+        existing = self.get_verification_report_by_task(validated.agent_task_id)
+        if existing is not None:
+            _assert_same("verification report", validated.id, existing, validated)
+            return False
+        inserted = self._insert_if_absent(
+            verification_reports,
+            _verification_report_values(validated),
+            conflict_columns=("agent_task_id",),
+        )
+        if not inserted:
+            existing = self.get_verification_report_by_task(validated.agent_task_id)
+            if existing is None:
+                raise RepositoryConflictError("verification report", validated.id)
+            _assert_same("verification report", validated.id, existing, validated)
+        return inserted
+
+    def get_verification_report_by_task(
+        self,
+        agent_task_id: str,
+    ) -> VerificationReportRecord | None:
+        row = self._connection.execute(
+            sa.select(verification_reports).where(
+                verification_reports.c.agent_task_id == agent_task_id
+            )
+        ).mappings().one_or_none()
+        return _verification_report_record(row) if row is not None else None
+
+    def list_verification_reports(
+        self,
+        session_id: str,
+    ) -> tuple[VerificationReportRecord, ...]:
+        rows = self._connection.execute(
+            sa.select(verification_reports)
+            .where(verification_reports.c.session_id == session_id)
+            .order_by(verification_reports.c.created_at, verification_reports.c.id)
+        ).mappings()
+        return tuple(_verification_report_record(row) for row in rows)
+
     def add_evidence(self, record: EvidenceRecord) -> None:
         validated = EvidenceRecord.model_validate(record.model_dump(mode="python"))
         self._insert(
@@ -788,6 +833,36 @@ def _recommendation_challenge_record(
 def _recommendation_challenge_values(
     record: RecommendationChallengeRecord,
 ) -> dict[str, Any]:
+    return {
+        "id": record.id,
+        "session_id": record.session_id,
+        "agent_task_id": record.agent_task_id,
+        "payload": record.envelope.payload.model_dump(mode="json"),
+        "artifact_schema_version": record.envelope.schema_version,
+        "producer_agent": record.envelope.provenance.producer_agent,
+        "remote_task_id": record.envelope.provenance.remote_task_id,
+        "created_at": record.envelope.provenance.created_at,
+    }
+
+
+def _verification_report_record(row: RowMapping) -> VerificationReportRecord:
+    return VerificationReportRecord(
+        id=row["id"],
+        session_id=row["session_id"],
+        agent_task_id=row["agent_task_id"],
+        envelope=ArtifactEnvelope[VerificationReport](
+            schema_version=row["artifact_schema_version"],
+            provenance=ArtifactProvenance(
+                producer_agent=row["producer_agent"],
+                remote_task_id=row["remote_task_id"],
+                created_at=_aware(row["created_at"]),
+            ),
+            payload=VerificationReport.model_validate(row["payload"]),
+        ),
+    )
+
+
+def _verification_report_values(record: VerificationReportRecord) -> dict[str, Any]:
     return {
         "id": record.id,
         "session_id": record.session_id,

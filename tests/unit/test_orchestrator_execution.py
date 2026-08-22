@@ -39,6 +39,7 @@ from agents.coordinator.registry import (
     RegisteredAgent,
 )
 from agents.researcher.agent_card import create_agent_card as create_research_card
+from agents.verifier.agent_card import create_agent_card as create_verifier_card
 from packages.contracts import (
     AnalysisRequest,
     ArtifactEnvelope,
@@ -47,6 +48,7 @@ from packages.contracts import (
     EvidenceBundle,
     RecommendationChallenge,
     ResearchRequest,
+    VerificationReport,
 )
 from packages.testing import load_research_fixture
 
@@ -68,6 +70,9 @@ def _registry() -> AgentRegistry:
         "https://analyst.example/.well-known/agent-card.json": MessageToDict(
             create_analyst_card("https://analyst.example")
         ),
+        "https://verifier.example/.well-known/agent-card.json": MessageToDict(
+            create_verifier_card("https://verifier.example")
+        ),
     }
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -80,6 +85,9 @@ def _registry() -> AgentRegistry:
                     agent_id="researcher", base_url="https://research.example"
                 ),
                 AgentEndpointConfig(agent_id="analyst", base_url="https://analyst.example"),
+                AgentEndpointConfig(
+                    agent_id="verifier", base_url="https://verifier.example"
+                ),
             ]
         ),
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
@@ -131,9 +139,15 @@ def _result[PayloadT: BaseModel](
 
 
 class RecordingRemoteClient:
-    def __init__(self, evidence: EvidenceBundle, analysis: DecisionAnalysis) -> None:
+    def __init__(
+        self,
+        evidence: EvidenceBundle,
+        analysis: DecisionAnalysis,
+        verification: VerificationReport | None = None,
+    ) -> None:
         self._evidence = evidence
         self._analysis = analysis
+        self._verification = verification
         self.calls: list[dict[str, Any]] = []
         self.cancel_calls: list[dict[str, Any]] = []
 
@@ -148,6 +162,15 @@ class RecordingRemoteClient:
             assert isinstance(request, AnalysisRequest)
             assert request.evidence_bundle == self._evidence
             return _result("analyst", "analysis-task-42", self._analysis)
+        if kwargs["payload_model"] is VerificationReport:
+            assert self._verification is not None
+            await kwargs["on_task_started"]("verification-task-42")
+            assert kwargs["request"] == self._evidence
+            return _result(
+                "verifier",
+                "verification-task-42",
+                self._verification,
+            )
         raise AssertionError("Unexpected remote payload model.")
 
     async def cancel(self, **kwargs: Any) -> None:
@@ -194,6 +217,29 @@ def test_orchestrator_runs_research_before_analysis_and_preserves_remote_ids() -
     assert execution.analysis.remote_task_id == "analysis-task-42"
     assert execution.research.artifact.payload == evidence
     assert execution.analysis.artifact.payload == analysis
+
+
+def test_orchestrator_runs_verification_after_accepted_research_and_analysis() -> None:
+    _, evidence, analysis = _fixture_values()
+    fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+    assert fixture.verification_report is not None
+    remote = RecordingRemoteClient(evidence, analysis, fixture.verification_report)
+    scheduled: list[str] = []
+
+    result = asyncio.run(
+        WorkflowOrchestrator(registry=_registry(), remote_client=remote).verify(
+            evidence,
+            on_verification_scheduled=lambda agent: _record_scheduled(
+                scheduled, agent.agent_id
+            ),
+        )
+    )
+
+    assert scheduled == ["verifier"]
+    assert remote.calls[0]["artifact_name"] == "verification-report"
+    assert remote.calls[0]["payload_model"] is VerificationReport
+    assert result.agent_id == "verifier"
+    assert result.artifact.payload == fixture.verification_report
 
 
 def test_orchestrator_routes_challenge_to_the_analyst_artifact_contract() -> None:
@@ -545,6 +591,10 @@ def test_orchestrator_has_no_ui_or_specialist_implementation_imports() -> None:
 
     assert "agents.coordinator.agui" not in imported_modules
     assert not any(
-        module.startswith(("agents.researcher", "agents.analyst"))
+        module.startswith(("agents.researcher", "agents.analyst", "agents.verifier"))
         for module in imported_modules
     )
+
+
+async def _record_scheduled(values: list[str], agent_id: str) -> None:
+    values.append(agent_id)
