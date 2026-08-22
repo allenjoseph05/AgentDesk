@@ -101,6 +101,32 @@ test("contradictory results expose unresolved verification without hiding claims
   assert.match(markup, /The competing benchmark prevents a verdict/u);
 });
 
+test("every verification verdict is visible and contradictions retain the warning panel", async () => {
+  const fixture = await loadFixture("postgresql-vs-mongodb.golden.json");
+  const base = fixture.state.verification.results[0];
+  fixture.state.verification.results = [
+    { ...base, claimId: "claim-supported", verdict: "supported" },
+    { ...base, claimId: "claim-partial", verdict: "partially_supported" },
+    { ...base, claimId: "claim-contradicted", verdict: "contradicted" },
+    { ...base, claimId: "claim-insufficient", verdict: "insufficient_evidence" },
+  ];
+  fixture.state.warnings = [
+    "Verification contradiction for claim claim-contradicted: Evidence conflicts.",
+  ];
+
+  const markup = await renderResults(fixture.state);
+
+  assert.match(markup, /data-verdict="supported"/u);
+  assert.match(markup, /data-verdict="partially_supported"/u);
+  assert.match(markup, /data-verdict="contradicted"/u);
+  assert.match(markup, /data-verdict="insufficient_evidence"/u);
+  assert.match(markup, />Partially supported</u);
+  assert.match(markup, />Contradicted</u);
+  assert.match(markup, />Insufficient evidence</u);
+  assert.match(markup, /Review before deciding/u);
+  assert.match(markup, /Verification contradiction for claim claim-contradicted/u);
+});
+
 test("empty and long linked evidence layouts remain explicit and safe", async () => {
   const failure = await loadFixture("postgresql-vs-mongodb.failure.json");
   const emptyMarkup = await renderResults(failure.state);

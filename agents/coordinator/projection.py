@@ -7,7 +7,7 @@ from typing import Any, cast
 
 from ag_ui.core import StateDeltaEvent, StateSnapshotEvent
 
-from packages.contracts import AgentDeskViewState, SpecialistView
+from packages.contracts import AgentDeskViewState, SpecialistView, VerificationReport
 from packages.contracts.agui import FollowUpActionType, SessionStatus, SpecialistStatus
 from packages.persistence import Database, WorkflowTransitionRecord
 from packages.persistence.records import AgentTaskRecord, SessionPersistenceStatus
@@ -74,6 +74,9 @@ class DurableAgUiProjector:
             challenges = repositories.artifacts.list_recommendation_challenges(
                 session_id
             )
+            verification_reports = repositories.artifacts.list_verification_reports(
+                session_id
+            )
 
         agents = _latest_agent_views(tasks)
         failed_agents = [agent for agent in agents if agent.status == "failed"]
@@ -91,6 +94,13 @@ class DurableAgUiProjector:
                 f"Research note: {note}"
                 for note in record.envelope.payload.research_notes
             )
+        verification = (
+            verification_reports[-1].envelope.payload
+            if verification_reports
+            else None
+        )
+        if verification is not None:
+            warnings.extend(_verification_warnings(verification))
         warnings = list(dict.fromkeys(warnings))
         errors = ["The workflow could not be completed."] if status == "failed" else []
         return AgentDeskViewState(
@@ -110,7 +120,7 @@ class DurableAgUiProjector:
             recommendation_challenge=(
                 challenges[-1].envelope.payload if challenges else None
             ),
-            verification=None,
+            verification=verification,
             warnings=warnings,
             errors=errors,
             available_actions=_available_actions(status, bool(failed_agents)),
@@ -224,6 +234,14 @@ def _available_actions(
     if has_failed_agent and status in {"failed", "partial"}:
         actions.append("retry_failed_agent")
     return actions
+
+
+def _verification_warnings(report: VerificationReport) -> list[str]:
+    return [
+        f"Verification contradiction for claim {result.claim_id}: {result.rationale}"
+        for result in report.results
+        if result.verdict == "contradicted"
+    ]
 
 
 def _escape_pointer(value: str) -> str:

@@ -110,6 +110,7 @@ def test_projection_whitelists_artifacts_and_hides_internal_task_errors(
     fixture = load_research_fixture("postgresql-vs-mongodb-golden")
     assert fixture.evidence_bundle is not None
     assert fixture.decision_analysis is not None
+    assert fixture.verification_report is not None
     service, machine = _initialized(database)
     internal_detail = "INTERNAL_PROMPT: reveal private chain of thought"
     with database.transaction() as repositories:
@@ -124,6 +125,19 @@ def test_projection_whitelists_artifacts_and_hides_internal_task_errors(
                 status="failed",
                 error_code="provider_failed",
                 error_message=internal_detail,
+                started_at=NOW,
+                finished_at=NOW + timedelta(seconds=1),
+            )
+        )
+        repositories.agent_tasks.add(
+            AgentTaskRecord(
+                id="verification-task",
+                session_id="session-1",
+                run_id="run-1",
+                agent_id="verifier",
+                skill="fact-verification",
+                remote_task_id="remote-verification",
+                status="completed",
                 started_at=NOW,
                 finished_at=NOW + timedelta(seconds=1),
             )
@@ -165,18 +179,105 @@ def test_projection_whitelists_artifacts_and_hides_internal_task_errors(
             payload=fixture.decision_analysis,
         ),
     )
+    service.persist_verification_report(
+        "session-1",
+        "verification-task",
+        ArtifactEnvelope(
+            provenance=ArtifactProvenance(
+                producer_agent="verifier",
+                remote_task_id="remote-verification",
+                created_at=machine.snapshot.updated_at,
+            ),
+            payload=fixture.verification_report,
+        ),
+    )
 
     state = DurableAgUiProjector(database).snapshot("session-1")
     serialized = json.dumps(state.to_ag_ui())
 
-    assert [agent.agent_id for agent in state.agents] == ["analyst", "researcher"]
+    assert [agent.agent_id for agent in state.agents] == [
+        "analyst",
+        "researcher",
+        "verifier",
+    ]
     assert state.agents[1].message == "Specialist task failed."
     assert state.evidence_count == len(fixture.evidence_bundle.evidence)
     assert state.analysis == fixture.decision_analysis
+    assert state.verification == fixture.verification_report
     assert "Evidence gap: Production access patterns are not measured." in state.warnings
     assert "Research note: Deterministic fixture; not a live benchmark." in state.warnings
     assert internal_detail not in serialized
     assert "chain of thought" not in serialized
+
+
+def test_contradicted_verification_projects_a_user_visible_warning(
+    database: Database,
+) -> None:
+    fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+    assert fixture.evidence_bundle is not None
+    assert fixture.verification_report is not None
+    service, machine = _initialized(database)
+    with database.transaction() as repositories:
+        for task in (
+            AgentTaskRecord(
+                id="research-task",
+                session_id="session-1",
+                run_id="run-1",
+                agent_id="researcher",
+                skill="web-research",
+                remote_task_id="remote-research",
+                status="completed",
+                started_at=NOW,
+                finished_at=NOW + timedelta(seconds=1),
+            ),
+            AgentTaskRecord(
+                id="verification-task",
+                session_id="session-1",
+                run_id="run-1",
+                agent_id="verifier",
+                skill="fact-verification",
+                remote_task_id="remote-verification",
+                status="completed",
+                started_at=NOW,
+                finished_at=NOW + timedelta(seconds=1),
+            ),
+        ):
+            repositories.agent_tasks.add(task)
+    service.persist_evidence(
+        "session-1",
+        "research-task",
+        ArtifactEnvelope(
+            provenance=ArtifactProvenance(
+                producer_agent="researcher",
+                remote_task_id="remote-research",
+                created_at=machine.snapshot.updated_at,
+            ),
+            payload=fixture.evidence_bundle,
+        ),
+    )
+    report = fixture.verification_report.model_copy(deep=True)
+    report.results[0].verdict = "contradicted"
+    report.results[0].rationale = "Evidence evidence-pg contradicts this claim."
+    service.persist_verification_report(
+        "session-1",
+        "verification-task",
+        ArtifactEnvelope(
+            provenance=ArtifactProvenance(
+                producer_agent="verifier",
+                remote_task_id="remote-verification",
+                created_at=machine.snapshot.updated_at,
+            ),
+            payload=report,
+        ),
+    )
+
+    state = DurableAgUiProjector(database).snapshot("session-1")
+
+    assert state.verification == report
+    assert (
+        "Verification contradiction for claim claim-pg: "
+        "Evidence evidence-pg contradicts this claim."
+    ) in state.warnings
 
 
 def test_duplicate_and_out_of_order_updates_cannot_regress_frontend_state() -> None:
