@@ -108,8 +108,7 @@ def test_separate_client_observes_incremental_task_stream() -> None:
     working_updates = [
         event
         for event in observed
-        if event.get("kind") == "status_update"
-        and event.get("state") == "TASK_STATE_WORKING"
+        if event.get("kind") == "status_update" and event.get("state") == "TASK_STATE_WORKING"
     ]
 
     assert observed == expected["events"]

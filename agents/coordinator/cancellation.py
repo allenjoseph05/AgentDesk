@@ -105,9 +105,7 @@ class CancellationCoordinator:
                 if failure is not None:
                     self._failures[remote_task_id] = failure
                 if self._result is not None:
-                    self._result.attempted_task_ids = tuple(
-                        sorted(self._attempted_task_ids)
-                    )
+                    self._result.attempted_task_ids = tuple(sorted(self._attempted_task_ids))
                     self._result.failures = tuple(
                         self._failures[task_id] for task_id in sorted(self._failures)
                     )
@@ -159,17 +157,12 @@ class CancellationCoordinator:
 
         await self._notify(cancelling, notification_errors)
         outcomes = await asyncio.gather(
-            *(
-                self._cancel_one(agent, remote_task_id)
-                for remote_task_id, agent in active_tasks
-            )
+            *(self._cancel_one(agent, remote_task_id) for remote_task_id, agent in active_tasks)
         )
         failures = tuple(outcome for outcome in outcomes if outcome is not None)
 
         async with self._lock:
-            self._failures.update(
-                (failure.remote_task_id, failure) for failure in failures
-            )
+            self._failures.update((failure.remote_task_id, failure) for failure in failures)
             for remote_task_id, _ in active_tasks:
                 self._active_tasks.pop(remote_task_id, None)
             cancelled = self._state_machine.transition("cancelled", reason=reason)
@@ -178,9 +171,7 @@ class CancellationCoordinator:
         result = CancellationResult(
             snapshot=cancelled,
             attempted_task_ids=tuple(sorted(self._attempted_task_ids)),
-            failures=tuple(
-                self._failures[task_id] for task_id in sorted(self._failures)
-            ),
+            failures=tuple(self._failures[task_id] for task_id in sorted(self._failures)),
             notification_errors=tuple(notification_errors),
         )
         async with self._lock:
@@ -204,9 +195,7 @@ class CancellationCoordinator:
             )
         return None
 
-    async def _notify(
-        self, snapshot: WorkflowSnapshot, errors: list[str]
-    ) -> None:
+    async def _notify(self, snapshot: WorkflowSnapshot, errors: list[str]) -> None:
         if self._on_state_snapshot is None:
             return
         try:

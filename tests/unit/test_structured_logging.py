@@ -19,9 +19,7 @@ LOGGER = logging.getLogger("agents.tests.structured_logging")
 
 def _events(caplog: pytest.LogCaptureFixture) -> list[dict[str, str | None]]:
     return [
-        json.loads(record.getMessage())
-        for record in caplog.records
-        if record.name == LOGGER.name
+        json.loads(record.getMessage()) for record in caplog.records if record.name == LOGGER.name
     ]
 
 

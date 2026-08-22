@@ -192,9 +192,7 @@ def test_completed_detail_rehydrates_exact_ag_ui_state_without_rerun(
     app = create_app(database=database, command_executor=executor)
     expected = DurableAgUiProjector(database).snapshot("session-history").to_ag_ui()
 
-    status_code, body = asyncio.run(
-        _get_json(app, "/api/sessions/session-history")
-    )
+    status_code, body = asyncio.run(_get_json(app, "/api/sessions/session-history"))
 
     assert status_code == 200
     assert body["state"] == expected
@@ -212,15 +210,9 @@ def test_history_filters_by_thread_and_rejects_unfinished_or_missing_detail(
     _seed_active_session(database)
     app = create_app(database=database, command_executor=ExplodingExecutor())
 
-    filtered_status, filtered = asyncio.run(
-        _get_json(app, "/api/sessions?threadId=thread-history")
-    )
-    active_status, active = asyncio.run(
-        _get_json(app, "/api/sessions/session-active")
-    )
-    missing_status, missing = asyncio.run(
-        _get_json(app, "/api/sessions/session-missing")
-    )
+    filtered_status, filtered = asyncio.run(_get_json(app, "/api/sessions?threadId=thread-history"))
+    active_status, active = asyncio.run(_get_json(app, "/api/sessions/session-active"))
+    missing_status, missing = asyncio.run(_get_json(app, "/api/sessions/session-missing"))
 
     assert filtered_status == 200
     assert [item["sessionId"] for item in filtered["sessions"]] == ["session-history"]
@@ -243,9 +235,7 @@ def test_history_does_not_disclose_sessions_owned_by_another_principal(
         return await call_next(request)
 
     list_status, listed = asyncio.run(_get_json(app, "/api/sessions"))
-    detail_status, detail = asyncio.run(
-        _get_json(app, "/api/sessions/session-history")
-    )
+    detail_status, detail = asyncio.run(_get_json(app, "/api/sessions/session-history"))
 
     assert list_status == 200
     assert listed == {"sessions": []}

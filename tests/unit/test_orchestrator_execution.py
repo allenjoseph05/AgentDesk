@@ -81,13 +81,9 @@ def _registry() -> AgentRegistry:
     registry = AgentRegistry(
         AgentRegistrySettings(
             endpoints=[
-                AgentEndpointConfig(
-                    agent_id="researcher", base_url="https://research.example"
-                ),
+                AgentEndpointConfig(agent_id="researcher", base_url="https://research.example"),
                 AgentEndpointConfig(agent_id="analyst", base_url="https://analyst.example"),
-                AgentEndpointConfig(
-                    agent_id="verifier", base_url="https://verifier.example"
-                ),
+                AgentEndpointConfig(agent_id="verifier", base_url="https://verifier.example"),
             ]
         ),
         http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
@@ -202,9 +198,7 @@ def test_orchestrator_runs_research_before_analysis_and_preserves_remote_ids() -
     remote = RecordingRemoteClient(evidence, analysis)
 
     execution = asyncio.run(
-        WorkflowOrchestrator(registry=_registry(), remote_client=remote).execute(
-            request, _plan()
-        )
+        WorkflowOrchestrator(registry=_registry(), remote_client=remote).execute(request, _plan())
     )
 
     assert [call["artifact_name"] for call in remote.calls] == [
@@ -229,9 +223,7 @@ def test_orchestrator_runs_verification_after_accepted_research_and_analysis() -
     result = asyncio.run(
         WorkflowOrchestrator(registry=_registry(), remote_client=remote).verify(
             evidence,
-            on_verification_scheduled=lambda agent: _record_scheduled(
-                scheduled, agent.agent_id
-            ),
+            on_verification_scheduled=lambda agent: _record_scheduled(scheduled, agent.agent_id),
         )
     )
 
@@ -330,9 +322,7 @@ def test_orchestrator_reports_accepted_research_before_analysis_starts() -> None
         agent: RegisteredAgent,
         result: RemoteTaskResult[EvidenceBundle],
     ) -> None:
-        assert [call["artifact_name"] for call in remote.calls] == [
-            "evidence-bundle"
-        ]
+        assert [call["artifact_name"] for call in remote.calls] == ["evidence-bundle"]
         accepted.append((agent.agent_id, result.remote_task_id))
 
     asyncio.run(

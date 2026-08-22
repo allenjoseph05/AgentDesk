@@ -47,6 +47,10 @@ npm test
 npm run build
 ```
 
+Python-only gates are available as `npm run lint:python`,
+`npm run typecheck:python`, and `npm run test:python`. The Python lint gate runs both
+Ruff diagnostics and the repository-wide Ruff formatting check.
+
 Equivalent `make lint`, `make typecheck`, `make test`, and `make build` targets are provided for environments with GNU Make.
 
 ## Repository boundaries

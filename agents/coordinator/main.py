@@ -112,6 +112,7 @@ def create_app(
                 status_code=422,
             ),
         )
+
     executor = command_executor or (
         A2ATaskCommandExecutor(task_factory)
         if task_factory is not None

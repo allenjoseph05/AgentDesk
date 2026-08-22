@@ -104,9 +104,7 @@ def _draft() -> PlanDraft:
 
 
 def _registry(*, include_analyst: bool = True) -> AgentRegistry:
-    endpoints = [
-        AgentEndpointConfig(agent_id="researcher", base_url="https://research.example")
-    ]
+    endpoints = [AgentEndpointConfig(agent_id="researcher", base_url="https://research.example")]
     cards: dict[str, dict[str, object]] = {
         "https://research.example/.well-known/agent-card.json": MessageToDict(
             create_research_card("https://research.example")
@@ -135,17 +133,14 @@ def test_planner_returns_typed_steps_with_registry_derived_providers() -> None:
     registry = _registry()
     provider = ScriptedProvider([_draft()])
 
-    plan = asyncio.run(
-        DecisionPlanner(llm_provider=provider, registry=registry).plan(_request())
-    )
+    plan = asyncio.run(DecisionPlanner(llm_provider=provider, registry=registry).plan(_request()))
 
     assert isinstance(plan, WorkflowPlan)
     assert plan.goal == "compare_options"
     assert plan.criteria == _request().criteria
     assert [step.skill for step in plan.steps] == ["web-research", "decision-analysis"]
     provider_assignments = [
-        (step.provider_agent_id, str(step.provider_base_url).rstrip("/"))
-        for step in plan.steps
+        (step.provider_agent_id, str(step.provider_base_url).rstrip("/")) for step in plan.steps
     ]
     assert provider_assignments == [
         ("researcher", "https://research.example"),

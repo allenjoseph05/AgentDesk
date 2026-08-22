@@ -87,7 +87,5 @@ async def run_with_policy[ResultT](
 
 
 def _retry_delay(policy: OperationPolicy, completed_attempt: int) -> float:
-    delay = policy.retry_delay_seconds * (
-        policy.backoff_multiplier ** (completed_attempt - 1)
-    )
+    delay = policy.retry_delay_seconds * (policy.backoff_multiplier ** (completed_attempt - 1))
     return min(delay, policy.max_retry_delay_seconds)

@@ -175,7 +175,7 @@ class AgentDeskViewState(ContractModel):
         return _snakeize(value)
 
     @model_validator(mode="after")
-    def validate_consistency(self) -> "AgentDeskViewState":
+    def validate_consistency(self) -> AgentDeskViewState:
         if self.status != "idle" and (
             self.session_id is None or self.question is None or self.last_updated_at is None
         ):
@@ -211,15 +211,11 @@ class AgentDeskViewState(ContractModel):
 
 class StartResearchPayload(ContractModel):
     question: AgUiText
-    options: list[AgUiText] = Field(
-        default_factory=list, max_length=MAX_AG_UI_ACTION_LIST_LENGTH
-    )
+    options: list[AgUiText] = Field(default_factory=list, max_length=MAX_AG_UI_ACTION_LIST_LENGTH)
     constraints: list[AgUiText] = Field(
         default_factory=list, max_length=MAX_AG_UI_ACTION_LIST_LENGTH
     )
-    criteria: list[AgUiText] = Field(
-        default_factory=list, max_length=MAX_AG_UI_ACTION_LIST_LENGTH
-    )
+    criteria: list[AgUiText] = Field(default_factory=list, max_length=MAX_AG_UI_ACTION_LIST_LENGTH)
     desired_depth: Depth = Field(
         default="normal",
         validation_alias=AliasChoices("desiredDepth", "desired_depth"),

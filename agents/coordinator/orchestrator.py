@@ -148,9 +148,7 @@ class WorkflowOrchestrator:
         """Ask the registered analyst for the strongest bounded counteranalysis."""
         agent = self._registry.first_by_skill("decision-analysis")
         if agent is None:
-            raise OrchestrationPlanError(
-                "No healthy provider advertises decision-analysis."
-            )
+            raise OrchestrationPlanError("No healthy provider advertises decision-analysis.")
         return await self._execute_remote(
             agent=agent,
             request=request,
@@ -171,9 +169,7 @@ class WorkflowOrchestrator:
         """Run fact verification after accepted Research and Analysis artifacts."""
         agent = self._registry.first_by_skill("fact-verification")
         if agent is None:
-            raise OrchestrationPlanError(
-                "No healthy provider advertises fact-verification."
-            )
+            raise OrchestrationPlanError("No healthy provider advertises fact-verification.")
         if on_verification_scheduled is not None:
             await on_verification_scheduled(agent)
         return await self._execute_remote(
@@ -289,7 +285,5 @@ class WorkflowOrchestrator:
         if provider.base_url != str(step.provider_base_url).rstrip("/"):
             raise OrchestrationPlanError("Planned provider URL no longer matches the registry.")
         if step.skill not in {skill.id for skill in provider.card.skills}:
-            raise OrchestrationPlanError(
-                f"Planned provider no longer advertises {step.skill}."
-            )
+            raise OrchestrationPlanError(f"Planned provider no longer advertises {step.skill}.")
         return provider

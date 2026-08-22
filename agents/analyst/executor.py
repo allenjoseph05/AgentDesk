@@ -84,9 +84,7 @@ class AnalystAgentExecutor(AgentExecutor):
                 else await self._analyzer.analyze(request)
             )
         except LimitExceededError as error:
-            await updater.failed(
-                self._status_message(context, limit_status_message(error))
-            )
+            await updater.failed(self._status_message(context, limit_status_message(error)))
             return
         except (DecisionAnalysisError, RecommendationChallengeError) as error:
             await updater.failed(
@@ -94,14 +92,10 @@ class AnalystAgentExecutor(AgentExecutor):
             )
             return
         except LLMProviderError:
-            await updater.failed(
-                self._status_message(context, "The Analyst provider failed.")
-            )
+            await updater.failed(self._status_message(context, "The Analyst provider failed."))
             return
         except Exception:
-            await updater.failed(
-                self._status_message(context, "Analysis failed unexpectedly.")
-            )
+            await updater.failed(self._status_message(context, "Analysis failed unexpectedly."))
             return
 
         await updater.add_artifact(

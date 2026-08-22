@@ -17,8 +17,7 @@ def test_project_environment_loads_dotenv_without_overriding_process_values(
     test_root.mkdir(parents=True)
     try:
         (test_root / ".env").write_text(
-            "RESEARCH_AGENT_URL=http://127.0.0.1:9005\n"
-            "ANALYST_AGENT_URL=http://127.0.0.1:9006\n",
+            "RESEARCH_AGENT_URL=http://127.0.0.1:9005\nANALYST_AGENT_URL=http://127.0.0.1:9006\n",
             encoding="utf-8",
         )
         monkeypatch.setattr(project_config, "PROJECT_ROOT", test_root)

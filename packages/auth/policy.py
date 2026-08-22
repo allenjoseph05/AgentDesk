@@ -80,9 +80,7 @@ class AuthenticationSettings(ContractModel):
         """Return an immutable-call credential without exposing it in model output."""
         if self.mode != "token" or self.service_token is None:
             return {}
-        return {
-            "Authorization": f"Bearer {self.service_token.get_secret_value()}"
-        }
+        return {"Authorization": f"Bearer {self.service_token.get_secret_value()}"}
 
 
 class BrowserAuthenticationMiddleware:
@@ -195,9 +193,7 @@ async def _reject(
 
 
 def _is_browser_path(path: str) -> bool:
-    return path == "/ag-ui" or path == "/api/sessions" or path.startswith(
-        "/api/sessions/"
-    )
+    return path == "/ag-ui" or path == "/api/sessions" or path.startswith("/api/sessions/")
 
 
 def _is_public_service_path(path: str) -> bool:

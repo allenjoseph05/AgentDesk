@@ -102,8 +102,10 @@ class _Repository:
     ) -> bool:
         dialect = self._connection.dialect.name
         if dialect == "sqlite":
-            sqlite_statement = sqlite_insert(table).values(**values).on_conflict_do_nothing(
-                index_elements=list(conflict_columns)
+            sqlite_statement = (
+                sqlite_insert(table)
+                .values(**values)
+                .on_conflict_do_nothing(index_elements=list(conflict_columns))
             )
             return self._connection.execute(sqlite_statement).rowcount == 1
         if dialect == "postgresql":
@@ -133,9 +135,11 @@ class SessionRepository(_Repository):
         )
 
     def get(self, session_id: str) -> SessionRecord | None:
-        row = self._connection.execute(
-            sa.select(sessions).where(sessions.c.id == session_id)
-        ).mappings().one_or_none()
+        row = (
+            self._connection.execute(sa.select(sessions).where(sessions.c.id == session_id))
+            .mappings()
+            .one_or_none()
+        )
         return _session_record(row) if row is not None else None
 
     def require(self, session_id: str) -> SessionRecord:
@@ -193,9 +197,7 @@ class SessionRepository(_Repository):
         if owner_id is not None:
             statement = statement.where(sessions.c.owner_id == owner_id)
         if ag_ui_thread_id is not None:
-            statement = statement.where(
-                sessions.c.ag_ui_thread_id == ag_ui_thread_id
-            )
+            statement = statement.where(sessions.c.ag_ui_thread_id == ag_ui_thread_id)
         rows = self._connection.execute(
             statement.order_by(sessions.c.updated_at.desc(), sessions.c.id).limit(limit)
         ).mappings()
@@ -213,15 +215,23 @@ class CoordinatorRunRepository(_Repository):
         )
 
     def get(self, run_id: str) -> CoordinatorRunRecord | None:
-        row = self._connection.execute(
-            sa.select(coordinator_runs).where(coordinator_runs.c.run_id == run_id)
-        ).mappings().one_or_none()
+        row = (
+            self._connection.execute(
+                sa.select(coordinator_runs).where(coordinator_runs.c.run_id == run_id)
+            )
+            .mappings()
+            .one_or_none()
+        )
         return _run_record(row) if row is not None else None
 
     def get_by_action(self, action_id: str) -> CoordinatorRunRecord | None:
-        row = self._connection.execute(
-            sa.select(coordinator_runs).where(coordinator_runs.c.action_id == action_id)
-        ).mappings().one_or_none()
+        row = (
+            self._connection.execute(
+                sa.select(coordinator_runs).where(coordinator_runs.c.action_id == action_id)
+            )
+            .mappings()
+            .one_or_none()
+        )
         return _run_record(row) if row is not None else None
 
     def replace(self, record: CoordinatorRunRecord) -> None:
@@ -264,14 +274,10 @@ class CoordinatorRunRepository(_Repository):
 
 class WorkflowTransitionRepository(_Repository):
     def put(self, record: WorkflowTransitionRecord) -> bool:
-        validated = WorkflowTransitionRecord.model_validate(
-            record.model_dump(mode="python")
-        )
+        validated = WorkflowTransitionRecord.model_validate(record.model_dump(mode="python"))
         existing = self.get(validated.session_id, validated.sequence)
         if existing is not None:
-            _assert_same(
-                "workflow transition", _transition_id(validated), existing, validated
-            )
+            _assert_same("workflow transition", _transition_id(validated), existing, validated)
             return False
         inserted = self._insert_if_absent(
             workflow_transitions,
@@ -281,12 +287,8 @@ class WorkflowTransitionRepository(_Repository):
         if not inserted:
             existing = self.get(validated.session_id, validated.sequence)
             if existing is None:
-                raise RepositoryConflictError(
-                    "workflow transition", _transition_id(validated)
-                )
-            _assert_same(
-                "workflow transition", _transition_id(validated), existing, validated
-            )
+                raise RepositoryConflictError("workflow transition", _transition_id(validated))
+            _assert_same("workflow transition", _transition_id(validated), existing, validated)
         return inserted
 
     def get(
@@ -294,12 +296,16 @@ class WorkflowTransitionRepository(_Repository):
         session_id: str,
         sequence: int,
     ) -> WorkflowTransitionRecord | None:
-        row = self._connection.execute(
-            sa.select(workflow_transitions).where(
-                workflow_transitions.c.session_id == session_id,
-                workflow_transitions.c.sequence == sequence,
+        row = (
+            self._connection.execute(
+                sa.select(workflow_transitions).where(
+                    workflow_transitions.c.session_id == session_id,
+                    workflow_transitions.c.sequence == sequence,
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         return _workflow_transition_record(row) if row is not None else None
 
     def list_by_session(self, session_id: str) -> tuple[WorkflowTransitionRecord, ...]:
@@ -309,6 +315,7 @@ class WorkflowTransitionRepository(_Repository):
             .order_by(workflow_transitions.c.sequence)
         ).mappings()
         return tuple(_workflow_transition_record(row) for row in rows)
+
 
 class AgentTaskRepository(_Repository):
     def add(self, record: AgentTaskRecord) -> None:
@@ -321,9 +328,11 @@ class AgentTaskRepository(_Repository):
         )
 
     def get(self, task_id: str) -> AgentTaskRecord | None:
-        row = self._connection.execute(
-            sa.select(agent_tasks).where(agent_tasks.c.id == task_id)
-        ).mappings().one_or_none()
+        row = (
+            self._connection.execute(sa.select(agent_tasks).where(agent_tasks.c.id == task_id))
+            .mappings()
+            .one_or_none()
+        )
         return _agent_task_record(row) if row is not None else None
 
     def require(self, task_id: str) -> AgentTaskRecord:
@@ -338,12 +347,16 @@ class AgentTaskRepository(_Repository):
         agent_id: str,
         remote_task_id: str,
     ) -> AgentTaskRecord | None:
-        row = self._connection.execute(
-            sa.select(agent_tasks).where(
-                agent_tasks.c.agent_id == agent_id,
-                agent_tasks.c.remote_task_id == remote_task_id,
+        row = (
+            self._connection.execute(
+                sa.select(agent_tasks).where(
+                    agent_tasks.c.agent_id == agent_id,
+                    agent_tasks.c.remote_task_id == remote_task_id,
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         return _agent_task_record(row) if row is not None else None
 
     def replace(self, record: AgentTaskRecord) -> None:
@@ -363,9 +376,7 @@ class AgentTaskRepository(_Repository):
             exclude={"id", "session_id", "run_id", "agent_id", "skill", "started_at"},
         )
         self._require_update(
-            sa.update(agent_tasks)
-            .where(agent_tasks.c.id == validated.id)
-            .values(**values),
+            sa.update(agent_tasks).where(agent_tasks.c.id == validated.id).values(**values),
             entity="agent task",
             record_id=validated.id,
         )
@@ -402,11 +413,15 @@ class ArtifactRepository(_Repository):
         self,
         agent_task_id: str,
     ) -> ResearchArtifactRecord | None:
-        row = self._connection.execute(
-            sa.select(research_artifacts).where(
-                research_artifacts.c.agent_task_id == agent_task_id
+        row = (
+            self._connection.execute(
+                sa.select(research_artifacts).where(
+                    research_artifacts.c.agent_task_id == agent_task_id
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         return _research_artifact_record(row) if row is not None else None
 
     def list_research_artifacts(
@@ -424,9 +439,7 @@ class ArtifactRepository(_Repository):
         self,
         record: RecommendationChallengeRecord,
     ) -> bool:
-        validated = RecommendationChallengeRecord.model_validate(
-            record.model_dump(mode="python")
-        )
+        validated = RecommendationChallengeRecord.model_validate(record.model_dump(mode="python"))
         existing = self.get_recommendation_challenge_by_task(validated.agent_task_id)
         if existing is not None:
             _assert_same("recommendation challenge", validated.id, existing, validated)
@@ -447,11 +460,15 @@ class ArtifactRepository(_Repository):
         self,
         agent_task_id: str,
     ) -> RecommendationChallengeRecord | None:
-        row = self._connection.execute(
-            sa.select(recommendation_challenges).where(
-                recommendation_challenges.c.agent_task_id == agent_task_id
+        row = (
+            self._connection.execute(
+                sa.select(recommendation_challenges).where(
+                    recommendation_challenges.c.agent_task_id == agent_task_id
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         return _recommendation_challenge_record(row) if row is not None else None
 
     def list_recommendation_challenges(
@@ -469,9 +486,7 @@ class ArtifactRepository(_Repository):
         return tuple(_recommendation_challenge_record(row) for row in rows)
 
     def put_verification_report(self, record: VerificationReportRecord) -> bool:
-        validated = VerificationReportRecord.model_validate(
-            record.model_dump(mode="python")
-        )
+        validated = VerificationReportRecord.model_validate(record.model_dump(mode="python"))
         existing = self.get_verification_report_by_task(validated.agent_task_id)
         if existing is not None:
             _assert_same("verification report", validated.id, existing, validated)
@@ -492,11 +507,15 @@ class ArtifactRepository(_Repository):
         self,
         agent_task_id: str,
     ) -> VerificationReportRecord | None:
-        row = self._connection.execute(
-            sa.select(verification_reports).where(
-                verification_reports.c.agent_task_id == agent_task_id
+        row = (
+            self._connection.execute(
+                sa.select(verification_reports).where(
+                    verification_reports.c.agent_task_id == agent_task_id
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         return _verification_report_record(row) if row is not None else None
 
     def list_verification_reports(
@@ -542,12 +561,16 @@ class ArtifactRepository(_Repository):
         session_id: str,
         evidence_id: str,
     ) -> EvidenceRecord | None:
-        row = self._connection.execute(
-            sa.select(evidence).where(
-                evidence.c.session_id == session_id,
-                evidence.c.evidence_id == evidence_id,
+        row = (
+            self._connection.execute(
+                sa.select(evidence).where(
+                    evidence.c.session_id == session_id,
+                    evidence.c.evidence_id == evidence_id,
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         return _evidence_record(row) if row is not None else None
 
     def list_evidence(self, session_id: str) -> tuple[EvidenceRecord, ...]:
@@ -586,19 +609,21 @@ class ArtifactRepository(_Repository):
         return inserted
 
     def get_claim(self, session_id: str, claim_id: str) -> ClaimRecord | None:
-        row = self._connection.execute(
-            sa.select(claims).where(
-                claims.c.session_id == session_id,
-                claims.c.claim_id == claim_id,
+        row = (
+            self._connection.execute(
+                sa.select(claims).where(
+                    claims.c.session_id == session_id,
+                    claims.c.claim_id == claim_id,
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         return _claim_record(row) if row is not None else None
 
     def list_claims(self, session_id: str) -> tuple[ClaimRecord, ...]:
         rows = self._connection.execute(
-            sa.select(claims)
-            .where(claims.c.session_id == session_id)
-            .order_by(claims.c.claim_id)
+            sa.select(claims).where(claims.c.session_id == session_id).order_by(claims.c.claim_id)
         ).mappings()
         return tuple(_claim_record(row) for row in rows)
 
@@ -632,9 +657,13 @@ class ArtifactRepository(_Repository):
         return inserted
 
     def get_analysis_by_task(self, agent_task_id: str) -> AnalysisRecord | None:
-        row = self._connection.execute(
-            sa.select(analysis).where(analysis.c.agent_task_id == agent_task_id)
-        ).mappings().one_or_none()
+        row = (
+            self._connection.execute(
+                sa.select(analysis).where(analysis.c.agent_task_id == agent_task_id)
+            )
+            .mappings()
+            .one_or_none()
+        )
         return _analysis_record(row) if row is not None else None
 
     def list_analysis(self, session_id: str) -> tuple[AnalysisRecord, ...]:

@@ -168,9 +168,7 @@ def test_database_constraints_are_translated_to_repository_conflicts(
 def test_replace_rejects_missing_records(database: Database) -> None:
     with pytest.raises(RecordNotFoundError, match="missing-session"):
         with database.transaction() as repositories:
-            repositories.sessions.replace(
-                _session().model_copy(update={"id": "missing-session"})
-            )
+            repositories.sessions.replace(_session().model_copy(update={"id": "missing-session"}))
 
 
 def test_replace_rejects_changes_to_correlation_identity(database: Database) -> None:
@@ -182,9 +180,7 @@ def test_replace_rejects_changes_to_correlation_identity(database: Database) -> 
         with database.transaction() as repositories:
             run = repositories.runs.get("run-1")
             assert run is not None
-            repositories.runs.replace(
-                run.model_copy(update={"action_id": "different-action"})
-            )
+            repositories.runs.replace(run.model_copy(update={"action_id": "different-action"}))
 
     with database.transaction() as repositories:
         assert repositories.runs.get("run-1") == _run()

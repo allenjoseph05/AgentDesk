@@ -51,9 +51,7 @@ def _configured_executor(
     fixture = load_research_fixture(fixture_id)
     if fixture.evidence_bundle is None or fixture.verification_report is None:
         raise AssertionError("Verification fixture must contain evidence and a report.")
-    verifier = ClaimVerifier(
-        FakeLLMProvider({VerificationReport: fixture.verification_report})
-    )
+    verifier = ClaimVerifier(FakeLLMProvider({VerificationReport: fixture.verification_report}))
     return VerifierAgentExecutor(verifier), fixture.evidence_bundle
 
 
@@ -116,12 +114,8 @@ def test_executor_completes_with_insufficient_evidence_verdicts() -> None:
 
     asyncio.run(executor.execute(_context(bundle.model_dump(mode="json")), queue))
 
-    artifact = next(
-        event for event in queue.events if isinstance(event, TaskArtifactUpdateEvent)
-    )
-    report = ArtifactEnvelope[VerificationReport].model_validate(
-        _artifact_data(artifact)
-    ).payload
+    artifact = next(event for event in queue.events if isinstance(event, TaskArtifactUpdateEvent))
+    report = ArtifactEnvelope[VerificationReport].model_validate(_artifact_data(artifact)).payload
     assert {result.verdict for result in report.results} == {"insufficient_evidence"}
     statuses = [event for event in queue.events if isinstance(event, TaskStatusUpdateEvent)]
     assert statuses[-1].status.state == TaskState.TASK_STATE_COMPLETED

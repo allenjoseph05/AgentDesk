@@ -23,13 +23,16 @@ from packages.contracts import ArtifactEnvelope
 from packages.limits import LimitCode, parse_limit_status_message
 from packages.observability import inject_trace_context
 
-RemoteErrorCode = Literal[
-    "authentication_failed",
-    "timeout",
-    "transport_failure",
-    "remote_task_failed",
-    "invalid_artifact",
-] | LimitCode
+RemoteErrorCode = (
+    Literal[
+        "authentication_failed",
+        "timeout",
+        "transport_failure",
+        "remote_task_failed",
+        "invalid_artifact",
+    ]
+    | LimitCode
+)
 
 
 class RemoteCallError(RuntimeError):

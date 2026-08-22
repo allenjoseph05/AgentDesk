@@ -528,8 +528,7 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
     activities = [
         event
         for event in events
-        if event["type"] == "ACTIVITY_SNAPSHOT"
-        and event["activityType"] == "specialist-research"
+        if event["type"] == "ACTIVITY_SNAPSHOT" and event["activityType"] == "specialist-research"
     ]
     assert [event["content"]["status"] for event in activities] == [
         "waiting",
@@ -550,8 +549,7 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
     analysis_activities = [
         event
         for event in events
-        if event["type"] == "ACTIVITY_SNAPSHOT"
-        and event["activityType"] == "specialist-analysis"
+        if event["type"] == "ACTIVITY_SNAPSHOT" and event["activityType"] == "specialist-analysis"
     ]
     assert [event["content"]["status"] for event in analysis_activities] == [
         "waiting",
@@ -762,9 +760,10 @@ def test_verification_failure_preserves_successful_research_and_analysis(
     assert not any(event["type"] == "RUN_ERROR" for event in events)
     assert events[-1]["type"] == "RUN_FINISHED"
     assert events[-1]["result"]["status"] == "partial"
-    assert [
-        task["agentId"] for task in events[-1]["result"]["remoteTasks"]
-    ] == ["researcher", "analyst"]
+    assert [task["agentId"] for task in events[-1]["result"]["remoteTasks"]] == [
+        "researcher",
+        "analyst",
+    ]
 
     snapshot_event = next(event for event in events if event["type"] == "STATE_SNAPSHOT")
     state = AgentDeskViewState.model_validate(snapshot_event["snapshot"])
@@ -861,9 +860,7 @@ def test_browser_abort_cancels_remote_tasks_and_rehydrates_terminal_state(
         "cancelled",
     ]
 
-    rehydrated = ResearchHistoryService(database).get_terminal_session(
-        "coordinator-run-71"
-    )
+    rehydrated = ResearchHistoryService(database).get_terminal_session("coordinator-run-71")
     assert rehydrated.state.status == "cancelled"
     assert [(agent.agent_id, agent.status) for agent in rehydrated.state.agents] == [
         ("analyst", "cancelled"),
@@ -962,14 +959,8 @@ def test_challenge_creates_one_new_run_and_live_counteranalysis_delta(
 
     async def scenario() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         _ = [_decode(item) async for item in adapter.stream(_input(), encoder)]
-        follow_up = [
-            _decode(item)
-            async for item in adapter.stream(_follow_up_input(), encoder)
-        ]
-        replay = [
-            _decode(item)
-            async for item in adapter.stream(_follow_up_input(), encoder)
-        ]
+        follow_up = [_decode(item) async for item in adapter.stream(_follow_up_input(), encoder)]
+        replay = [_decode(item) async for item in adapter.stream(_follow_up_input(), encoder)]
         return follow_up, replay
 
     follow_up, replay = asyncio.run(scenario())
@@ -978,10 +969,7 @@ def test_challenge_creates_one_new_run_and_live_counteranalysis_delta(
         event
         for event in follow_up
         if event["type"] == "STATE_DELTA"
-        and any(
-            operation["path"] == "/recommendationChallenge"
-            for operation in event["delta"]
-        )
+        and any(operation["path"] == "/recommendationChallenge" for operation in event["delta"])
     )
     challenge = next(
         operation["value"]
@@ -997,9 +985,7 @@ def test_challenge_creates_one_new_run_and_live_counteranalysis_delta(
     with database.transaction() as repositories:
         session = repositories.sessions.require("coordinator-run-71")
         run = repositories.runs.get("follow-up-run-71")
-        challenges = repositories.artifacts.list_recommendation_challenges(
-            "coordinator-run-71"
-        )
+        challenges = repositories.artifacts.list_recommendation_challenges("coordinator-run-71")
     assert session.last_run_id == "follow-up-run-71"
     assert session.ag_ui_thread_id == "browser-thread-71"
     assert run is not None and run.status == "completed"
@@ -1049,10 +1035,7 @@ def test_research_follow_ups_rerun_specialists_in_the_same_session(
 
     async def scenario() -> list[dict[str, Any]]:
         _ = [_decode(item) async for item in adapter.stream(_input(), encoder)]
-        return [
-            _decode(item)
-            async for item in adapter.stream(follow_up_input, encoder)
-        ]
+        return [_decode(item) async for item in adapter.stream(follow_up_input, encoder)]
 
     events = asyncio.run(scenario())
 

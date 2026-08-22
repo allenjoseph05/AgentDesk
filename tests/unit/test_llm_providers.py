@@ -20,9 +20,7 @@ from packages.llm import (
 
 
 def test_fake_provider_returns_fresh_typed_fixture_without_network() -> None:
-    provider = FakeLLMProvider(
-        {ResearchRequest: {"question": "Compare PostgreSQL and MongoDB."}}
-    )
+    provider = FakeLLMProvider({ResearchRequest: {"question": "Compare PostgreSQL and MongoDB."}})
 
     first = asyncio.run(
         provider.generate_structured(
@@ -133,9 +131,7 @@ def test_openai_adapter_uses_responses_strict_json_schema_without_network() -> N
         (
             {
                 "status": "completed",
-                "output": [
-                    {"type": "message", "content": [{"type": "refusal", "refusal": "No"}]}
-                ],
+                "output": [{"type": "message", "content": [{"type": "refusal", "refusal": "No"}]}],
             },
             LLMRefusalError,
         ),
