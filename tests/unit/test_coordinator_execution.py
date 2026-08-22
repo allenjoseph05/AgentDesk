@@ -537,6 +537,21 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
     assert projected_analysis["criteria"]
     assert projected_analysis["risks"]
     assert projected_analysis["assumptions"]
+    verification_delta = next(
+        event
+        for event in events
+        if event["type"] == "STATE_DELTA"
+        and any(operation["path"] == "/verification" for operation in event["delta"])
+    )
+    projected_verification = next(
+        operation["value"]
+        for operation in verification_delta["delta"]
+        if operation["path"] == "/verification"
+    )
+    assert [result["verdict"] for result in projected_verification["results"]] == [
+        "supported",
+        "supported",
+    ]
     assert events[-1]["type"] == "RUN_FINISHED"
     assert events[-1]["result"] == {
         "threadId": "browser-thread-71",
