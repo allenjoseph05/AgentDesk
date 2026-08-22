@@ -21,6 +21,7 @@ from packages.contracts import (
     EvidenceBundle,
     VerificationReport,
 )
+from packages.limits import LimitExceededError, limit_status_message
 from packages.llm import LLMProviderError
 from packages.observability import CorrelationIds, observed_request, traced_request
 
@@ -68,6 +69,11 @@ class VerifierAgentExecutor(AgentExecutor):
         )
         try:
             report = await self._verifier.verify(evidence_bundle)
+        except LimitExceededError as error:
+            await updater.failed(
+                self._status_message(context, limit_status_message(error))
+            )
+            return
         except ClaimVerificationError as error:
             await updater.failed(
                 self._status_message(context, f"Claim verification failed ({error.code}).")

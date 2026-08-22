@@ -26,6 +26,7 @@ from packages.contracts import (
     DecisionAnalysis,
     RecommendationChallenge,
 )
+from packages.limits import LimitExceededError, limit_status_message
 from packages.llm import LLMProviderError
 from packages.observability import CorrelationIds, observed_request, traced_request
 
@@ -82,6 +83,11 @@ class AnalystAgentExecutor(AgentExecutor):
                 if challenge_mode
                 else await self._analyzer.analyze(request)
             )
+        except LimitExceededError as error:
+            await updater.failed(
+                self._status_message(context, limit_status_message(error))
+            )
+            return
         except (DecisionAnalysisError, RecommendationChallengeError) as error:
             await updater.failed(
                 self._status_message(context, f"Analyst output failed ({error.code}).")

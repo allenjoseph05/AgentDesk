@@ -15,6 +15,7 @@ from packages.contracts import (
     RecommendationChallenge,
     VerificationReport,
 )
+from packages.limits import LimitExceededError
 from packages.persistence import (
     AgentTaskRecord,
     AnalysisRecord,
@@ -58,8 +59,36 @@ class FollowUpContext:
 class WorkflowPersistenceService:
     """Persist Coordinator commit points behind one transaction boundary."""
 
-    def __init__(self, database: Database) -> None:
+    def __init__(
+        self,
+        database: Database,
+        *,
+        max_remote_tasks_per_session: int | None = None,
+    ) -> None:
         self._database = database
+        self._max_remote_tasks_per_session = max_remote_tasks_per_session
+
+    def ensure_remote_task_capacity(
+        self,
+        session_id: str,
+        additional_tasks: int,
+    ) -> None:
+        """Reject fan-out that would cross the durable per-session task maximum."""
+        if additional_tasks < 1:
+            raise ValueError("Additional remote tasks must be positive.")
+        maximum = self._max_remote_tasks_per_session
+        if maximum is None:
+            return
+        with self._database.transaction() as repositories:
+            repositories.sessions.require(session_id)
+            existing = len(repositories.agent_tasks.list_by_session(session_id))
+        if existing + additional_tasks <= maximum:
+            return
+        raise LimitExceededError(
+            "remote_task_limit_exceeded",
+            "This session reached its remote-task limit. Start a new session or ask an "
+            "administrator to raise the configured maximum.",
+        )
 
     def load_follow_up_context(self, session_id: str) -> FollowUpContext:
         """Rehydrate the latest accepted decision context for a follow-up run."""
@@ -267,6 +296,14 @@ class WorkflowPersistenceService:
     def create_agent_task(self, task: AgentTaskRecord) -> None:
         with self._database.transaction() as repositories:
             repositories.sessions.require(task.session_id)
+            maximum = self._max_remote_tasks_per_session
+            existing = repositories.agent_tasks.list_by_session(task.session_id)
+            if maximum is not None and len(existing) >= maximum:
+                raise LimitExceededError(
+                    "remote_task_limit_exceeded",
+                    "This session reached its remote-task limit. Start a new session or "
+                    "ask an administrator to raise the configured maximum.",
+                )
             repositories.agent_tasks.add(task)
 
     def finish_agent_task(

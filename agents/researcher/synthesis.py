@@ -20,6 +20,7 @@ from agents.researcher.tools import (
 )
 from packages.contracts import Evidence, EvidenceBundle, ResearchRequest
 from packages.contracts.base import ContractModel, NonEmptyText
+from packages.limits import LimitSettings, RequestBudget
 from packages.llm import LLMProvider, Message
 from packages.resilience import OperationPolicy, OperationTimeoutError, run_with_policy
 
@@ -71,6 +72,7 @@ class ResearchSynthesizer:
         model_timeout_seconds: float = DEFAULT_MODEL_TIMEOUT_SECONDS,
         tool_max_attempts: int = DEFAULT_TOOL_MAX_ATTEMPTS,
         retry_delay_seconds: float = 0.1,
+        limit_settings: LimitSettings | None = None,
     ) -> None:
         self._search_provider = search_provider
         self._source_provider = source_provider
@@ -82,6 +84,7 @@ class ResearchSynthesizer:
             retry_delay_seconds=retry_delay_seconds,
         )
         self._model_policy = OperationPolicy(timeout_seconds=model_timeout_seconds)
+        self._limit_settings = limit_settings or LimitSettings.from_environment()
 
     async def synthesize(
         self,
@@ -91,6 +94,8 @@ class ResearchSynthesizer:
     ) -> EvidenceBundle:
         """Produce a validated bundle grounded exclusively in fetched sources."""
         validated_request = ResearchRequest.model_validate(request.model_dump(mode="python"))
+        self._limit_settings.require_research_depth(validated_request.desired_depth)
+        budget = RequestBudget(self._limit_settings)
         await _report_progress(
             on_progress,
             ResearchProgress(
@@ -105,7 +110,7 @@ class ResearchSynthesizer:
         try:
             results = await run_with_policy(
                 "research.search",
-                lambda: self._search_provider.search(query),
+                partial(budget.call_tool, partial(self._search_provider.search, query)),
                 policy=self._tool_policy,
                 should_retry=_retryable_research_tool_error,
             )
@@ -146,7 +151,10 @@ class ResearchSynthesizer:
             try:
                 document = await run_with_policy(
                     "research.fetch",
-                    partial(self._source_provider.fetch, result),
+                    partial(
+                        budget.call_tool,
+                        partial(self._source_provider.fetch, result),
+                    ),
                     policy=self._tool_policy,
                     should_retry=_retryable_research_tool_error,
                 )
@@ -195,15 +203,19 @@ class ResearchSynthesizer:
         try:
             candidate = await run_with_policy(
                 "research.synthesis",
-                lambda: self._llm_provider.generate_structured(
-                    system_prompt=RESEARCH_SYNTHESIS_PROMPT,
-                    messages=[
-                        Message(
-                            role="user",
-                            content=_synthesis_context(validated_request, documents),
-                        )
-                    ],
-                    response_model=EvidenceBundle,
+                partial(
+                    budget.call_llm,
+                    partial(
+                        self._llm_provider.generate_structured,
+                        system_prompt=RESEARCH_SYNTHESIS_PROMPT,
+                        messages=[
+                            Message(
+                                role="user",
+                                content=_synthesis_context(validated_request, documents),
+                            )
+                        ],
+                        response_model=EvidenceBundle,
+                    ),
                 ),
                 policy=self._model_policy,
             )

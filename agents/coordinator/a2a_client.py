@@ -20,6 +20,7 @@ from pydantic import BaseModel, ValidationError
 from agents.coordinator.registry import RegisteredAgent
 from packages.auth import AuthenticationSettings
 from packages.contracts import ArtifactEnvelope
+from packages.limits import LimitCode, parse_limit_status_message
 from packages.observability import inject_trace_context
 
 RemoteErrorCode = Literal[
@@ -28,7 +29,7 @@ RemoteErrorCode = Literal[
     "transport_failure",
     "remote_task_failed",
     "invalid_artifact",
-]
+] | LimitCode
 
 
 class RemoteCallError(RuntimeError):
@@ -302,6 +303,14 @@ class A2AClientAdapter:
                         if update.status.HasField("message")
                         else TaskState.Name(state)
                     )
+                    limit_error = parse_limit_status_message(detail)
+                    if limit_error is not None:
+                        raise RemoteCallError(
+                            limit_error.code,
+                            str(limit_error),
+                            agent_id=agent.agent_id,
+                            remote_task_id=remote_task_id,
+                        )
                     raise RemoteCallError(
                         "remote_task_failed",
                         f"Remote agent {agent.agent_id} ended unsuccessfully: {detail}",
