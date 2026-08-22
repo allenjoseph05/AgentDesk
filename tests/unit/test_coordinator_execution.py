@@ -29,13 +29,16 @@ from agents.coordinator.registry import RegisteredAgent
 from agents.coordinator.run_adapter import CoordinatorRunAdapter
 from agents.coordinator.workflow_state import WorkflowStateMachine
 from agents.researcher.agent_card import create_agent_card as create_research_card
+from agents.verifier.agent_card import create_agent_card as create_verifier_card
 from packages.contracts import (
     AgentDeskViewState,
     AnalysisRequest,
     ArtifactEnvelope,
     ArtifactProvenance,
+    EvidenceBundle,
     RecommendationChallenge,
     ResearchRequest,
+    VerificationReport,
 )
 from packages.persistence import Database, metadata
 from packages.testing import load_research_fixture
@@ -106,12 +109,14 @@ class BlockingOrchestrator:
         *,
         fixture_id: str = "postgresql-vs-mongodb-golden",
         fail_analysis: bool = False,
+        fail_verification: bool = False,
         emit_late_task_on_cancel: bool = False,
     ) -> None:
         self.started = asyncio.Event()
         self.release = asyncio.Event()
         self.fixture_id = fixture_id
         self.fail_analysis = fail_analysis
+        self.fail_verification = fail_verification
         self.emit_late_task_on_cancel = emit_late_task_on_cancel
         self.challenge_requests: list[AnalysisRequest] = []
         self.execute_calls = 0
@@ -198,6 +203,46 @@ class BlockingOrchestrator:
             await on_analysis_completed(analysis_agent, execution.analysis)
             await on_analysis_completed(analysis_agent, execution.analysis)
         return execution
+
+    async def verify(
+        self,
+        evidence_bundle: EvidenceBundle,
+        **callbacks: Any,
+    ) -> RemoteTaskResult[VerificationReport]:
+        fixture = load_research_fixture(self.fixture_id)
+        assert fixture.evidence_bundle == evidence_bundle
+        assert fixture.verification_report is not None
+        agent = RegisteredAgent(
+            agent_id="verifier",
+            base_url="https://verifier.example",
+            card=create_verifier_card("https://verifier.example"),
+        )
+        on_scheduled = callbacks.get("on_verification_scheduled")
+        if on_scheduled is not None:
+            await on_scheduled(agent)
+        on_started = callbacks.get("on_remote_task_started")
+        if on_started is not None:
+            await on_started(agent, "verification-task-71")
+        try:
+            if self.fail_verification:
+                raise RuntimeError("Verifier fixture failure.")
+            return RemoteTaskResult(
+                agent_id="verifier",
+                remote_task_id="verification-task-71",
+                remote_context_id="context-71",
+                artifact=ArtifactEnvelope(
+                    provenance=ArtifactProvenance(
+                        producer_agent="verifier",
+                        remote_task_id="verification-task-71",
+                        created_at=datetime(2026, 8, 21, 12, 0, tzinfo=UTC),
+                    ),
+                    payload=fixture.verification_report,
+                ),
+            )
+        finally:
+            on_finished = callbacks.get("on_remote_task_finished")
+            if on_finished is not None:
+                await on_finished(agent, "verification-task-71")
 
     async def cancel(self, **kwargs: Any) -> None:
         self.cancel_calls.append(
@@ -448,6 +493,27 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
         "completed",
     ]
     assert len({event["messageId"] for event in analysis_activities}) == 1
+    verification_steps = [
+        event
+        for event in events
+        if event["type"] in {"STEP_STARTED", "STEP_FINISHED"}
+        and event.get("stepName") == "verification"
+    ]
+    assert [event["type"] for event in verification_steps] == [
+        "STEP_STARTED",
+        "STEP_FINISHED",
+    ]
+    verification_activities = [
+        event
+        for event in events
+        if event["type"] == "ACTIVITY_SNAPSHOT"
+        and event["activityType"] == "specialist-verification"
+    ]
+    assert [event["content"]["status"] for event in verification_activities] == [
+        "waiting",
+        "working",
+        "completed",
+    ]
     evidence_delta = next(
         event
         for event in events
@@ -489,6 +555,11 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
                 "remoteTaskId": "analysis-task-71",
                 "a2aContextId": "context-71",
             },
+            {
+                "agentId": "verifier",
+                "remoteTaskId": "verification-task-71",
+                "a2aContextId": "context-71",
+            },
         ],
     }
     with database.transaction() as repositories:
@@ -498,9 +569,12 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
         evidence = repositories.artifacts.list_evidence("coordinator-run-71")
         claims = repositories.artifacts.list_claims("coordinator-run-71")
         analyses = repositories.artifacts.list_analysis("coordinator-run-71")
+        verification_reports = repositories.artifacts.list_verification_reports(
+            "coordinator-run-71"
+        )
         tasks = repositories.agent_tasks.list_by_session("coordinator-run-71")
     assert session.status == "completed"
-    assert session.completed_steps == ["plan", "research", "analysis"]
+    assert session.completed_steps == ["plan", "research", "analysis", "verification"]
     assert run is not None and run.status == "completed"
     assert run.finished_at is not None
     fixture = load_research_fixture("postgresql-vs-mongodb-golden")
@@ -509,14 +583,18 @@ def test_browser_run_stays_open_until_durable_orchestration_boundary(
     assert len(claims) == len(fixture.evidence_bundle.claims)
     assert len(analyses) == 1
     assert analyses[0].analysis == fixture.decision_analysis
+    assert len(verification_reports) == 1
+    assert verification_reports[0].envelope.payload == fixture.verification_report
     assert [(task.agent_id, task.status) for task in tasks] == [
         ("analyst", "completed"),
         ("researcher", "completed"),
+        ("verifier", "completed"),
     ]
     assert [transition.to_status for transition in transitions] == [
         "planning",
         "researching",
         "analyzing",
+        "verifying",
         "completed",
     ]
 
@@ -558,8 +636,12 @@ def test_analysis_failure_finishes_partial_and_preserves_evidence(
     fixture = load_research_fixture("postgresql-vs-mongodb-partial")
     assert fixture.evidence_bundle is not None
     assert state.status == "partial"
-    assert state.evidence == fixture.evidence_bundle.evidence
-    assert state.claims == fixture.evidence_bundle.claims
+    assert {item.id: item for item in state.evidence} == {
+        item.id: item for item in fixture.evidence_bundle.evidence
+    }
+    assert {item.id: item for item in state.claims} == {
+        item.id: item for item in fixture.evidence_bundle.claims
+    }
     assert state.analysis is None
     assert state.verification is None
     assert [(agent.agent_id, agent.status) for agent in state.agents] == [
@@ -571,6 +653,79 @@ def test_analysis_failure_finishes_partial_and_preserves_evidence(
         analyses = repositories.artifacts.list_analysis("coordinator-run-71")
     assert run is not None and run.status == "partial"
     assert analyses == ()
+
+
+def test_verification_failure_preserves_successful_research_and_analysis(
+    database: Database,
+) -> None:
+    async def scenario() -> list[dict[str, Any]]:
+        orchestrator = BlockingOrchestrator(fail_verification=True)
+        orchestrator.release.set()
+        executor = OrchestrationCommandExecutor(
+            planner=RecordingPlanner(),
+            orchestrator=orchestrator,
+            persistence=WorkflowPersistenceService(database),
+            projector=DurableAgUiProjector(database),
+            clock=AdvancingClock(),
+        )
+        return [
+            _decode(item)
+            async for item in CoordinatorRunAdapter(executor=executor).stream(
+                _input(),
+                EventEncoder(accept="text/event-stream"),
+            )
+        ]
+
+    events = asyncio.run(scenario())
+
+    assert not any(event["type"] == "RUN_ERROR" for event in events)
+    assert events[-1]["type"] == "RUN_FINISHED"
+    assert events[-1]["result"]["status"] == "partial"
+    assert [
+        task["agentId"] for task in events[-1]["result"]["remoteTasks"]
+    ] == ["researcher", "analyst"]
+
+    snapshot_event = next(event for event in events if event["type"] == "STATE_SNAPSHOT")
+    state = AgentDeskViewState.model_validate(snapshot_event["snapshot"])
+    for event in events:
+        if event["type"] == "STATE_DELTA":
+            state = apply_projected_delta(state, event["delta"])
+    fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+    assert fixture.evidence_bundle is not None
+    assert fixture.decision_analysis is not None
+    assert state.status == "partial"
+    assert {item.id: item for item in state.evidence} == {
+        item.id: item for item in fixture.evidence_bundle.evidence
+    }
+    assert {item.id: item for item in state.claims} == {
+        item.id: item for item in fixture.evidence_bundle.claims
+    }
+    assert state.analysis == fixture.decision_analysis
+    assert state.verification is None
+    assert [(agent.agent_id, agent.status) for agent in state.agents] == [
+        ("analyst", "completed"),
+        ("researcher", "completed"),
+        ("verifier", "failed"),
+    ]
+
+    with database.transaction() as repositories:
+        run = repositories.runs.get("coordinator-run-71")
+        analyses = repositories.artifacts.list_analysis("coordinator-run-71")
+        verification_reports = repositories.artifacts.list_verification_reports(
+            "coordinator-run-71"
+        )
+        transitions = repositories.transitions.list_by_session("coordinator-run-71")
+    assert run is not None and run.status == "partial"
+    assert len(analyses) == 1
+    assert analyses[0].analysis == fixture.decision_analysis
+    assert verification_reports == ()
+    assert [transition.to_status for transition in transitions] == [
+        "planning",
+        "researching",
+        "analyzing",
+        "verifying",
+        "partial",
+    ]
 
 
 def test_browser_abort_cancels_remote_tasks_and_rehydrates_terminal_state(
@@ -832,5 +987,5 @@ def test_research_follow_ups_rerun_specialists_in_the_same_session(
     assert session.ag_ui_thread_id == "browser-thread-71"
     assert session.last_run_id == f"{action_type}-run-74"
     assert run is not None and run.status == "completed"
-    assert len(tasks) == 4
+    assert len(tasks) == 5
     assert len(analyses) == 2

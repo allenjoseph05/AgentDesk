@@ -266,3 +266,32 @@ sa.Index(
     recommendation_challenges.c.session_id,
     recommendation_challenges.c.created_at,
 )
+
+verification_reports = sa.Table(
+    "verification_reports",
+    metadata,
+    sa.Column("id", sa.String(255), primary_key=True),
+    sa.Column(
+        "session_id",
+        sa.String(255),
+        sa.ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    sa.Column(
+        "agent_task_id",
+        sa.String(255),
+        sa.ForeignKey("agent_tasks.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    ),
+    sa.Column("payload", sa.JSON(), nullable=False),
+    sa.Column("artifact_schema_version", sa.String(16), nullable=False),
+    sa.Column("producer_agent", sa.String(255), nullable=False),
+    sa.Column("remote_task_id", sa.String(255), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+)
+sa.Index(
+    "ix_verification_reports_session_created",
+    verification_reports.c.session_id,
+    verification_reports.c.created_at,
+)

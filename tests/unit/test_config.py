@@ -42,5 +42,6 @@ def test_example_environment_uses_runtime_registry_names() -> None:
 
     assert "RESEARCH_AGENT_URL=http://127.0.0.1:8005" in example
     assert "ANALYST_AGENT_URL=http://127.0.0.1:8006" in example
+    assert "VERIFIER_AGENT_URL=http://127.0.0.1:8007" in example
     assert "RESEARCHER_URL=" not in example
     assert "ANALYST_URL=" not in example

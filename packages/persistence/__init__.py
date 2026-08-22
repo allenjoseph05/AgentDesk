@@ -10,6 +10,7 @@ from packages.persistence.records import (
     RecommendationChallengeRecord,
     ResearchArtifactRecord,
     SessionRecord,
+    VerificationReportRecord,
     WorkflowTransitionRecord,
 )
 from packages.persistence.repositories import (
@@ -34,6 +35,7 @@ __all__ = [
     "RepositoryError",
     "RepositoryUnitOfWork",
     "SessionRecord",
+    "VerificationReportRecord",
     "WorkflowTransitionRecord",
     "create_database_engine",
     "metadata",

@@ -24,6 +24,7 @@ from packages.contracts.base import ContractModel, NonEmptyText
 
 DEFAULT_RESEARCH_AGENT_URL = "http://127.0.0.1:8005"
 DEFAULT_ANALYST_AGENT_URL = "http://127.0.0.1:8006"
+DEFAULT_VERIFIER_AGENT_URL = "http://127.0.0.1:8007"
 AGENT_ENDPOINTS_ENV = "AGENTDESK_AGENT_ENDPOINTS"
 REGISTRY_TIMEOUT_ENV = "AGENTDESK_REGISTRY_TIMEOUT_SECONDS"
 
@@ -106,6 +107,14 @@ class AgentRegistrySettings(ContractModel):
                         "agent_id": "analyst",
                         "base_url": source.get(
                             "ANALYST_AGENT_URL", DEFAULT_ANALYST_AGENT_URL
+                        ),
+                    }
+                ),
+                AgentEndpointConfig.model_validate(
+                    {
+                        "agent_id": "verifier",
+                        "base_url": source.get(
+                            "VERIFIER_AGENT_URL", DEFAULT_VERIFIER_AGENT_URL
                         ),
                     }
                 ),

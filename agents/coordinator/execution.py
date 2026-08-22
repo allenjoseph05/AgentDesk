@@ -37,6 +37,7 @@ from packages.contracts import (
     EvidenceBundle,
     RecommendationChallenge,
     ResearchRequest,
+    VerificationReport,
 )
 from packages.llm import llm_provider_from_environment
 from packages.persistence import AgentTaskRecord, Database, RepositoryError
@@ -73,6 +74,21 @@ class WorkflowRunner(Protocol):
             | None
         ) = None,
     ) -> WorkflowExecution: ...
+
+    async def verify(
+        self,
+        evidence_bundle: EvidenceBundle,
+        *,
+        on_verification_scheduled: (
+            Callable[[RegisteredAgent], Awaitable[None]] | None
+        ) = None,
+        on_remote_task_started: (
+            Callable[[RegisteredAgent, str], Awaitable[None]] | None
+        ) = None,
+        on_remote_task_finished: (
+            Callable[[RegisteredAgent, str], Awaitable[None]] | None
+        ) = None,
+    ) -> RemoteTaskResult[VerificationReport]: ...
 
     async def challenge(
         self,
@@ -201,6 +217,7 @@ class OrchestrationCommandExecutor:
         )
         initialized = False
         orchestration_task: asyncio.Task[WorkflowExecution] | None = None
+        verification_task: asyncio.Task[RemoteTaskResult[VerificationReport]] | None = None
         sequence = 0
         research_task_id: str | None = None
         analysis_task_id: str | None = None
@@ -208,6 +225,11 @@ class OrchestrationCommandExecutor:
         analysis_agent_id: str | None = None
         analysis_completed = False
         analysis_started = False
+        verification_task_id: str | None = None
+        verification_activity_id: str | None = None
+        verification_agent_id: str | None = None
+        verification_completed = False
+        verification_started = False
         try:
             self._persistence.initialize(
                 snapshot=machine.snapshot,
@@ -477,6 +499,98 @@ class OrchestrationCommandExecutor:
                     CoordinatorStepUpdate(step_name="analysis", status="finished")
                 )
 
+            async def verification_scheduled(agent: RegisteredAgent) -> None:
+                nonlocal sequence
+                nonlocal verification_activity_id, verification_agent_id
+                nonlocal verification_task_id
+                if machine.snapshot.status in TERMINAL_STATUSES | {"cancelling"}:
+                    return
+                if not analysis_completed or machine.snapshot.status != "analyzing":
+                    raise RuntimeError(
+                        "Verification cannot start before accepted decision analysis."
+                    )
+                verification_agent_id = agent.agent_id
+                verification_task_id = _agent_task_id(
+                    command.correlation.session_id,
+                    command.correlation.run_id,
+                    "verification",
+                )
+                verification_activity_id = f"verification:{verification_task_id}"
+                self._persistence.create_agent_task(
+                    AgentTaskRecord(
+                        id=verification_task_id,
+                        session_id=command.correlation.session_id,
+                        run_id=command.correlation.run_id,
+                        agent_id=agent.agent_id,
+                        skill="fact-verification",
+                        started_at=machine.snapshot.updated_at,
+                    )
+                )
+                machine.transition(
+                    "verifying",
+                    active_step="verification",
+                    completed_steps=["analysis"],
+                )
+                sequence += 1
+                await updates.put(
+                    CoordinatorStateUpdate(
+                        self._projector.snapshot(command.correlation.session_id),
+                        sequence=sequence,
+                    )
+                )
+                await updates.put(
+                    CoordinatorActivityUpdate(
+                        message_id=verification_activity_id,
+                        activity_type="specialist-verification",
+                        agent_id=agent.agent_id,
+                        status="waiting",
+                        summary="Verification specialist is waiting to start.",
+                    )
+                )
+
+            async def verification_remote_task_started(
+                agent: RegisteredAgent,
+                remote_task_id: str,
+            ) -> None:
+                nonlocal sequence, verification_started
+                await cancellation.register(agent, remote_task_id)
+                if verification_task_id is None:
+                    return
+                self._persistence.register_remote_task(
+                    verification_task_id,
+                    remote_task_id=remote_task_id,
+                )
+                if machine.snapshot.status in TERMINAL_STATUSES | {"cancelling"}:
+                    return
+                assert verification_activity_id is not None
+                verification_started = True
+                sequence += 1
+                await updates.put(
+                    CoordinatorStepUpdate(step_name="verification", status="started")
+                )
+                await updates.put(
+                    CoordinatorActivityUpdate(
+                        message_id=verification_activity_id,
+                        activity_type="specialist-verification",
+                        agent_id=agent.agent_id,
+                        status="working",
+                        summary="Verification specialist is checking every claim.",
+                    )
+                )
+                await updates.put(
+                    CoordinatorStateUpdate(
+                        self._projector.snapshot(command.correlation.session_id),
+                        sequence=sequence,
+                    )
+                )
+
+            async def verification_remote_task_finished(
+                agent: RegisteredAgent,
+                remote_task_id: str,
+            ) -> None:
+                del agent
+                await cancellation.complete(remote_task_id)
+
             orchestration_task = asyncio.create_task(
                 self._orchestrator.execute(
                     command.request,
@@ -496,7 +610,95 @@ class OrchestrationCommandExecutor:
                     active_step="analysis",
                     completed_steps=["research"],
                 )
-            machine.transition("completed", completed_steps=["analysis"])
+            verification_task = asyncio.create_task(
+                self._orchestrator.verify(
+                    execution.research.artifact.payload,
+                    on_verification_scheduled=verification_scheduled,
+                    on_remote_task_started=verification_remote_task_started,
+                    on_remote_task_finished=verification_remote_task_finished,
+                )
+            )
+            async for update in _queued_updates(verification_task, updates):
+                yield update
+            try:
+                verification_result = await verification_task
+            except Exception as error:
+                if verification_task_id is not None:
+                    self._persistence.finish_agent_task(
+                        verification_task_id,
+                        status="failed",
+                        finished_at=self._clock(),
+                        error_code=_failure_code(error),
+                        error_message=_safe_failure_message(error),
+                    )
+                if machine.snapshot.status == "analyzing":
+                    machine.transition(
+                        "partial",
+                        completed_steps=["analysis"],
+                        failed_steps=["verification"],
+                        reason="Verification did not complete after successful analysis.",
+                    )
+                elif machine.snapshot.status == "verifying":
+                    machine.transition(
+                        "partial",
+                        failed_steps=["verification"],
+                        reason="Verification did not complete after successful analysis.",
+                    )
+                self._persistence.finish_run(
+                    command.correlation.run_id,
+                    status="partial",
+                    finished_at=machine.snapshot.updated_at,
+                )
+                sequence += 1
+                yield CoordinatorStateUpdate(
+                    self._projector.snapshot(command.correlation.session_id),
+                    sequence=sequence,
+                )
+                if verification_activity_id is not None:
+                    yield CoordinatorActivityUpdate(
+                        message_id=verification_activity_id,
+                        activity_type="specialist-verification",
+                        agent_id=verification_agent_id or "verifier",
+                        status="failed",
+                        summary="Claim verification did not complete.",
+                    )
+                if verification_started:
+                    yield CoordinatorStepUpdate(
+                        step_name="verification",
+                        status="finished",
+                    )
+                yield CoordinatorRunOutcome(
+                    status="partial",
+                    message=(
+                        "Research and analysis remain available, but verification "
+                        "did not complete."
+                    ),
+                    remote_tasks=(
+                        _remote_correlation(execution.research),
+                        _remote_correlation(execution.analysis),
+                    ),
+                )
+                return
+
+            if verification_task_id is None:
+                raise RuntimeError("Verification completed without a durable task.")
+            self._persistence.register_remote_task(
+                verification_task_id,
+                remote_task_id=verification_result.remote_task_id,
+                a2a_context_id=verification_result.remote_context_id,
+            )
+            self._persistence.persist_verification_report(
+                command.correlation.session_id,
+                verification_task_id,
+                verification_result.artifact,
+            )
+            self._persistence.finish_agent_task(
+                verification_task_id,
+                status="completed",
+                finished_at=self._clock(),
+            )
+            verification_completed = True
+            machine.transition("completed", completed_steps=["verification"])
             self._persistence.finish_run(
                 command.correlation.run_id,
                 status="completed",
@@ -507,6 +709,15 @@ class OrchestrationCommandExecutor:
                 self._projector.snapshot(command.correlation.session_id),
                 sequence=sequence,
             )
+            assert verification_activity_id is not None
+            yield CoordinatorActivityUpdate(
+                message_id=verification_activity_id,
+                activity_type="specialist-verification",
+                agent_id=verification_agent_id or "verifier",
+                status="completed",
+                summary="Claim verification was accepted.",
+            )
+            yield CoordinatorStepUpdate(step_name="verification", status="finished")
         except asyncio.CancelledError:
             if initialized and machine.snapshot.status not in TERMINAL_STATUSES:
                 await cancellation.cancel("The browser cancelled the Coordinator run.")
@@ -524,6 +735,10 @@ class OrchestrationCommandExecutor:
                 orchestration_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await orchestration_task
+            if verification_task is not None and not verification_task.done():
+                verification_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await verification_task
             raise
         except Exception as error:
             terminal_status = "failed"
@@ -540,12 +755,55 @@ class OrchestrationCommandExecutor:
                         error_code=_failure_code(error),
                         error_message=_safe_failure_message(error),
                     )
+                if (
+                    verification_task_id is not None
+                    and machine.snapshot.status == "verifying"
+                    and not verification_completed
+                ):
+                    self._persistence.finish_agent_task(
+                        verification_task_id,
+                        status="failed",
+                        finished_at=self._clock(),
+                        error_code=_failure_code(error),
+                        error_message=_safe_failure_message(error),
+                    )
                 terminal_status = self._fail_run(command, machine)
                 sequence += 1
                 yield CoordinatorStateUpdate(
                     self._projector.snapshot(command.correlation.session_id),
                     sequence=sequence,
                 )
+                if (
+                    terminal_status == "partial"
+                    and verification_task_id is not None
+                    and analysis_completed
+                    and not verification_completed
+                ):
+                    if verification_activity_id is not None:
+                        yield CoordinatorActivityUpdate(
+                            message_id=verification_activity_id,
+                            activity_type="specialist-verification",
+                            agent_id=verification_agent_id or "verifier",
+                            status="failed",
+                            summary="Claim verification did not complete.",
+                        )
+                    if verification_started:
+                        yield CoordinatorStepUpdate(
+                            step_name="verification",
+                            status="finished",
+                        )
+                    yield CoordinatorRunOutcome(
+                        status="partial",
+                        message=(
+                            "Research and analysis remain available, but verification "
+                            "did not complete."
+                        ),
+                        remote_tasks=(
+                            _remote_correlation(execution.research),
+                            _remote_correlation(execution.analysis),
+                        ),
+                    )
+                    return
                 if terminal_status == "partial" and analysis_activity_id is not None:
                     yield CoordinatorActivityUpdate(
                         message_id=analysis_activity_id,
@@ -576,10 +834,11 @@ class OrchestrationCommandExecutor:
 
         yield CoordinatorRunOutcome(
             status="completed",
-            message="Research and analysis completed.",
+            message="Research, analysis, and verification completed.",
             remote_tasks=(
                 _remote_correlation(execution.research),
                 _remote_correlation(execution.analysis),
+                _remote_correlation(verification_result),
             ),
         )
 
@@ -907,6 +1166,16 @@ class OrchestrationCommandExecutor:
                     failed_steps=["analysis"],
                     reason="Analysis did not complete after successful research.",
                 )
+            elif (
+                machine.snapshot.status == "verifying"
+                and "analysis" in machine.snapshot.completed_steps
+            ):
+                terminal_status = "partial"
+                machine.transition(
+                    "partial",
+                    failed_steps=["verification"],
+                    reason="Verification did not complete after successful analysis.",
+                )
             else:
                 active_step = machine.snapshot.active_step
                 machine.transition(
@@ -949,8 +1218,8 @@ def create_orchestration_executor(
     )
 
 
-async def _queued_updates(
-    orchestration_task: asyncio.Task[WorkflowExecution],
+async def _queued_updates[ResultT](
+    orchestration_task: asyncio.Task[ResultT],
     updates: asyncio.Queue[CoordinatorRunUpdate],
 ) -> AsyncIterator[CoordinatorRunUpdate]:
     while not orchestration_task.done() or not updates.empty():
@@ -982,7 +1251,8 @@ def _agent_task_id(session_id: str, run_id: str, step_id: str) -> str:
 def _remote_correlation(
     result: RemoteTaskResult[EvidenceBundle]
     | RemoteTaskResult[DecisionAnalysis]
-    | RemoteTaskResult[RecommendationChallenge],
+    | RemoteTaskResult[RecommendationChallenge]
+    | RemoteTaskResult[VerificationReport],
 ) -> RemoteTaskCorrelation:
     return RemoteTaskCorrelation(
         agent_id=result.agent_id,

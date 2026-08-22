@@ -13,6 +13,7 @@ from packages.contracts import (
     DecisionAnalysis,
     EvidenceBundle,
     RecommendationChallenge,
+    VerificationReport,
 )
 from packages.persistence import (
     AgentTaskRecord,
@@ -25,6 +26,7 @@ from packages.persistence import (
     RepositoryConflictError,
     ResearchArtifactRecord,
     SessionRecord,
+    VerificationReportRecord,
     WorkflowTransitionRecord,
 )
 
@@ -451,6 +453,33 @@ class WorkflowPersistenceService:
                 )
             )
 
+    def persist_verification_report(
+        self,
+        session_id: str,
+        task_id: str,
+        envelope: ArtifactEnvelope[VerificationReport],
+    ) -> bool:
+        with self._database.transaction() as repositories:
+            task = repositories.agent_tasks.require(task_id)
+            _validate_provenance(session_id, task, envelope)
+            claim_ids = {
+                record.claim.id
+                for record in repositories.artifacts.list_claims(session_id)
+            }
+            evidence_ids = {
+                record.evidence.id
+                for record in repositories.artifacts.list_evidence(session_id)
+            }
+            _validate_verification_report(envelope.payload, claim_ids, evidence_ids)
+            return repositories.artifacts.put_verification_report(
+                VerificationReportRecord(
+                    id=_artifact_row_id(session_id, "verification-report", task_id),
+                    session_id=session_id,
+                    agent_task_id=task_id,
+                    envelope=envelope,
+                )
+            )
+
 
 def _session_record(
     snapshot: WorkflowSnapshot,
@@ -517,6 +546,35 @@ def _validate_provenance(
         raise ArtifactProvenanceError("Artifact remote task identity does not match.")
     if provenance.producer_agent != task.agent_id:
         raise ArtifactProvenanceError("Artifact producer does not match its agent task.")
+
+
+def _validate_verification_report(
+    report: VerificationReport,
+    claim_ids: set[str],
+    evidence_ids: set[str],
+) -> None:
+    result_claim_ids = [result.claim_id for result in report.results]
+    if len(result_claim_ids) != len(set(result_claim_ids)):
+        raise WorkflowPersistenceError(
+            "Verification report repeats a claim verdict."
+        )
+    if set(result_claim_ids) != claim_ids:
+        raise WorkflowPersistenceError(
+            "Verification report must cover every durable claim exactly once."
+        )
+    for result in report.results:
+        if not result.evidence_ids:
+            raise WorkflowPersistenceError(
+                f"Verification result for {result.claim_id} has no evidence reference."
+            )
+        if len(result.evidence_ids) != len(set(result.evidence_ids)):
+            raise WorkflowPersistenceError(
+                f"Verification result for {result.claim_id} repeats evidence references."
+            )
+        if unknown := set(result.evidence_ids) - evidence_ids:
+            raise WorkflowPersistenceError(
+                f"Verification report references unknown evidence: {sorted(unknown)}"
+            )
 
 
 def _artifact_row_id(session_id: str, kind: str, identity: str) -> str:

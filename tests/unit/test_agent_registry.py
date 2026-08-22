@@ -78,6 +78,17 @@ def test_environment_configuration_controls_agent_base_urls_and_timeout() -> Non
     assert settings.request_timeout_seconds == 2.5
 
 
+def test_default_configuration_includes_the_verifier_service() -> None:
+    settings = AgentRegistrySettings.from_environment({})
+
+    assert [endpoint.agent_id for endpoint in settings.endpoints] == [
+        "researcher",
+        "analyst",
+        "verifier",
+    ]
+    assert settings.endpoints[-1].normalized_url == "http://127.0.0.1:8007"
+
+
 @pytest.mark.parametrize(
     "environment",
     [

@@ -17,6 +17,7 @@ from packages.contracts import (
     EvidenceBundle,
     RecommendationChallenge,
     ResearchRequest,
+    VerificationReport,
 )
 
 
@@ -62,6 +63,7 @@ AnalysisCompletedHandler = Callable[
     [RegisteredAgent, RemoteTaskResult[DecisionAnalysis]],
     Awaitable[None],
 ]
+VerificationScheduledHandler = Callable[[RegisteredAgent], Awaitable[None]]
 
 
 class WorkflowOrchestrator:
@@ -150,6 +152,31 @@ class WorkflowOrchestrator:
             request=request,
             artifact_name="recommendation-challenge",
             payload_model=RecommendationChallenge,
+            on_remote_task_started=on_remote_task_started,
+            on_remote_task_finished=on_remote_task_finished,
+        )
+
+    async def verify(
+        self,
+        evidence_bundle: EvidenceBundle,
+        *,
+        on_verification_scheduled: VerificationScheduledHandler | None = None,
+        on_remote_task_started: RemoteTaskLifecycleHandler | None = None,
+        on_remote_task_finished: RemoteTaskLifecycleHandler | None = None,
+    ) -> RemoteTaskResult[VerificationReport]:
+        """Run fact verification after accepted Research and Analysis artifacts."""
+        agent = self._registry.first_by_skill("fact-verification")
+        if agent is None:
+            raise OrchestrationPlanError(
+                "No healthy provider advertises fact-verification."
+            )
+        if on_verification_scheduled is not None:
+            await on_verification_scheduled(agent)
+        return await self._execute_remote(
+            agent=agent,
+            request=evidence_bundle,
+            artifact_name="verification-report",
+            payload_model=VerificationReport,
             on_remote_task_started=on_remote_task_started,
             on_remote_task_finished=on_remote_task_finished,
         )

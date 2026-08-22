@@ -13,6 +13,7 @@ from packages.contracts import (
     Evidence,
     EvidenceBundle,
     RecommendationChallenge,
+    VerificationReport,
 )
 from packages.contracts.base import ContractModel, NonEmptyText
 
@@ -177,3 +178,10 @@ class RecommendationChallengeRecord(ContractModel):
     session_id: NonEmptyText
     agent_task_id: NonEmptyText
     envelope: ArtifactEnvelope[RecommendationChallenge]
+
+
+class VerificationReportRecord(ContractModel):
+    id: NonEmptyText
+    session_id: NonEmptyText
+    agent_task_id: NonEmptyText
+    envelope: ArtifactEnvelope[VerificationReport]

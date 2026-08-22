@@ -374,6 +374,75 @@ def test_bundle_level_research_context_is_durable(database: Database) -> None:
     assert stored.envelope.provenance == envelope.provenance
 
 
+def test_verification_report_replay_is_exactly_once(database: Database) -> None:
+    fixture = load_research_fixture("postgresql-vs-mongodb-golden")
+    assert fixture.evidence_bundle is not None
+    assert fixture.verification_report is not None
+    service, machine = _initialized_service(database)
+    service.create_agent_task(
+        _task(
+            "researcher",
+            "research-task",
+            skill="web-research",
+            started_at=machine.snapshot.updated_at,
+        )
+    )
+    service.register_remote_task("research-task", remote_task_id="remote-research")
+    service.persist_evidence(
+        "session-1",
+        "research-task",
+        ArtifactEnvelope(
+            provenance=ArtifactProvenance(
+                producer_agent="researcher",
+                remote_task_id="remote-research",
+                created_at=machine.snapshot.updated_at,
+            ),
+            payload=fixture.evidence_bundle,
+        ),
+    )
+    service.create_agent_task(
+        _task(
+            "verifier",
+            "verification-task",
+            skill="fact-verification",
+            started_at=machine.snapshot.updated_at,
+        )
+    )
+    service.register_remote_task(
+        "verification-task",
+        remote_task_id="remote-verification",
+    )
+    envelope = ArtifactEnvelope(
+        provenance=ArtifactProvenance(
+            producer_agent="verifier",
+            remote_task_id="remote-verification",
+            created_at=machine.snapshot.updated_at,
+        ),
+        payload=fixture.verification_report,
+    )
+
+    assert service.persist_verification_report(
+        "session-1", "verification-task", envelope
+    )
+    assert not service.persist_verification_report(
+        "session-1", "verification-task", envelope
+    )
+
+    conflicting_report = fixture.verification_report.model_copy(deep=True)
+    conflicting_report.results[0].rationale = "Conflicting replay rationale."
+    with pytest.raises(RepositoryConflictError):
+        service.persist_verification_report(
+            "session-1",
+            "verification-task",
+            envelope.model_copy(update={"payload": conflicting_report}),
+        )
+
+    with database.transaction() as repositories:
+        stored = repositories.artifacts.list_verification_reports("session-1")
+    assert len(stored) == 1
+    assert stored[0].envelope == envelope
+
+
 def test_artifact_provenance_must_match_durable_task(database: Database) -> None:
     fixture = load_research_fixture("postgresql-vs-mongodb-golden")
     assert fixture.evidence_bundle is not None
