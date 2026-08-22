@@ -53,6 +53,8 @@ jobs:
         run: npm run lint:web
       - name: Frontend type checking
         run: npm run typecheck:web
+      - name: Frontend catalog and schema contracts
+        run: npm run test:contracts --workspace @agentdesk/web
       - name: Frontend tests
         run: npm run test:web
       - name: Frontend build

@@ -12,16 +12,16 @@ import {
   selectWarnings,
 } from "../agui/selectors";
 import { useAgentDeskSelector } from "../agui/store-react";
-import { ActionControls } from "../components/ActionControls";
-import { ActivityTimeline } from "../components/ActivityTimeline";
-import { ResearchResults } from "../components/ResearchResults";
-import { ResearchStatusPanel } from "../components/ResearchStatusPanel";
+import { agentDeskComponentCatalog } from "../components/catalog";
 import { useAgentDeskRuntime } from "./AgentDeskRuntime";
 
 const QUICK_STARTS = [
   "Compare PostgreSQL and MongoDB for our product",
   "Research the best deployment path for this application",
 ] as const;
+
+const { ActionControls, ActivityTimeline, ResearchResults, ResearchStatusPanel } =
+  agentDeskComponentCatalog;
 
 const STATUS_LABELS = {
   idle: "Ready",
@@ -142,14 +142,17 @@ export function AgentDeskWorkspace() {
             </button>
           </div>
           {!hasSession && (
-            <div className="quick-starts" aria-label="Example research questions">
+            <section
+              className="quick-starts"
+              aria-label="Example research questions"
+            >
               <span>Try asking</span>
               {QUICK_STARTS.map((suggestion) => (
                 <button key={suggestion} type="button" onClick={() => setQuestion(suggestion)}>
                   {suggestion}
                 </button>
               ))}
-            </div>
+            </section>
           )}
         </form>
 
@@ -211,7 +214,10 @@ export function AgentDeskWorkspace() {
                 Submit a research question to see planning, specialist activity, evidence,
                 and analysis in one focused surface.
               </p>
-              <div className="capability-row" aria-label="Workspace capabilities">
+              <section
+                className="capability-row"
+                aria-label="Workspace capabilities"
+              >
                 <span>Plan</span>
                 <i aria-hidden="true" />
                 <span>Research</span>
@@ -219,7 +225,7 @@ export function AgentDeskWorkspace() {
                 <span>Analyze</span>
                 <i aria-hidden="true" />
                 <span>Verify</span>
-              </div>
+              </section>
             </div>
           )}
           <ActivityTimeline agents={agents} items={runtime.timeline} />
