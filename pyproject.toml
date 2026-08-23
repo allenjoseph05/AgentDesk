@@ -47,6 +47,7 @@ testpaths = ["tests"]
 xfail_strict = true
 markers = [
     "a2a_contract: exercises Agent Cards and official A2A task, stream, context, and cancellation boundaries",
+    "agui_contract: exercises official AG-UI encoding, lifecycle, state, action, cancellation, and recovery boundaries",
 ]
 
 [tool.mypy]

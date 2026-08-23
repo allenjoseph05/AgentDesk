@@ -1,0 +1,17 @@
+data: {"type":"RUN_STARTED","threadId":"thread-python-contract","runId":"run-python-contract"}
+
+data: {"type":"STEP_STARTED","stepName":"plan"}
+
+data: {"type":"STATE_SNAPSHOT","snapshot":{"schemaVersion":"1.0","sessionId":"run-python-contract","question":"PostgreSQL or MongoDB?","status":"planning","activeStep":"plan","agents":[],"evidence":[],"evidenceCount":0,"claims":[],"analysis":null,"recommendationChallenge":null,"verification":null,"warnings":[],"errors":[],"availableActions":[],"lastUpdatedAt":"2026-08-23T09:00:00Z"}}
+
+data: {"type":"STATE_DELTA","delta":[{"op":"replace","path":"/status","value":"partial"},{"op":"replace","path":"/activeStep","value":null},{"op":"replace","path":"/warnings","value":["Verifier unavailable; partial result retained."]},{"op":"replace","path":"/lastUpdatedAt","value":"2026-08-23T09:00:01Z"}]}
+
+data: {"type":"TEXT_MESSAGE_START","messageId":"assistant-python-contract","role":"assistant"}
+
+data: {"type":"TEXT_MESSAGE_CONTENT","messageId":"assistant-python-contract","delta":"Partial result retained."}
+
+data: {"type":"TEXT_MESSAGE_END","messageId":"assistant-python-contract"}
+
+data: {"type":"STEP_FINISHED","stepName":"plan"}
+
+data: {"type":"RUN_FINISHED","threadId":"thread-python-contract","runId":"run-python-contract","result":{"status":"partial"}}

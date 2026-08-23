@@ -1,0 +1,45 @@
+{
+  "cases": [
+    {
+      "caseId": "missing-run-start",
+      "error": "First event must be 'RUN_STARTED'",
+      "events": [
+        { "type": "STATE_SNAPSHOT", "snapshot": { "schemaVersion": "1.0" } }
+      ]
+    },
+    {
+      "caseId": "text-content-without-start",
+      "error": "No active text message found",
+      "events": [
+        { "type": "RUN_STARTED", "threadId": "thread-malformed", "runId": "run-malformed" },
+        { "type": "TEXT_MESSAGE_CONTENT", "messageId": "missing-message", "delta": "unsafe" }
+      ]
+    },
+    {
+      "caseId": "step-finish-without-start",
+      "error": "was not started",
+      "events": [
+        { "type": "RUN_STARTED", "threadId": "thread-malformed", "runId": "run-malformed" },
+        { "type": "STEP_FINISHED", "stepName": "missing-step" }
+      ]
+    },
+    {
+      "caseId": "event-after-run-error",
+      "error": "already errored",
+      "events": [
+        { "type": "RUN_STARTED", "threadId": "thread-malformed", "runId": "run-malformed" },
+        { "type": "RUN_ERROR", "message": "safe failure", "code": "fixture_failure" },
+        { "type": "RUN_FINISHED", "threadId": "thread-malformed", "runId": "run-malformed" }
+      ]
+    },
+    {
+      "caseId": "event-after-run-finished",
+      "error": "already finished",
+      "events": [
+        { "type": "RUN_STARTED", "threadId": "thread-malformed", "runId": "run-malformed" },
+        { "type": "RUN_FINISHED", "threadId": "thread-malformed", "runId": "run-malformed" },
+        { "type": "STATE_DELTA", "delta": [{ "op": "replace", "path": "/status", "value": "completed" }] }
+      ]
+    }
+  ]
+}

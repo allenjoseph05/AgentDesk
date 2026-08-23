@@ -25,7 +25,7 @@ from agents.coordinator.agui import stream_run_events
 from agents.hello.executor import HelloAgentExecutor
 from agents.hello.main import create_app as create_hello_app
 
-pytestmark = pytest.mark.a2a_contract
+pytestmark = [pytest.mark.a2a_contract, pytest.mark.agui_contract]
 
 
 def _available_port() -> int:

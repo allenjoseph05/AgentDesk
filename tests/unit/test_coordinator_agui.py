@@ -19,6 +19,8 @@ from agents.coordinator.run_adapter import (
     CoordinatorRunUpdate,
 )
 
+pytestmark = pytest.mark.agui_contract
+
 
 class CompletingExecutor:
     async def execute(self, command: CoordinatorCommand) -> AsyncIterator[CoordinatorRunUpdate]:

@@ -31,6 +31,8 @@ test("frontend scripts and CI retain lint, type, catalog, schema, and test gates
   assert.match(packageJson.scripts.test, /node --test test\/\*\.test\.mjs/u);
   assert.match(packageJson.scripts["test:contracts"], /agui-contract-fixtures\.test\.mjs/u);
   assert.match(packageJson.scripts["test:contracts"], /component-catalog\.test\.mjs/u);
+  assert.match(packageJson.scripts["test:agui"], /agui-python-interop\.test\.mjs/u);
+  assert.match(workflow, /run: npm run test:agui/u);
   assert.match(workflow, /run: npm run lint:web/u);
   assert.match(workflow, /run: npm run typecheck:web/u);
   assert.match(workflow, /run: npm run test:contracts --workspace @agentdesk\/web/u);

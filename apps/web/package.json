@@ -12,6 +12,7 @@
     "lint": "biome lint --error-on-warnings src test vite.config.ts",
     "typecheck": "tsc --noEmit --pretty false",
     "test:contracts": "node --test test/agui-contract-fixtures.test.mjs test/component-catalog.test.mjs test/frontend-pipeline.test.mjs",
+    "test:agui": "node --test test/agui-contract-fixtures.test.mjs test/agui-client.test.mjs test/agui-python-interop.test.mjs test/agui-store.test.mjs",
     "test": "node --test test/*.test.mjs && npm run typecheck"
   },
   "dependencies": {
