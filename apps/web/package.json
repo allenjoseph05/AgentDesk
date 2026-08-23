@@ -9,10 +9,11 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
-    "lint": "biome lint --error-on-warnings src test vite.config.ts",
-    "typecheck": "tsc --noEmit --pretty false",
+    "lint": "biome lint --error-on-warnings src test e2e playwright.config.ts vite.config.ts",
+    "typecheck": "tsc --noEmit --pretty false && tsc --noEmit --pretty false -p tsconfig.e2e.json",
     "test:contracts": "node --test test/agui-contract-fixtures.test.mjs test/component-catalog.test.mjs test/frontend-pipeline.test.mjs",
     "test:agui": "node --test test/agui-contract-fixtures.test.mjs test/agui-client.test.mjs test/agui-python-interop.test.mjs test/agui-store.test.mjs",
+    "test:e2e": "playwright test",
     "test": "node --test test/*.test.mjs && npm run typecheck"
   },
   "dependencies": {
@@ -24,6 +25,8 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.10",
+    "@playwright/test": "1.62.1",
+    "@types/node": "26.2.0",
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "6.0.5",

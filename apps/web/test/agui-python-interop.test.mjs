@@ -6,7 +6,10 @@ import { createCoordinatorAgent, runResearch } from "../src/agui/client.ts";
 import { AgentDeskStateStore } from "../src/agui/store.ts";
 
 const fixtureRoot = new URL("../../../fixtures/agui/", import.meta.url);
-const pythonStream = readFileSync(new URL("official-python-stream.sse", fixtureRoot), "utf8");
+const pythonStream = readFileSync(
+  new URL("official-python-stream.sse", fixtureRoot),
+  "utf8",
+).replaceAll("\r\n", "\n");
 const malformedFixture = JSON.parse(
   readFileSync(new URL("malformed-events.json", fixtureRoot), "utf8"),
 );
