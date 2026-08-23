@@ -1,4 +1,204 @@
-# The runnable multi-service stack is introduced in AD-110 after service boundaries exist.
 name: agentdesk
-services: {}
 
+x-python-service: &python-service
+  build:
+    context: ..
+    dockerfile: Dockerfile
+  init: true
+  restart: unless-stopped
+
+x-specialist-healthcheck: &specialist-healthcheck
+  interval: 5s
+  timeout: 3s
+  retries: 12
+  start_period: 10s
+
+services:
+  postgres:
+    image: postgres:17.6-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-agentdesk}
+      POSTGRES_USER: ${POSTGRES_USER:-agentdesk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentdesk}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  migrate:
+    <<: *python-service
+    restart: "no"
+    command: ["python", "-m", "alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-agentdesk}:${POSTGRES_PASSWORD:-agentdesk}@postgres:5432/${POSTGRES_DB:-agentdesk}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  researcher:
+    <<: *python-service
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "agents.researcher.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8005",
+      ]
+    environment:
+      AGENTDESK_AUTH_MODE: ${AGENTDESK_AUTH_MODE:-local}
+      AGENTDESK_SERVICE_TOKEN: ${AGENTDESK_SERVICE_TOKEN:-}
+      RESEARCH_AGENT_URL: http://researcher:8005
+    ports:
+      - "127.0.0.1:${AGENTDESK_RESEARCHER_PORT:-8005}:8005"
+    healthcheck:
+      <<: *specialist-healthcheck
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8005/ready', timeout=2).read()",
+        ]
+
+  analyst:
+    <<: *python-service
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "agents.analyst.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8006",
+      ]
+    environment:
+      AGENTDESK_AUTH_MODE: ${AGENTDESK_AUTH_MODE:-local}
+      AGENTDESK_SERVICE_TOKEN: ${AGENTDESK_SERVICE_TOKEN:-}
+      ANALYST_AGENT_URL: http://analyst:8006
+    ports:
+      - "127.0.0.1:${AGENTDESK_ANALYST_PORT:-8006}:8006"
+    healthcheck:
+      <<: *specialist-healthcheck
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8006/ready', timeout=2).read()",
+        ]
+
+  verifier:
+    <<: *python-service
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "agents.verifier.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8007",
+      ]
+    environment:
+      AGENTDESK_AUTH_MODE: ${AGENTDESK_AUTH_MODE:-local}
+      AGENTDESK_SERVICE_TOKEN: ${AGENTDESK_SERVICE_TOKEN:-}
+      VERIFIER_AGENT_URL: http://verifier:8007
+    ports:
+      - "127.0.0.1:${AGENTDESK_VERIFIER_PORT:-8007}:8007"
+    healthcheck:
+      <<: *specialist-healthcheck
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8007/ready', timeout=2).read()",
+        ]
+
+  coordinator:
+    <<: *python-service
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "agents.coordinator.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
+    environment:
+      AGENTDESK_AUTH_MODE: ${AGENTDESK_AUTH_MODE:-local}
+      AGENTDESK_BROWSER_TOKEN: ${AGENTDESK_BROWSER_TOKEN:-}
+      AGENTDESK_SERVICE_TOKEN: ${AGENTDESK_SERVICE_TOKEN:-}
+      AGENTDESK_COORDINATOR_MODEL: ${AGENTDESK_COORDINATOR_MODEL:-}
+      ANALYST_AGENT_URL: http://analyst:8006
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-agentdesk}:${POSTGRES_PASSWORD:-agentdesk}@postgres:5432/${POSTGRES_DB:-agentdesk}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      RESEARCH_AGENT_URL: http://researcher:8005
+      VERIFIER_AGENT_URL: http://verifier:8007
+    ports:
+      - "127.0.0.1:${AGENTDESK_COORDINATOR_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      researcher:
+        condition: service_healthy
+      analyst:
+        condition: service_healthy
+      verifier:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import json, urllib.request; data = json.load(urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)); assert data['status'] == 'ready' and data['registered_agents'] == 3",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    init: true
+    restart: unless-stopped
+    environment:
+      AGENTDESK_COORDINATOR_URL: http://coordinator:8000
+    ports:
+      - "127.0.0.1:${AGENTDESK_WEB_PORT:-5173}:5173"
+    depends_on:
+      coordinator:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5173').then(response => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  postgres-data:
