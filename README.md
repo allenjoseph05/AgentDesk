@@ -38,6 +38,20 @@ The services are available at:
 
 Run either side independently with `npm run dev:api` or `npm run dev:web`.
 
+### Docker Compose stack
+
+Start the complete local stack from the repository root:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up --build
+```
+
+Compose starts PostgreSQL, applies migrations, waits for the Researcher, Analyst, and Verifier
+readiness endpoints, starts the Coordinator after it can discover all three specialists, and then
+starts the web app. Open `http://localhost:5173`. Stop the stack with `docker compose down`; add
+`--volumes` only when you intentionally want to remove the local PostgreSQL data volume.
+
 ## Validation
 
 ```powershell
