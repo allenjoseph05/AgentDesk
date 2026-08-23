@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import pytest
 from a2a.client import ClientConfig, ClientFactory
 from a2a.helpers.proto_helpers import get_message_text, new_text_message
 from a2a.types import CancelTaskRequest, Role, SendMessageRequest, Task, TaskState
@@ -27,6 +28,8 @@ from packages.contracts import (
     RecommendationChallenge,
 )
 from packages.testing import load_research_fixture
+
+pytestmark = pytest.mark.a2a_contract
 
 ROOT = Path(__file__).resolve().parents[2]
 

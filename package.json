@@ -28,6 +28,7 @@
     "typecheck:web": "npm run typecheck --workspace @agentdesk/web",
     "typecheck": "npm run typecheck:python && npm run typecheck:web",
     "test:python": "python scripts/run_python.py -m pytest",
+    "test:a2a": "python scripts/run_python.py -m pytest -m a2a_contract",
     "test:web": "npm test --workspace @agentdesk/web",
     "test": "npm run test:python && npm run test:web",
     "build": "npm run build --workspace @agentdesk/web"

@@ -11,8 +11,10 @@ import time
 from pathlib import Path
 
 import httpx
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+pytestmark = pytest.mark.a2a_contract
 
 
 def _available_port() -> int:

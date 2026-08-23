@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import httpx
+import pytest
 from a2a.client import ClientConfig, ClientFactory
 from a2a.helpers.proto_helpers import new_text_message
 from a2a.types import CancelTaskRequest, Role, SendMessageRequest, Task, TaskState
@@ -21,6 +22,7 @@ from a2a.utils.constants import TransportProtocol
 
 from agents.hello.stream_client import project_event
 
+pytestmark = pytest.mark.a2a_contract
 ROOT = Path(__file__).resolve().parents[2]
 STREAM_FIXTURE = ROOT / "tests" / "fixtures" / "a2a" / "hello_task_stream.json"
 

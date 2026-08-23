@@ -1,5 +1,6 @@
 from importlib.metadata import version
 
+import pytest
 from a2a.client import ClientConfig, ClientFactory
 from a2a.server.routes.fastapi_routes import add_a2a_routes_to_fastapi
 from a2a.types import AgentCard, StreamResponse
@@ -8,6 +9,8 @@ from a2a.utils.constants import (
     VERSION_HEADER,
     TransportProtocol,
 )
+
+pytestmark = pytest.mark.a2a_contract
 
 
 def test_a2a_sdk_matches_accepted_protocol_baseline() -> None:
