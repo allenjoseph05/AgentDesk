@@ -47,6 +47,8 @@ jobs:
         run: python scripts/run_python.py -m alembic upgrade head
         env:
           DATABASE_URL: postgresql+psycopg://agentdesk:agentdesk@127.0.0.1:5432/agentdesk
+      - name: A2A contract tests
+        run: npm run test:a2a
       - name: Python tests
         run: npm run test:python
       - name: Frontend lint

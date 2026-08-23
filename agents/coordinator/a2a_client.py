@@ -263,15 +263,26 @@ class A2AClientAdapter:
         send_request.metadata.update(inject_trace_context())
         async for response in client.send_message(send_request):
             if response.HasField("task"):
-                remote_task_id = response.task.id
-                remote_context_id = response.task.context_id
+                remote_task_id, remote_context_id = self._merge_stream_identity(
+                    agent,
+                    remote_task_id=remote_task_id,
+                    remote_context_id=remote_context_id,
+                    event_task_id=response.task.id,
+                    event_context_id=response.task.context_id,
+                )
                 if not task_started_notified and on_task_started is not None:
                     await on_task_started(remote_task_id)
                     task_started_notified = True
                 continue
             if response.HasField("artifact_update"):
                 update = response.artifact_update
-                remote_task_id = remote_task_id or update.task_id
+                remote_task_id, remote_context_id = self._merge_stream_identity(
+                    agent,
+                    remote_task_id=remote_task_id,
+                    remote_context_id=remote_context_id,
+                    event_task_id=update.task_id,
+                    event_context_id=update.context_id,
+                )
                 if update.artifact.name == artifact_name:
                     if artifact is not None:
                         raise self._invalid_artifact(agent, remote_task_id, "duplicate artifact")
@@ -292,7 +303,13 @@ class A2AClientAdapter:
                 continue
             if response.HasField("status_update"):
                 update = response.status_update
-                remote_task_id = remote_task_id or update.task_id
+                remote_task_id, remote_context_id = self._merge_stream_identity(
+                    agent,
+                    remote_task_id=remote_task_id,
+                    remote_context_id=remote_context_id,
+                    event_task_id=update.task_id,
+                    event_context_id=update.context_id,
+                )
                 state = update.status.state
                 if state == TaskState.TASK_STATE_COMPLETED:
                     completed = True
@@ -333,6 +350,36 @@ class A2AClientAdapter:
             remote_context_id=remote_context_id,
             artifact=artifact,
         )
+
+    @classmethod
+    def _merge_stream_identity(
+        cls,
+        agent: RegisteredAgent,
+        *,
+        remote_task_id: str | None,
+        remote_context_id: str | None,
+        event_task_id: str,
+        event_context_id: str,
+    ) -> tuple[str, str]:
+        if not event_task_id or not event_context_id:
+            raise cls._invalid_artifact(
+                agent,
+                remote_task_id or event_task_id or None,
+                "missing task or context identity",
+            )
+        if remote_task_id is not None and event_task_id != remote_task_id:
+            raise cls._invalid_artifact(
+                agent,
+                remote_task_id,
+                "task identity changed during stream",
+            )
+        if remote_context_id is not None and event_context_id != remote_context_id:
+            raise cls._invalid_artifact(
+                agent,
+                remote_task_id or event_task_id,
+                "context identity changed during stream",
+            )
+        return remote_task_id or event_task_id, remote_context_id or event_context_id
 
     @staticmethod
     def _invalid_artifact(

@@ -45,6 +45,9 @@ include = ["agents*", "packages*"]
 addopts = "-ra --strict-config --strict-markers"
 testpaths = ["tests"]
 xfail_strict = true
+markers = [
+    "a2a_contract: exercises Agent Cards and official A2A task, stream, context, and cancellation boundaries",
+]
 
 [tool.mypy]
 python_version = "3.14"
