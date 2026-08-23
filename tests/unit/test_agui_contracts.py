@@ -10,6 +10,8 @@ from packages.testing import (
     load_ag_ui_fixture_raw,
 )
 
+pytestmark = pytest.mark.agui_contract
+
 
 def test_manifest_covers_all_required_ag_ui_scenarios() -> None:
     entries = list_ag_ui_fixtures()
