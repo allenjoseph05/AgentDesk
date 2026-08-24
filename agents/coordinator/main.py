@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -18,7 +18,7 @@ from agents.coordinator.agui_security import (
     AgUiBoundaryError,
     AgUiSecurityMiddleware,
 )
-from agents.coordinator.execution import create_orchestration_executor
+from agents.coordinator.execution import WorkflowPlanner, create_orchestration_executor
 from agents.coordinator.history import ResearchHistoryService
 from agents.coordinator.history_api import router as history_router
 from agents.coordinator.registry import AgentRegistry, AgentRegistrySettings
@@ -54,10 +54,13 @@ def create_app(
     database: Database | None = None,
     auth_settings: AuthenticationSettings | None = None,
     limit_settings: LimitSettings | None = None,
+    planner_factory: Callable[[AgentRegistry], WorkflowPlanner] | None = None,
 ) -> FastAPI:
     """Create a Coordinator with application-scoped AG-UI run admission."""
     if task_factory is not None and command_executor is not None:
         raise ValueError("Supply either task_factory or command_executor, not both.")
+    if planner_factory is not None and (task_factory is not None or command_executor is not None):
+        raise ValueError("A planner factory requires the production orchestration executor.")
     owns_registry = registry is None
     owns_database = database is None
     history_database = database or Database.connect()
@@ -121,6 +124,7 @@ def create_app(
             database=history_database,
             auth_settings=authentication,
             limit_settings=limit_settings,
+            planner_override=(planner_factory(agent_registry) if planner_factory else None),
         )
     )
     application.state.ag_ui_run_adapter = CoordinatorRunAdapter(executor=executor)

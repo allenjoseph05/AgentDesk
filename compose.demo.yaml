@@ -1,0 +1,70 @@
+services:
+  researcher:
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "agents.researcher.fixture_app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8005",
+      ]
+    environment:
+      RESEARCH_FIXTURE_ID: ${AGENTDESK_DEMO_FIXTURE_ID:-postgresql-vs-mongodb-golden}
+      RESEARCH_FIXTURE_SEARCH_DELAY_SECONDS: ${AGENTDESK_DEMO_RESEARCH_DELAY_SECONDS:-0.75}
+
+  analyst:
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "agents.analyst.fixture_app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8006",
+      ]
+    environment:
+      ANALYST_FIXTURE_ID: ${AGENTDESK_DEMO_FIXTURE_ID:-postgresql-vs-mongodb-golden}
+      ANALYST_FIXTURE_DELAY_SECONDS: ${AGENTDESK_DEMO_ANALYSIS_DELAY_SECONDS:-0.75}
+
+  verifier:
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "agents.verifier.fixture_app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8007",
+      ]
+    environment:
+      VERIFIER_FIXTURE_ID: ${AGENTDESK_DEMO_FIXTURE_ID:-postgresql-vs-mongodb-golden}
+      VERIFIER_FIXTURE_DELAY_SECONDS: ${AGENTDESK_DEMO_VERIFICATION_DELAY_SECONDS:-0.5}
+
+  coordinator:
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "agents.coordinator.fixture_app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
+    environment:
+      AGENTDESK_COORDINATOR_MODEL: ""
+      AGENTDESK_DEMO_FIXTURE_ID: ${AGENTDESK_DEMO_FIXTURE_ID:-postgresql-vs-mongodb-golden}
+      AGENTDESK_DEMO_PLANNING_DELAY_SECONDS: ${AGENTDESK_DEMO_PLANNING_DELAY_SECONDS:-0.35}
+      OPENAI_API_KEY: ""
+
+  web:
+    environment:
+      VITE_AGENTDESK_RUNTIME_MODE: demo

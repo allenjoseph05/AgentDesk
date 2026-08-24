@@ -318,6 +318,31 @@ p {
   line-height: 1.08;
 }
 
+.workspace-header__status {
+  display: grid;
+  justify-items: end;
+  gap: 0.5rem;
+}
+
+.runtime-mode {
+  padding: 0.28rem 0.58rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.runtime-mode--live {
+  color: #53615a;
+  background: #e8ece7;
+}
+
+.runtime-mode--demo {
+  color: #8b3f2d;
+  background: #fbe3d9;
+}
+
 .workspace-status {
   display: flex;
   align-items: center;
@@ -360,6 +385,13 @@ p {
   color: #515b57;
   font-size: 0.76rem;
   font-weight: 700;
+}
+
+.demo-notice {
+  margin: 0.75rem 0.15rem 0;
+  color: #725044;
+  font-size: 0.75rem;
+  line-height: 1.5;
 }
 
 .composer-field {

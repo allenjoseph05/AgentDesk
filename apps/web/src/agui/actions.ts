@@ -76,6 +76,7 @@ export const AgentDeskActionSchema = z.discriminatedUnion("type", [
 
 export type AgentDeskAction = z.infer<typeof AgentDeskActionSchema>;
 export type StartResearchAction = Extract<AgentDeskAction, { type: "start_research" }>;
+export type StartResearchParameters = Omit<StartResearchAction["payload"], "question">;
 export type ChallengeRecommendationAction = Extract<
   AgentDeskAction,
   { type: "challenge_recommendation" }
@@ -108,7 +109,17 @@ export function parseAgentDeskAction(value: unknown): AgentDeskAction {
   return result.data;
 }
 
-export function createStartResearchAction(question: string): StartResearchAction {
+const DEFAULT_START_RESEARCH_PARAMETERS: StartResearchParameters = {
+  options: [],
+  constraints: [],
+  criteria: [],
+  desiredDepth: "normal",
+};
+
+export function createStartResearchAction(
+  question: string,
+  parameters: StartResearchParameters = DEFAULT_START_RESEARCH_PARAMETERS,
+): StartResearchAction {
   return validateBuiltAction({
     schemaVersion: AG_UI_ACTION_SCHEMA_VERSION,
     actionId: crypto.randomUUID(),
@@ -116,10 +127,10 @@ export function createStartResearchAction(question: string): StartResearchAction
     sessionId: null,
     payload: {
       question: question.trim(),
-      options: [],
-      constraints: [],
-      criteria: [],
-      desiredDepth: "normal",
+      options: [...parameters.options],
+      constraints: [...parameters.constraints],
+      criteria: [...parameters.criteria],
+      desiredDepth: parameters.desiredDepth,
     },
   });
 }

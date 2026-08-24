@@ -14,6 +14,10 @@ import {
 import { useAgentDeskSelector } from "../agui/store-react";
 import { agentDeskComponentCatalog } from "../components/catalog";
 import { useAgentDeskRuntime } from "./AgentDeskRuntime";
+import {
+  agentDeskRuntimeMode,
+  DEMO_RESEARCH_QUESTION,
+} from "./runtime-mode";
 
 const QUICK_STARTS = [
   "Compare PostgreSQL and MongoDB for our product",
@@ -47,7 +51,8 @@ export function AgentDeskWorkspace() {
   const verification = useAgentDeskSelector(selectVerification);
   const warnings = useAgentDeskSelector(selectWarnings);
   const availableActions = useAgentDeskSelector(selectActions);
-  const [question, setQuestion] = useState("");
+  const isDemoMode = agentDeskRuntimeMode === "demo";
+  const [question, setQuestion] = useState(isDemoMode ? DEMO_RESEARCH_QUESTION : "");
   const isBusy = runtime.phase === "connecting" || runtime.phase === "running";
   const hasSession = session !== null;
   const activeSessionId = session?.sessionId ?? "";
@@ -77,7 +82,11 @@ export function AgentDeskWorkspace() {
           </div>
         </div>
 
-        <button className="new-research-button" type="button" onClick={() => setQuestion("")}>
+        <button
+          className="new-research-button"
+          type="button"
+          onClick={() => setQuestion(isDemoMode ? DEMO_RESEARCH_QUESTION : "")}
+        >
           <span aria-hidden="true">+</span>
           New research
         </button>
@@ -118,9 +127,14 @@ export function AgentDeskWorkspace() {
             <p className="eyebrow">Multi-agent decision support</p>
             <h1>What should we investigate?</h1>
           </div>
-          <div className="workspace-status" data-phase={runtime.phase}>
-            <span aria-hidden="true" />
-            {isBusy ? "Agents working" : "Workspace ready"}
+          <div className="workspace-header__status">
+            <span className={`runtime-mode runtime-mode--${agentDeskRuntimeMode}`}>
+              {isDemoMode ? "Fixture demo" : "Live mode"}
+            </span>
+            <div className="workspace-status" data-phase={runtime.phase}>
+              <span aria-hidden="true" />
+              {isBusy ? "Agents working" : "Workspace ready"}
+            </div>
           </div>
         </header>
 
@@ -135,13 +149,20 @@ export function AgentDeskWorkspace() {
               onChange={(event) => setQuestion(event.target.value)}
               placeholder="Ask a complex question, compare options, or investigate a decision..."
               disabled={isBusy}
+              readOnly={isDemoMode}
             />
             <button type="submit" disabled={isBusy || !question.trim()}>
               {isBusy ? "Researching..." : "Start research"}
               <span aria-hidden="true">→</span>
             </button>
           </div>
-          {!hasSession && (
+          {isDemoMode && (
+            <p className="demo-notice" role="status">
+              Recording mode uses fixed local fixtures and predictable stage timing. No live
+              model or research provider is contacted.
+            </p>
+          )}
+          {!hasSession && !isDemoMode && (
             <section
               className="quick-starts"
               aria-label="Example research questions"
@@ -176,7 +197,7 @@ export function AgentDeskWorkspace() {
         >
           <div className="state-surface__header">
             <div>
-              <p className="eyebrow">Live workspace</p>
+              <p className="eyebrow">{isDemoMode ? "Fixture demo workspace" : "Live workspace"}</p>
               <h2>{session?.question ?? "Your research will take shape here"}</h2>
             </div>
             <span className={`state-pill state-pill--${status}`}>

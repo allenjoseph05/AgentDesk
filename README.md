@@ -52,6 +52,25 @@ readiness endpoints, starts the Coordinator after it can discover all three spec
 starts the web app. Open `http://localhost:5173`. Stop the stack with `docker compose down`; add
 `--volumes` only when you intentionally want to remove the local PostgreSQL data volume.
 
+### Deterministic fixture demo
+
+Start the recording-friendly demo without API keys or external providers:
+
+```powershell
+docker compose -f compose.yaml -f compose.demo.yaml up --build --wait
+```
+
+Open `http://localhost:5173` and run the prefilled PostgreSQL-versus-MongoDB question. The browser
+labels this configuration **Fixture demo**, and planning, research, analysis, and verification use
+fixed local data with configurable delays from `.env.example`. The default `docker compose up`
+command remains **Live mode** and never selects fixture entry points implicitly.
+
+With the demo stack healthy, its real browser path can be checked independently:
+
+```powershell
+npm run test:e2e:demo
+```
+
 ## Validation
 
 ```powershell
