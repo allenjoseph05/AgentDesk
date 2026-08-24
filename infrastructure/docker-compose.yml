@@ -182,6 +182,7 @@ services:
     restart: unless-stopped
     environment:
       AGENTDESK_COORDINATOR_URL: http://coordinator:8000
+      VITE_AGENTDESK_RUNTIME_MODE: live
     ports:
       - "127.0.0.1:${AGENTDESK_WEB_PORT:-5173}:5173"
     depends_on:

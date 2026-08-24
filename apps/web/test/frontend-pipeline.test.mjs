@@ -21,6 +21,7 @@ test("frontend compiler keeps strict safety checks enabled", async () => {
 
 test("frontend scripts and CI retain lint, type, catalog, schema, and test gates", async () => {
   const packageJson = await readJson("package.json");
+  const repositoryPackageJson = await readJson("package.json", repositoryRoot);
   const workflow = await readFile(
     new URL(".github/workflows/ci.yml", repositoryRoot),
     "utf8",
@@ -34,6 +35,10 @@ test("frontend scripts and CI retain lint, type, catalog, schema, and test gates
   assert.match(packageJson.scripts["test:contracts"], /component-catalog\.test\.mjs/u);
   assert.match(packageJson.scripts["test:agui"], /agui-python-interop\.test\.mjs/u);
   assert.equal(packageJson.scripts["test:e2e"], "playwright test");
+  assert.equal(
+    repositoryPackageJson.scripts["test:e2e:demo"],
+    "npm run test:e2e:demo --workspace @agentdesk/web",
+  );
   assert.match(workflow, /run: npm run test:agui/u);
   assert.match(workflow, /run: npx playwright install --with-deps chromium/u);
   assert.match(workflow, /run: npm run test:e2e/u);

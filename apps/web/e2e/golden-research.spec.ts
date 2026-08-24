@@ -11,6 +11,7 @@ const CHALLENGE = "What if schema flexibility matters more than relational integ
 
 interface AgUiRequest {
   forwardedProps: { agentdesk: Record<string, unknown> };
+  messages: Array<{ content: string; role: string }>;
   runId: string;
   state: Record<string, unknown>;
   threadId: string;
@@ -255,6 +256,10 @@ test("golden research renders AG-UI state and submits a typed challenge", async 
       type: "challenge_recommendation",
       sessionId: "session-golden",
       payload: { challenge: CHALLENGE },
+    });
+    expect(challengeRequest.messages.at(-1)).toMatchObject({
+      role: "user",
+      content: CHALLENGE,
     });
     expect(browserLog.filter((entry) => entry.startsWith("pageerror:"))).toEqual([]);
     expect(browserLog.filter((entry) => entry.startsWith("requestfailed:"))).toEqual([]);

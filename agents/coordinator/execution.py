@@ -1194,19 +1194,21 @@ def create_orchestration_executor(
     database: Database,
     auth_settings: AuthenticationSettings | None = None,
     limit_settings: LimitSettings | None = None,
+    planner_override: WorkflowPlanner | None = None,
 ) -> OrchestrationCommandExecutor:
     """Build the production executor without contacting external services eagerly."""
     limits = limit_settings or LimitSettings.from_environment()
-    llm_provider = llm_provider_from_environment()
-    planner: WorkflowPlanner
-    if llm_provider is not None:
-        planner = DecisionPlanner(
-            llm_provider=llm_provider,
-            registry=registry,
-            limit_settings=limits,
-        )
-    else:
-        planner = _UnavailablePlanner()
+    planner = planner_override
+    if planner is None:
+        llm_provider = llm_provider_from_environment()
+        if llm_provider is not None:
+            planner = DecisionPlanner(
+                llm_provider=llm_provider,
+                registry=registry,
+                limit_settings=limits,
+            )
+        else:
+            planner = _UnavailablePlanner()
     return OrchestrationCommandExecutor(
         planner=planner,
         orchestrator=WorkflowOrchestrator(

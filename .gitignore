@@ -17,6 +17,8 @@ dist/
 coverage/
 playwright-report/
 test-results/
+demo-playwright-report/
+demo-test-results/
 
 .idea/
 .vscode/

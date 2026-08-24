@@ -22,6 +22,7 @@ import { createCoordinatorAgent, runAgentDeskAction } from "../agui/client";
 import { userSafeAgUiError } from "../agui/client-config";
 import { useAgentDeskStateStore } from "../agui/store-react";
 import { type TimelineItem, upsertTimelineItem } from "../agui/timeline";
+import { agentDeskRuntimeMode, DEMO_RESEARCH_PARAMETERS } from "./runtime-mode";
 
 export type RuntimePhase = "idle" | "connecting" | "running" | "error";
 
@@ -132,7 +133,11 @@ export function AgentDeskRuntimeProvider({
   const startResearch = useCallback(
     (question: string) =>
       executeAction(
-        () => createStartResearchAction(question),
+        () =>
+          createStartResearchAction(
+            question,
+            agentDeskRuntimeMode === "demo" ? DEMO_RESEARCH_PARAMETERS : undefined,
+          ),
         question,
       ),
     [executeAction],
@@ -143,7 +148,7 @@ export function AgentDeskRuntimeProvider({
       executeAction(
         () => createChallengeRecommendationAction(sessionId, challenge),
         challenge?.trim()
-          ? `Challenge the recommendation: ${challenge.trim()}`
+          ? challenge.trim()
           : "Challenge the current recommendation and test the strongest counterargument.",
       ),
     [executeAction],
