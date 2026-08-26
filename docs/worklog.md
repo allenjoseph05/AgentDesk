@@ -50,3 +50,26 @@ Notes:
 - Selected A2UI 0.9.1 using `@a2ui/react/v0_9` 0.10.2 and `@a2ui/web_core/v0_9` 0.10.6.
 - Verified the installed A2A SDK exposes `ClientFactory`, `ClientConfig`, protobuf v1 types, REST routes, and `add_a2a_routes_to_fastapi`; older `A2AFastAPIApplication` examples are not the selected 1.1.2 API.
 - Overrode the A2UI Markdown package's vulnerable sanitizer pin with DOMPurify 3.4.13; clean npm installs audit with zero known vulnerabilities.
+
+## AD-114 — Architecture and demo documentation
+Status: done
+Date: 2026-08-26
+
+Changed:
+- README protocol overview and reviewer entry points
+- system architecture, responsibility, persistence, security, and correlation guide
+- Mermaid system and complete-request sequence diagrams
+- deterministic fixture demo and recording walkthrough
+- ADR 0002 superseding the A2UI frontend choice with the implemented AG-UI boundary
+- executable relative-link, diagram, command, and protocol documentation contracts
+
+Validation:
+- `npm run lint` — passed
+- `npm run typecheck` — passed
+- `npm test` — passed (322 Python tests; 55 web tests)
+- `npm run build` — passed
+
+Notes:
+- A2A remains the independently deployable Coordinator-to-specialist protocol.
+- AG-UI owns browser interaction and state streaming; React selects only trusted local components.
+- AD-112 remains a separate hosted-deployment story because its public URL and TLS ingress require a selected platform and deployment authority.
