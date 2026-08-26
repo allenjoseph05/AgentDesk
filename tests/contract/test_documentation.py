@@ -80,9 +80,7 @@ def test_current_adr_supersedes_only_the_frontend_protocol_decision() -> None:
 
 
 def test_adaptive_intake_plan_preserves_protocol_and_dependency_boundaries() -> None:
-    adr = (ROOT / "docs" / "adr" / "0003-bounded-a2ui-adk-intake.md").read_text(
-        encoding="utf-8"
-    )
+    adr = (ROOT / "docs" / "adr" / "0003-bounded-a2ui-adk-intake.md").read_text(encoding="utf-8")
     plan = (ROOT / "docs" / "adaptive-intake-plan.md").read_text(encoding="utf-8")
 
     assert "Keep the existing Coordinator as the deterministic control plane" in adr
