@@ -1,0 +1,138 @@
+previews:
+  generation: off
+
+services:
+  - type: pserv
+    name: agentdesk-researcher
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerContext: .
+    dockerfilePath: ./Dockerfile
+    dockerCommand: python -m uvicorn agents.researcher.fixture_app:app --host 0.0.0.0 --port $PORT
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: AGENTDESK_AUTH_MODE
+        value: local
+      - key: RESEARCH_AGENT_HOSTPORT
+        fromService:
+          type: pserv
+          name: agentdesk-researcher
+          property: hostport
+      - key: RESEARCH_FIXTURE_ID
+        value: postgresql-vs-mongodb-golden
+      - key: RESEARCH_FIXTURE_SEARCH_DELAY_SECONDS
+        value: "0.75"
+
+  - type: pserv
+    name: agentdesk-analyst
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerContext: .
+    dockerfilePath: ./Dockerfile
+    dockerCommand: python -m uvicorn agents.analyst.fixture_app:app --host 0.0.0.0 --port $PORT
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: AGENTDESK_AUTH_MODE
+        value: local
+      - key: ANALYST_AGENT_HOSTPORT
+        fromService:
+          type: pserv
+          name: agentdesk-analyst
+          property: hostport
+      - key: ANALYST_FIXTURE_ID
+        value: postgresql-vs-mongodb-golden
+      - key: ANALYST_FIXTURE_DELAY_SECONDS
+        value: "0.75"
+
+  - type: pserv
+    name: agentdesk-verifier
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerContext: .
+    dockerfilePath: ./Dockerfile
+    dockerCommand: python -m uvicorn agents.verifier.fixture_app:app --host 0.0.0.0 --port $PORT
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: AGENTDESK_AUTH_MODE
+        value: local
+      - key: VERIFIER_AGENT_HOSTPORT
+        fromService:
+          type: pserv
+          name: agentdesk-verifier
+          property: hostport
+      - key: VERIFIER_FIXTURE_ID
+        value: postgresql-vs-mongodb-golden
+      - key: VERIFIER_FIXTURE_DELAY_SECONDS
+        value: "0.5"
+
+  - type: pserv
+    name: agentdesk-coordinator
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerContext: .
+    dockerfilePath: ./Dockerfile
+    dockerCommand: python scripts/start_hosted_coordinator.py
+    preDeployCommand: python -m alembic upgrade head
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: AGENTDESK_AUTH_MODE
+        value: local
+      - key: AGENTDESK_DEMO_FIXTURE_ID
+        value: postgresql-vs-mongodb-golden
+      - key: AGENTDESK_DEMO_PLANNING_DELAY_SECONDS
+        value: "0.35"
+      - key: AGENTDESK_STARTUP_TIMEOUT_SECONDS
+        value: "300"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: agentdesk-postgres
+          property: connectionString
+      - key: RESEARCH_AGENT_HOSTPORT
+        fromService:
+          type: pserv
+          name: agentdesk-researcher
+          property: hostport
+      - key: ANALYST_AGENT_HOSTPORT
+        fromService:
+          type: pserv
+          name: agentdesk-analyst
+          property: hostport
+      - key: VERIFIER_AGENT_HOSTPORT
+        fromService:
+          type: pserv
+          name: agentdesk-verifier
+          property: hostport
+
+  - type: web
+    name: agentdesk-demo
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    dockerContext: .
+    dockerfilePath: ./apps/web/Dockerfile.production
+    healthCheckPath: /healthz
+    autoDeployTrigger: checksPass
+    renderSubdomainPolicy: enabled
+    envVars:
+      - key: AGENTDESK_COORDINATOR_HOSTPORT
+        fromService:
+          type: pserv
+          name: agentdesk-coordinator
+          property: hostport
+      - key: VITE_AGENTDESK_AG_UI_ENDPOINT
+        value: /ag-ui
+      - key: VITE_AGENTDESK_RUNTIME_MODE
+        value: demo
+
+databases:
+  - name: agentdesk-postgres
+    plan: basic-256mb
+    region: frankfurt
+    postgresMajorVersion: "17"
+    databaseName: agentdesk
+    user: agentdesk
+    ipAllowList: []

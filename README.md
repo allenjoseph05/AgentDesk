@@ -82,6 +82,14 @@ With the demo stack healthy, its real browser path can be checked independently:
 npm run test:e2e:demo
 ```
 
+### Hosted staging demo
+
+The production staging topology is defined as a Render Blueprint in [`render.yaml`](./render.yaml).
+It deploys one managed-TLS web endpoint, private Coordinator and specialist services, private
+managed PostgreSQL, a public health check, private readiness gating, and a migration gate. Review
+the instance costs and required account authorization before provisioning resources, then follow
+the [hosted deployment runbook](./docs/deployment.md).
+
 ## Validation
 
 ```powershell

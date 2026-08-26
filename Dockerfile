@@ -17,6 +17,7 @@ COPY requirements.lock pyproject.toml README.md alembic.ini ./
 COPY agents ./agents
 COPY fixtures ./fixtures
 COPY packages ./packages
+COPY scripts ./scripts
 
 RUN python -m pip install --no-cache-dir -r requirements.lock \
     && python -m pip install --no-cache-dir --no-deps .

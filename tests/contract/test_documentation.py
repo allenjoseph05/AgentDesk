@@ -13,6 +13,7 @@ DOCUMENTS = (
     ROOT / "README.md",
     ROOT / "docs" / "architecture.md",
     ROOT / "docs" / "demo.md",
+    ROOT / "docs" / "deployment.md",
     ROOT / "docs" / "adr" / "README.md",
     ROOT / "docs" / "adr" / "0002-ag-ui-frontend-protocol.md",
 )
@@ -39,6 +40,7 @@ def test_readme_explains_current_and_superseded_protocol_boundaries() -> None:
     assert "**A2UI is not part of the running system.**" in readme
     assert "./docs/architecture.md" in readme
     assert "./docs/demo.md" in readme
+    assert "./docs/deployment.md" in readme
     assert "./docs/adr/0002-ag-ui-frontend-protocol.md" in readme
 
 

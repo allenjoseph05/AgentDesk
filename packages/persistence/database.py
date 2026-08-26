@@ -21,7 +21,16 @@ DEFAULT_DATABASE_URL = "postgresql+psycopg://agentdesk:agentdesk@localhost:5432/
 def database_url_from_environment() -> str:
     """Resolve the service database URL without reading environment at import time."""
     load_project_environment()
-    return os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
+    return _psycopg_database_url(os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL))
+
+
+def _psycopg_database_url(database_url: str) -> str:
+    """Select psycopg 3 for provider URLs that omit a SQLAlchemy driver."""
+    if database_url.startswith("postgres://"):
+        return database_url.replace("postgres://", "postgresql+psycopg://", 1)
+    if database_url.startswith("postgresql://"):
+        return database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+    return database_url
 
 
 def create_database_engine(database_url: str | None = None) -> Engine:
