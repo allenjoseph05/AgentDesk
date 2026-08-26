@@ -1,8 +1,18 @@
 # AgentDesk
 
-AgentDesk is an adaptive research and decision-support workspace. A Coordinator delegates work to independently deployed specialist agents through A2A and progressively presents structured results through a trusted A2UI component catalog.
+AgentDesk is an adaptive research and decision-support workspace. A Coordinator delegates work to independently deployed specialist agents through A2A and progressively presents validated results to a React application through AG-UI.
 
-This repository is currently at **AD-001: monorepo foundation**. Protocol integrations are intentionally introduced in the gated stories that follow; the current API and web app are runnable development shells.
+The implemented system includes Researcher, Analyst, and Verifier services, durable PostgreSQL state, browser-to-agent streaming, failure recovery, and an API-key-free deterministic demo. See the [architecture guide](./docs/architecture.md), [demo walkthrough](./docs/demo.md), and [current protocol decision](./docs/adr/0002-ag-ui-frontend-protocol.md).
+
+## Protocol boundaries
+
+AgentDesk deliberately uses two protocols because the browser and specialist services have different jobs:
+
+- **AG-UI** is the browser-to-Coordinator boundary. It carries user actions, thread/run lifecycle, messages, semantic steps, shared state snapshots and deltas, errors, and cancellation over HTTP with an SSE response.
+- **A2A** is the Coordinator-to-specialist boundary. It provides Agent Card discovery, remote task identity, typed artifacts, streamed task updates, and cancellation between independently deployable services.
+- **A2UI is not part of the running system.** It was the original generative-UI baseline in ADR 0001, then was superseded by AG-UI. The React application now selects from trusted, repository-owned components using validated application state; agents cannot send HTML, JavaScript, component names, or arbitrary render trees.
+
+Domain contracts and persisted artifacts remain protocol-neutral. This keeps browser interaction concerns out of specialist implementations and keeps A2A transport models out of the database model. The complete boundary and identifier mapping are documented in the [architecture guide](./docs/architecture.md).
 
 ## Prerequisites
 
@@ -10,6 +20,7 @@ This repository is currently at **AD-001: monorepo foundation**. Protocol integr
 - Node.js 24.x LTS (reference version: 24.17.0)
 - npm 10 or newer
 - Git
+- Docker with Compose v2 for the complete stack and deterministic demo
 
 `make` is optional. Every root command is also exposed through npm so the project works on Windows without GNU Make.
 
@@ -88,7 +99,7 @@ Equivalent `make lint`, `make typecheck`, `make test`, and `make build` targets 
 
 ## Repository boundaries
 
-- `apps/web`: React/TypeScript application and future A2A/A2UI browser adapters.
+- `apps/web`: React/TypeScript application and the official AG-UI browser client boundary.
 - `agents/coordinator`: Coordinator service. It may know specialist contracts, never specialist implementations.
 - `agents/researcher`, `agents/analyst`, `agents/verifier`: independently deployable specialist boundaries.
 - `packages/contracts`: shared interoperability contracts only.
@@ -97,4 +108,4 @@ Equivalent `make lint`, `make typecheck`, `make test`, and `make build` targets 
 - `tests`: contract, integration, and end-to-end suites.
 - `docs`: ADRs, architecture notes, demo material, and the required work log.
 
-The implementation source of truth is [`AGENTDESK_BUILD_SPEC.md`](./AGENTDESK_BUILD_SPEC.md). Protocol and dependency choices must be recorded in ADRs before A2A or A2UI feature work begins.
+The implementation source of truth is [`AGENTDESK_BUILD_SPEC.md`](./AGENTDESK_BUILD_SPEC.md), with the AG-UI correction captured by [ADR 0002](./docs/adr/0002-ag-ui-frontend-protocol.md). Protocol-facing dependency upgrades require a dedicated ADR and the contract, integration, browser, and demo checks described there.
