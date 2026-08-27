@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -18,7 +17,7 @@ from fastapi import FastAPI
 from agents.researcher.agent_card import create_agent_card
 from agents.researcher.executor import ResearchAgentExecutor
 from packages.auth import AuthenticationSettings, ServiceAuthenticationMiddleware
-from packages.config import load_project_environment
+from packages.config import load_project_environment, service_url_from_environment
 from packages.observability import configure_structured_logging, configure_tracing
 
 load_project_environment()
@@ -34,7 +33,14 @@ def create_app(
     auth_settings: AuthenticationSettings | None = None,
 ) -> FastAPI:
     """Create a Research Agent instance with operations and A2A routes."""
-    public_url = (base_url or os.getenv("RESEARCH_AGENT_URL") or DEFAULT_BASE_URL).rstrip("/")
+    public_url = (
+        base_url
+        or service_url_from_environment(
+            "RESEARCH_AGENT_URL",
+            "RESEARCH_AGENT_HOSTPORT",
+            DEFAULT_BASE_URL,
+        )
+    ).rstrip("/")
     agent_card = create_agent_card(public_url)
     request_handler = DefaultRequestHandler(
         agent_executor=executor or ResearchAgentExecutor(),

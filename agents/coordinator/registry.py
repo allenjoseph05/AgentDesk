@@ -20,6 +20,7 @@ from a2a.utils.errors import InvalidParamsError
 from a2a.utils.proto_utils import validate_proto_required_fields
 from pydantic import AnyHttpUrl, Field, FiniteFloat, model_validator
 
+from packages.config import service_url_from_environment
 from packages.contracts.base import ContractModel, NonEmptyText
 from packages.resilience import OperationPolicy, OperationTimeoutError, run_with_policy
 
@@ -104,19 +105,34 @@ class AgentRegistrySettings(ContractModel):
                 AgentEndpointConfig.model_validate(
                     {
                         "agent_id": "researcher",
-                        "base_url": source.get("RESEARCH_AGENT_URL", DEFAULT_RESEARCH_AGENT_URL),
+                        "base_url": service_url_from_environment(
+                            "RESEARCH_AGENT_URL",
+                            "RESEARCH_AGENT_HOSTPORT",
+                            DEFAULT_RESEARCH_AGENT_URL,
+                            environ=source,
+                        ),
                     }
                 ),
                 AgentEndpointConfig.model_validate(
                     {
                         "agent_id": "analyst",
-                        "base_url": source.get("ANALYST_AGENT_URL", DEFAULT_ANALYST_AGENT_URL),
+                        "base_url": service_url_from_environment(
+                            "ANALYST_AGENT_URL",
+                            "ANALYST_AGENT_HOSTPORT",
+                            DEFAULT_ANALYST_AGENT_URL,
+                            environ=source,
+                        ),
                     }
                 ),
                 AgentEndpointConfig.model_validate(
                     {
                         "agent_id": "verifier",
-                        "base_url": source.get("VERIFIER_AGENT_URL", DEFAULT_VERIFIER_AGENT_URL),
+                        "base_url": service_url_from_environment(
+                            "VERIFIER_AGENT_URL",
+                            "VERIFIER_AGENT_HOSTPORT",
+                            DEFAULT_VERIFIER_AGENT_URL,
+                            environ=source,
+                        ),
                     }
                 ),
             ]

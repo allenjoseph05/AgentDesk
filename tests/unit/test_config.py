@@ -6,6 +6,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import packages.config as project_config
+from packages.persistence.database import database_url_from_environment
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -47,3 +48,54 @@ def test_example_environment_uses_runtime_registry_names() -> None:
     assert "AGENTDESK_SERVICE_TOKEN=" in example
     assert "RESEARCHER_URL=" not in example
     assert "ANALYST_URL=" not in example
+
+
+def test_private_hostport_becomes_an_internal_http_service_url() -> None:
+    assert (
+        project_config.service_url_from_environment(
+            "RESEARCH_AGENT_URL",
+            "RESEARCH_AGENT_HOSTPORT",
+            "http://default:8005",
+            environ={"RESEARCH_AGENT_HOSTPORT": "researcher:10000"},
+        )
+        == "http://researcher:10000"
+    )
+    assert (
+        project_config.service_url_from_environment(
+            "RESEARCH_AGENT_URL",
+            "RESEARCH_AGENT_HOSTPORT",
+            "http://default:8005",
+            environ={
+                "RESEARCH_AGENT_URL": "https://explicit.example",
+                "RESEARCH_AGENT_HOSTPORT": "researcher:10000",
+            },
+        )
+        == "https://explicit.example"
+    )
+
+
+def test_private_hostport_rejects_a_url_or_whitespace() -> None:
+    for invalid in ("https://researcher", "researcher host:10000"):
+        try:
+            project_config.service_url_from_environment(
+                "RESEARCH_AGENT_URL",
+                "RESEARCH_AGENT_HOSTPORT",
+                "http://default:8005",
+                environ={"RESEARCH_AGENT_HOSTPORT": invalid},
+            )
+        except ValueError as error:
+            assert "private host and port" in str(error)
+        else:  # pragma: no cover - assertion branch
+            raise AssertionError("Invalid private hostport was accepted.")
+
+
+def test_provider_postgres_urls_select_the_installed_psycopg_driver(monkeypatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:secret@database:5432/agentdesk")
+
+    assert (
+        database_url_from_environment()
+        == "postgresql+psycopg://user:secret@database:5432/agentdesk"
+    )
+
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///agentdesk.db")
+    assert database_url_from_environment() == "sqlite:///agentdesk.db"

@@ -8,6 +8,13 @@ test("fixture demo completes the real multi-agent flow with predictable UI state
 }) => {
   await page.goto("/");
 
+  const codespacesWarning = page.getByRole("heading", {
+    name: /access a development port/u,
+  });
+  if (await codespacesWarning.isVisible()) {
+    await page.getByRole("button", { name: "Continue", exact: true }).click();
+  }
+
   await expect(page.getByText("Fixture demo", { exact: true })).toBeVisible();
   await expect(
     page.getByText(/fixed local fixtures and predictable stage timing/u),
