@@ -1,7 +1,8 @@
-"""Render Blueprint and hosted-runtime contract checks for AD-112."""
+"""On-demand Codespaces and optional Render deployment contract checks for AD-112."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,9 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 BLUEPRINT = ROOT / "render.yaml"
+DEVCONTAINER = ROOT / ".devcontainer" / "devcontainer.json"
+CODESPACES_COMPOSE = ROOT / "compose.codespaces.yaml"
+CODESPACES_SCRIPT = ROOT / "scripts" / "codespaces_demo.sh"
 
 
 def _blueprint() -> dict[str, Any]:
@@ -122,3 +126,63 @@ def test_hosted_web_uses_a_production_build_and_private_proxy_target() -> None:
     assert "npm run build --workspace @agentdesk/web" in dockerfile
     assert 'CMD ["node", "production-server.mjs"]' in dockerfile
     assert "npm run dev" not in dockerfile
+
+
+def test_codespaces_devcontainer_installs_docker_and_forwards_only_the_web_port() -> None:
+    configuration = json.loads(DEVCONTAINER.read_text(encoding="utf-8"))
+
+    assert configuration["image"] == "mcr.microsoft.com/devcontainers/base:ubuntu-24.04"
+    assert configuration["features"] == {"ghcr.io/devcontainers/features/docker-in-docker:2": {}}
+    assert configuration["forwardPorts"] == [5173]
+    assert configuration["portsAttributes"] == {
+        "5173": {
+            "label": "AgentDesk fixture demo",
+            "onAutoForward": "notify",
+            "protocol": "http",
+        }
+    }
+    assert "visibility" not in configuration["portsAttributes"]["5173"]
+    assert configuration["hostRequirements"] == {
+        "cpus": 2,
+        "memory": "8gb",
+        "storage": "32gb",
+    }
+
+
+def test_codespaces_compose_uses_production_ingress_and_hides_python_ports() -> None:
+    compose = CODESPACES_COMPOSE.read_text(encoding="utf-8")
+
+    assert compose.count("ports: !override []") == 4
+    assert "dockerfile: apps/web/Dockerfile.production" in compose
+    assert "VITE_AGENTDESK_RUNTIME_MODE: demo" in compose
+    assert "AGENTDESK_COORDINATOR_URL: http://coordinator:8000" in compose
+    assert 'PORT: "5173"' in compose
+    assert '"127.0.0.1:5173:5173"' in compose
+    assert "http://127.0.0.1:5173/healthz" in compose
+
+
+def test_codespaces_script_validates_starts_and_stops_the_exact_profile() -> None:
+    script = CODESPACES_SCRIPT.read_text(encoding="utf-8")
+
+    assert "set -euo pipefail" in script
+    assert "-f compose.yaml" in script
+    assert "-f compose.demo.yaml" in script
+    assert "-f compose.codespaces.yaml" in script
+    assert "compose config --quiet" in script
+    assert "compose up --build --wait" in script
+    assert "compose down" in script
+    assert "--volumes" not in script
+    assert "Port Visibility" not in script
+    assert "set port 5173 visibility to Public" in script
+
+
+def test_deployment_runbook_makes_codespaces_default_and_render_optional() -> None:
+    deployment = (ROOT / "docs" / "deployment.md").read_text(encoding="utf-8")
+
+    assert "# Zero-cost on-demand hosted demo" in deployment
+    assert "bash scripts/codespaces_demo.sh up" in deployment
+    assert "Port Visibility** -> **Public" in deployment
+    assert "Only port `5173` is public" in deployment
+    assert "public port must be made public again" in deployment
+    assert "Optional paid Render reference" in deployment
+    assert "must never be deployed without separate explicit" in deployment

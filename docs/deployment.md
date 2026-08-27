@@ -1,91 +1,150 @@
-# Hosted staging deployment
+# Zero-cost on-demand hosted demo
 
-AgentDesk's staging target is Render, defined declaratively by the root [`render.yaml`](../render.yaml) Blueprint. The hosted stack runs the deterministic fixture demo: it exercises the production React, AG-UI, Coordinator, A2A, migration, and persistence boundaries without storing a model API key or calling an external research provider.
+AgentDesk's default hosted demo target is GitHub Codespaces. It runs the real Docker Compose stack
+inside an ephemeral cloud development environment and publishes only the production web server
+through GitHub's TLS port-forwarding boundary. It requires no cloud payment method while the owner's
+included Codespaces allowance remains available.
 
-## Cost and authorization boundary
+The root [`render.yaml`](../render.yaml) remains an optional production-shaped reference. It is not
+the default demo, has not been provisioned, and requires paid private services and PostgreSQL.
 
-The Blueprint intentionally uses paid `starter` compute for the public web service and four private services, plus a paid `basic-256mb` PostgreSQL instance. Private services and the pre-deploy migration hook are not available on Render's free web-service tier. Review current Render pricing, set an appropriate workspace spend limit, and approve the resource summary in the Render dashboard before creation.
+## What this deployment proves
 
-Repository configuration and validation do not create resources. Initial provisioning requires a Render account with access to `allenjoseph05/AgentDesk` and explicit dashboard approval, or a locally configured Render API key/CLI session. Never paste a Render API key into this repository, an issue, a PR, or chat.
-
-## Resource topology
-
-| Blueprint resource | Exposure | Purpose |
-|---|---|---|
-| `agentdesk-demo` | Public Render web service | Production static server, `/ag-ui` and `/api/sessions` proxy, managed HTTPS endpoint |
-| `agentdesk-coordinator` | Private service | Fixture planner, orchestration, AG-UI projection, persistence, migration owner |
-| `agentdesk-researcher` | Private service | Fixture-backed Researcher over the real A2A boundary |
-| `agentdesk-analyst` | Private service | Fixture-backed Analyst and recommendation challenge over A2A |
-| `agentdesk-verifier` | Private service | Fixture-backed Verifier over A2A |
-| `agentdesk-postgres` | Private managed PostgreSQL | Durable sessions, runs, correlations, and artifacts |
-
-All resources are pinned to the Frankfurt region. Only `agentdesk-demo` has a public hostname. Render terminates TLS at the web-service ingress and redirects public HTTP traffic to HTTPS; internal HTTP remains on Render's private network.
-
-## Environment configuration
-
-The Blueprint owns non-secret staging configuration:
-
-| Variable | Owner | Meaning |
-|---|---|---|
-| `VITE_AGENTDESK_RUNTIME_MODE=demo` | Web build/runtime | Visible fixture-mode label and fixed request |
-| `VITE_AGENTDESK_AG_UI_ENDPOINT=/ag-ui` | Web build | Same-origin browser endpoint |
-| `AGENTDESK_COORDINATOR_HOSTPORT` | Render service reference | Private web-to-Coordinator proxy target |
-| `*_AGENT_HOSTPORT` | Render service references | Private Coordinator discovery and Agent Card origins |
-| `DATABASE_URL` | Render database reference | Private managed PostgreSQL connection string; runtime selects psycopg 3 |
-| `AGENTDESK_AUTH_MODE=local` | Private agents | Public demo admission; specialists and Coordinator have no direct public ingress |
-| `*_FIXTURE_*` and demo delays | Agent services | Golden fixture identity and recording timing |
-| `AGENTDESK_STARTUP_TIMEOUT_SECONDS=300` | Coordinator | Bounded wait for all private specialists on initial rollout |
-
-Live provider keys are absent by design. A future authenticated live deployment must use Render secret environment values (`sync: false` or dashboard-managed secrets), switch every service to its production entry point, configure browser/service authentication, and receive a separate security review.
-
-## Safe migration behavior
-
-`agentdesk-coordinator` owns the Blueprint `preDeployCommand`:
+The Codespaces profile uses three Compose layers:
 
 ```text
-python -m alembic upgrade head
+compose.yaml              production service topology and PostgreSQL
+compose.demo.yaml         deterministic planner and specialist fixtures
+compose.codespaces.yaml   production web server and public-port isolation
 ```
 
-Render runs this command in a one-off pre-deploy instance with the private `DATABASE_URL`. A non-zero exit blocks the new Coordinator release. Alembic revisions are forward-only during deploy; rollback means redeploying the previous application image against the already-upgraded compatible schema, not automatically downgrading data.
+The resulting path remains:
 
-The command is idempotent at the current head and runs before the service starts accepting traffic. It is never concatenated with the web start command, so a failed migration cannot be hidden by a successful server process.
+```text
+public TLS URL
+    -> production React server and same-origin proxy
+    -> Coordinator over the Compose network
+    -> Researcher, Analyst, and Verifier over A2A
+    -> PostgreSQL
+```
 
-## Provision from the dashboard
+Researcher, Analyst, Verifier, and Coordinator run in separate containers and communicate over the
+private Compose network. The Codespaces override removes their host port publications. Only the web
+server binds to the Codespace host on loopback port `5173`; GitHub port forwarding is the sole public
+ingress.
 
-1. Merge the reviewed Blueprint into the deployment branch (normally `main`).
-2. Sign in to the [Render dashboard](https://dashboard.render.com/) and connect the GitHub repository if it is not already authorized.
-3. Create a new Blueprint and select `allenjoseph05/AgentDesk`. Render detects `render.yaml`.
-4. Review all six resources, paid instance types, Frankfurt placement, and the estimated monthly charge. Set a workspace spend limit where appropriate.
-5. Approve creation. Do not add an OpenAI key; this deployment is fixture-only.
-6. Wait for the three specialists to become healthy, the Coordinator migration and startup gate to pass, and `agentdesk-demo` to become healthy.
-7. Record the generated `https://*.onrender.com` URL in the deployment evidence below and verify it using the checklist.
+This is an on-demand portfolio/demo environment, not an always-on production deployment. It has no
+uptime SLA, stops when the Codespace stops, and retains its Docker volume only while the Codespace
+continues to exist. The public port must be made public again after a Codespace restart.
 
-`autoDeployTrigger: checksPass` prevents later deploys from starting until the linked GitHub commit checks succeed.
+## Cost boundary
+
+GitHub personal accounts include a monthly Codespaces compute and storage allowance. When an account
+without a payment method exhausts its included usage, further Codespaces usage is blocked instead of
+being charged. Check the current allowance on GitHub's
+[included-usage page](https://docs.github.com/en/billing/reference/product-usage-included) before
+starting a long-running demo, and stop the Codespace when it is not being used.
+
+No OpenAI, Google, Render, or other provider credential is needed. Never add a cloud API key to the
+repository, Codespaces secrets, terminal history, an issue, a PR, or chat for this fixture demo.
+
+## Create the Codespace
+
+1. Open the repository on GitHub.
+2. Select **Code**, then **Codespaces**, then **Create codespace on main**. Before AD-112 is merged,
+   use **New with options** and select `story/ad-112-hosted-demo` instead.
+3. Keep the default two-core machine. The committed
+   [dev-container configuration](../.devcontainer/devcontainer.json) requests Docker-in-Docker,
+   forwards port `5173`, and does not start the demo automatically.
+4. Wait until the browser editor and terminal are ready.
+
+The dev container deliberately does not expose the port publicly or start workloads without the
+owner's action.
+
+## Start the complete demo
+
+In the Codespaces terminal, run:
+
+```bash
+bash scripts/codespaces_demo.sh up
+```
+
+The command validates the merged Compose model, builds the Python and production web images, starts
+PostgreSQL, applies every Alembic migration, waits for the three specialists and Coordinator, and
+finishes only after the production web health check succeeds.
+
+Useful follow-up commands are:
+
+```bash
+bash scripts/codespaces_demo.sh status
+bash scripts/codespaces_demo.sh logs coordinator
+bash scripts/codespaces_demo.sh stop
+```
+
+`stop` retains the PostgreSQL Docker volume. Deleting or rebuilding the Codespace can remove that
+volume, so the environment must not be treated as durable production storage.
+
+## Publish the web port
+
+GitHub forwards configured ports privately by default. After the stack is healthy:
+
+1. Open the **PORTS** tab in the Codespaces bottom panel.
+2. Find port `5173`, labelled **AgentDesk fixture demo**.
+3. Right-click it and select **Port Visibility** -> **Public**.
+4. Open the forwarded address, which has this shape:
+
+   ```text
+   https://<codespace-name>-5173.app.github.dev
+   ```
+
+Anyone with a public forwarded-port URL can access it without GitHub authentication. Return the port
+to **Private** or stop the Codespace when the demonstration ends. GitHub documents the visibility and
+restart behavior in its
+[port-forwarding guide](https://docs.github.com/en/codespaces/developing-in-a-codespace/forwarding-ports-in-your-codespace).
 
 ## Verification checklist
 
-- [ ] The public URL uses `https://` and an HTTP request redirects to HTTPS.
-- [ ] `GET /healthz` returns `200` without exposing private service details.
+- [ ] The forwarded URL uses `https://` and is reachable in a private browser window.
+- [ ] `GET /healthz` returns `200` from the production web server.
 - [ ] The page displays **Fixture demo** and the fixed PostgreSQL-versus-MongoDB question.
 - [ ] Research completes through Researcher, Analyst, and Verifier with persisted evidence.
 - [ ] The recommendation challenge renders **Strongest alternative: MongoDB**.
-- [ ] Browser developer tools show `/ag-ui` on the same public origin; no specialist, Coordinator, or database hostname is public.
-- [ ] Render events show the Alembic pre-deploy command completed before the Coordinator release.
-- [ ] A page reload can rehydrate the durable session.
+- [ ] Browser developer tools show `/ag-ui` on the same public origin.
+- [ ] Only port `5173` is public; Coordinator and specialist ports remain unforwarded or private.
+- [ ] `docker compose` reports PostgreSQL and the four Python services healthy.
+- [ ] A page reload can rehydrate the durable session while the Codespace remains running.
 
 ## Deployment evidence
 
-- Public staging URL: _pending initial authorized provisioning_
-- Verified commit: _pending initial authorized provisioning_
-- Verified at: _pending initial authorized provisioning_
+- Public demo URL: _pending first on-demand Codespaces run_
+- Verified commit: _pending first on-demand Codespaces run_
+- Verified at: _pending first on-demand Codespaces run_
+- Availability: _on demand; URL is not promised while the Codespace is stopped_
 
-These fields are updated in the deployment story only after the real hosted checks pass. A Blueprint validation or local container run is not a substitute for a public TLS URL.
+The public URL is runtime evidence rather than a permanent README link. For an always-available
+portfolio artifact, record the deterministic walkthrough and attach screenshots or video to the
+GitHub repository or release.
 
-## Operations and teardown
+## Troubleshooting
 
-- Inspect service events and logs from the Render dashboard. Correlate failures using safe run, session, action, remote-task, trace, and span IDs.
-- Roll back a failed application release from the service Events page. Do not issue an Alembic downgrade unless a reviewed migration explicitly supports it.
-- To stop ongoing compute charges, suspend or delete all five services and the PostgreSQL instance from the Blueprint/workspace. Export any data that must be retained before deleting PostgreSQL.
-- Removing `render.yaml` from Git does not itself delete existing Render resources.
+- If Docker is unavailable, rebuild the dev container so the committed Docker-in-Docker feature is
+  installed.
+- If `up` fails, run `bash scripts/codespaces_demo.sh logs` and inspect the first application error.
+- If the browser cannot connect, confirm port `5173` is listed in the PORTS tab and marked Public.
+- If the UI loads but research fails, check `coordinator`, then the named specialist; do not publish
+  their internal ports.
+- If the forwarded port disappeared after restart, run the `up` command again if needed and restore
+  port `5173` to Public.
+- If Codespaces quota is unavailable, use the local deterministic walkthrough in
+  [demo.md](./demo.md); do not add a payment method solely for this project.
 
-The local, no-cost equivalent remains the [deterministic Compose walkthrough](./demo.md).
+## Optional paid Render reference
+
+[`render.yaml`](../render.yaml) describes an always-on, production-shaped Render topology with one
+public managed-TLS web service, four private services, and managed PostgreSQL in Frankfurt. It also
+uses a Coordinator pre-deploy migration gate and deploy-after-CI behavior. The Blueprint is retained
+as reviewed infrastructure-as-code and container-build evidence, but it is not required to complete
+or demonstrate AgentDesk.
+
+Provisioning that file creates paid resources. It must never be deployed without separate explicit
+cost authorization. Removing the Blueprint from Git does not delete already-created Render resources.

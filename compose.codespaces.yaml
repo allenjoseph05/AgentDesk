@@ -1,0 +1,38 @@
+services:
+  researcher:
+    ports: !override []
+
+  analyst:
+    ports: !override []
+
+  verifier:
+    ports: !override []
+
+  coordinator:
+    ports: !override []
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile.production
+      args:
+        VITE_AGENTDESK_AG_UI_ENDPOINT: /ag-ui
+        VITE_AGENTDESK_RUNTIME_MODE: demo
+    environment:
+      AGENTDESK_COORDINATOR_URL: http://coordinator:8000
+      PORT: "5173"
+      VITE_AGENTDESK_RUNTIME_MODE: demo
+    ports: !override
+      - "127.0.0.1:5173:5173"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5173/healthz').then(response => { if (!response.ok) process.exit(1) }).catch(() => process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s

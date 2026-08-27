@@ -118,6 +118,6 @@ The frontend store consumes only validated snapshots and RFC 6902 deltas. Select
 
 The base [Compose stack](../compose.yaml) runs production entry points and labels the browser **Live mode**. The explicit [demo override](../compose.demo.yaml) swaps only the planner and specialists for golden fixture entry points, applies fixed stage delays, clears live model configuration, and labels the browser **Fixture demo**. Both modes keep the same AG-UI, A2A, persistence, migration, health, and rendering boundaries.
 
-For local use, Compose exposes services only on loopback. The [hosted Render topology](./deployment.md) exposes only the web service through managed TLS ingress, keeps the Coordinator, specialists, and PostgreSQL on platform-private networking, and runs Alembic as a pre-deploy gate. The public service proxies only AG-UI and history paths to the private Coordinator.
+For local use, Compose exposes services only on loopback. The default [hosted demo](./deployment.md) runs the same containers on demand in GitHub Codespaces, removes Coordinator and specialist host ports, and forwards only the production web server through GitHub's TLS ingress. The public service proxies only AG-UI and history paths to the private Compose-network Coordinator. A paid Render Blueprint is retained as optional production-shaped infrastructure-as-code, not as a provisioned requirement.
 
 See the [deterministic demo walkthrough](./demo.md) for the executable path and expected results.

@@ -82,13 +82,16 @@ With the demo stack healthy, its real browser path can be checked independently:
 npm run test:e2e:demo
 ```
 
-### Hosted staging demo
+### Zero-cost hosted demo
 
-The production staging topology is defined as a Render Blueprint in [`render.yaml`](./render.yaml).
-It deploys one managed-TLS web endpoint, private Coordinator and specialist services, private
-managed PostgreSQL, a public health check, private readiness gating, and a migration gate. Review
-the instance costs and required account authorization before provisioning resources, then follow
-the [hosted deployment runbook](./docs/deployment.md).
+The default hosted path runs the complete deterministic Compose stack on demand in GitHub
+Codespaces. The committed dev-container profile supplies Docker, the Codespaces Compose override
+uses the production web server, and only its port is eligible for public TLS forwarding. No model
+key or cloud payment method is required within the account's included Codespaces allowance. Follow
+the [hosted demo runbook](./docs/deployment.md).
+
+The production-shaped [`render.yaml`](./render.yaml) is retained as optional infrastructure-as-code.
+It requires paid private services and PostgreSQL and is not provisioned by the default demo path.
 
 ## Validation
 
