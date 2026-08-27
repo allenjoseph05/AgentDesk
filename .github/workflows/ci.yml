@@ -78,6 +78,47 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  adaptive-intake-compatibility:
+    name: Adaptive intake compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            services/scoper/requirements.lock
+            spikes/a2ui-python/requirements.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: spikes/a2ui-web/package-lock.json
+      - name: Install isolated resolver
+        run: python -m pip install uv==0.11.32
+      - name: Create isolated scoper environment
+        run: |
+          python -m venv .venv-scoper
+          uv pip sync --python .venv-scoper/bin/python services/scoper/requirements.lock
+      - name: Lint and test ADK A2A compatibility
+        run: |
+          .venv-scoper/bin/python -m ruff check services/scoper spikes/a2ui-python/tests
+          .venv-scoper/bin/python -m ruff format --check services/scoper spikes/a2ui-python/tests
+          PYTHONPATH=services/scoper/src .venv-scoper/bin/python -m pytest services/scoper/tests
+      - name: Create isolated A2UI Python environment
+        run: |
+          python -m venv .venv-a2ui-python
+          uv pip sync --python .venv-a2ui-python/bin/python spikes/a2ui-python/requirements.lock
+      - name: Test A2UI Python compatibility
+        run: .venv-a2ui-python/bin/python -m pytest spikes/a2ui-python/tests
+      - name: Install and test A2UI web compatibility
+        run: |
+          npm ci --ignore-scripts --prefix spikes/a2ui-web
+          npm test --prefix spikes/a2ui-web
+          npm audit --audit-level=low --prefix spikes/a2ui-web
+
   container-images:
     name: Container images
     runs-on: ubuntu-latest
