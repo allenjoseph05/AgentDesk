@@ -1,4 +1,4 @@
-"""Reviewer-documentation contract checks for AD-114."""
+"""Reviewer-documentation contract checks for current architecture decisions."""
 
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ DOCUMENTS = (
     ROOT / "docs" / "deployment.md",
     ROOT / "docs" / "adr" / "README.md",
     ROOT / "docs" / "adr" / "0002-ag-ui-frontend-protocol.md",
+    ROOT / "docs" / "adr" / "0003-bounded-a2ui-adk-intake.md",
+    ROOT / "docs" / "adaptive-intake-plan.md",
 )
 MARKDOWN_LINK = re.compile(r"\[[^]]+\]\(([^)]+)\)")
 
@@ -77,3 +79,15 @@ def test_current_adr_supersedes_only_the_frontend_protocol_decision() -> None:
     assert "A2A" in adr and "Retained from ADR 0001" in adr
     assert "@ag-ui/client` 0.0.58" in adr
     assert "ag-ui-protocol` 0.1.20" in adr
+
+
+def test_adaptive_intake_plan_preserves_protocol_and_dependency_boundaries() -> None:
+    adr = (ROOT / "docs" / "adr" / "0003-bounded-a2ui-adk-intake.md").read_text(encoding="utf-8")
+    plan = (ROOT / "docs" / "adaptive-intake-plan.md").read_text(encoding="utf-8")
+
+    assert "Keep the existing Coordinator as the deterministic control plane" in adr
+    assert "Do not install `google-adk` or `a2ui-agent-sdk` in the root" in adr
+    assert "AG-UI remains the sole browser" in adr
+    assert "implementation deferred until the hosted-demo story is complete" in plan
+    assert "A2UI protocol 0.9.1" in plan
+    assert "improves the predefined ambiguous-prompt quality score" in plan
