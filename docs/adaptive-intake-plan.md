@@ -1,6 +1,6 @@
 # Adaptive Decision Intake implementation plan
 
-- Status: Approved architecture; implementation deferred until the hosted-demo story is complete
+- Status: Story 1 compatibility spike complete; Story 2 is next
 - Decision: [ADR 0003](./adr/0003-bounded-a2ui-adk-intake.md)
 - Last verified: 2026-08-27
 
@@ -240,6 +240,9 @@ reviewable story; do not combine the dependency spike, persistence migration, re
 deployment into one change.
 
 ### Story 1: compatibility and conformance spike
+
+Completed 2026-08-27. See the
+[compatibility decision and evidence](./adaptive-intake-compatibility.md).
 
 - Create the isolated scoper dependency project with exact pins.
 - Prove ADK 2.7.1 plus A2A SDK 1.1.2 card/send/stream/cancel behavior.

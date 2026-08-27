@@ -88,6 +88,7 @@ def test_adaptive_intake_plan_preserves_protocol_and_dependency_boundaries() -> 
     assert "Keep the existing Coordinator as the deterministic control plane" in adr
     assert "Do not install `google-adk` or `a2ui-agent-sdk` in the root" in adr
     assert "AG-UI remains the sole browser" in adr
-    assert "implementation deferred until the hosted-demo story is complete" in plan
+    assert "Story 1 compatibility spike complete; Story 2 is next" in plan
+    assert "compatibility decision and evidence" in plan
     assert "A2UI protocol 0.9.1" in plan
     assert "improves the predefined ambiguous-prompt quality score" in plan
