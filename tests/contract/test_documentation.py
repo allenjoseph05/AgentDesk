@@ -18,6 +18,7 @@ DOCUMENTS = (
     ROOT / "docs" / "adr" / "0002-ag-ui-frontend-protocol.md",
     ROOT / "docs" / "adr" / "0003-bounded-a2ui-adk-intake.md",
     ROOT / "docs" / "adaptive-intake-plan.md",
+    ROOT / "docs" / "adaptive-intake-benchmark.md",
 )
 MARKDOWN_LINK = re.compile(r"\[[^]]+\]\(([^)]+)\)")
 
@@ -88,7 +89,19 @@ def test_adaptive_intake_plan_preserves_protocol_and_dependency_boundaries() -> 
     assert "Keep the existing Coordinator as the deterministic control plane" in adr
     assert "Do not install `google-adk` or `a2ui-agent-sdk` in the root" in adr
     assert "AG-UI remains the sole browser" in adr
-    assert "Story 1 compatibility spike complete; Story 2 is next" in plan
+    assert "Stories 1 and 2 complete; Story 3 is next" in plan
     assert "compatibility decision and evidence" in plan
+    assert "benchmark, rubric, baseline, and go/no-go evidence" in plan
     assert "A2UI protocol 0.9.1" in plan
     assert "improves the predefined ambiguous-prompt quality score" in plan
+
+
+def test_adaptive_intake_baseline_is_explicitly_not_a_rollout_claim() -> None:
+    benchmark = (ROOT / "docs" / "adaptive-intake-benchmark.md").read_text(encoding="utf-8")
+
+    assert "30 ambiguous comparison prompts and 10 already-complete controls" in benchmark
+    assert "0.2000 direct ambiguous quality * 1.15 = 0.2300" in benchmark
+    assert "decision remains `not_eligible`" in benchmark
+    assert "zero model calls" in benchmark
+    assert "not evidence that adaptive intake" in benchmark
+    assert "improves final recommendations" in benchmark

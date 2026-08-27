@@ -1,0 +1,213 @@
+{
+  "schema_version": "1.0",
+  "cases": [
+    {
+      "case_id": "unknown-artifact-version",
+      "fixture_id": "technology-database",
+      "target": "artifact",
+      "operations": [
+        {"operation": "replace", "path": "/artifact/schema_version", "value": "2.0"}
+      ]
+    },
+    {
+      "case_id": "unknown-proposal-version",
+      "fixture_id": "technology-database",
+      "target": "artifact",
+      "operations": [
+        {"operation": "replace", "path": "/artifact/payload/schema_version", "value": "2.0"}
+      ]
+    },
+    {
+      "case_id": "duplicate-field-id",
+      "fixture_id": "technology-database",
+      "target": "artifact",
+      "operations": [
+        {
+          "operation": "replace",
+          "path": "/artifact/payload/fields/1/field_id",
+          "value": "workload_profile"
+        }
+      ]
+    },
+    {
+      "case_id": "select-without-choices",
+      "fixture_id": "technology-database",
+      "target": "artifact",
+      "operations": [
+        {"operation": "replace", "path": "/artifact/payload/fields/0/choices", "value": []}
+      ]
+    },
+    {
+      "case_id": "short-text-with-choices",
+      "fixture_id": "travel-team-offsite",
+      "target": "artifact",
+      "operations": [
+        {
+          "operation": "replace",
+          "path": "/artifact/payload/fields/0/choices",
+          "value": ["Morning"]
+        }
+      ]
+    },
+    {
+      "case_id": "boolean-option-destination",
+      "fixture_id": "travel-team-offsite",
+      "target": "artifact",
+      "operations": [
+        {
+          "operation": "replace",
+          "path": "/artifact/payload/fields/2/destination",
+          "value": "option"
+        }
+      ]
+    },
+    {
+      "case_id": "infeasible-option-collection",
+      "fixture_id": "travel-team-offsite",
+      "target": "artifact",
+      "operations": [
+        {"operation": "replace", "path": "/artifact/payload/suggested_options", "value": []}
+      ]
+    },
+    {
+      "case_id": "duplicate-suggested-criterion",
+      "fixture_id": "technology-database",
+      "target": "artifact",
+      "operations": [
+        {
+          "operation": "replace",
+          "path": "/artifact/payload/suggested_criteria",
+          "value": ["Data model fit", "Ｄａｔａ model fit"]
+        }
+      ]
+    },
+    {
+      "case_id": "markup-in-field-label",
+      "fixture_id": "technology-database",
+      "target": "artifact",
+      "operations": [
+        {
+          "operation": "replace",
+          "path": "/artifact/payload/fields/0/label",
+          "value": "<script>unsafe</script>"
+        }
+      ]
+    },
+    {
+      "case_id": "url-in-field-help",
+      "fixture_id": "technology-database",
+      "target": "artifact",
+      "operations": [
+        {
+          "operation": "replace",
+          "path": "/artifact/payload/fields/0/help_text",
+          "value": "Open javascript:alert(1)"
+        }
+      ]
+    },
+    {
+      "case_id": "unknown-artifact-property",
+      "fixture_id": "technology-database",
+      "target": "artifact",
+      "operations": [
+        {"operation": "add", "path": "/artifact/agent_css", "value": "display: none"}
+      ]
+    },
+    {
+      "case_id": "oversized-question",
+      "fixture_id": "technology-database",
+      "target": "artifact",
+      "operations": [
+        {
+          "operation": "replace",
+          "path": "/artifact/payload/question",
+          "repeat": {"value": "x", "count": 16385}
+        }
+      ]
+    },
+    {
+      "case_id": "response-unknown-field",
+      "fixture_id": "technology-database",
+      "target": "response",
+      "operations": [
+        {"operation": "add", "path": "/response/answers/injected", "value": "unsafe"}
+      ]
+    },
+    {
+      "case_id": "response-wrong-single-select-type",
+      "fixture_id": "technology-database",
+      "target": "response",
+      "operations": [
+        {
+          "operation": "replace",
+          "path": "/response/answers/workload_profile",
+          "value": true
+        }
+      ]
+    },
+    {
+      "case_id": "response-choice-outside-catalog",
+      "fixture_id": "technology-database",
+      "target": "response",
+      "operations": [
+        {
+          "operation": "replace",
+          "path": "/response/answers/workload_profile",
+          "value": "Run arbitrary code"
+        }
+      ]
+    },
+    {
+      "case_id": "response-missing-required-field",
+      "fixture_id": "technology-database",
+      "target": "response",
+      "operations": [
+        {"operation": "remove", "path": "/response/answers/workload_profile"}
+      ]
+    },
+    {
+      "case_id": "response-proposal-mismatch",
+      "fixture_id": "technology-database",
+      "target": "response",
+      "operations": [
+        {
+          "operation": "replace",
+          "path": "/response/proposal_id",
+          "value": "proposal-from-another-session"
+        }
+      ]
+    },
+    {
+      "case_id": "response-unknown-version",
+      "fixture_id": "technology-database",
+      "target": "response",
+      "operations": [
+        {"operation": "replace", "path": "/response/schema_version", "value": "2.0"}
+      ]
+    },
+    {
+      "case_id": "response-duplicate-multi-select",
+      "fixture_id": "technology-database",
+      "target": "response",
+      "operations": [
+        {
+          "operation": "replace",
+          "path": "/response/answers/operating_priorities",
+          "value": ["Data integrity", " data integrity "]
+        }
+      ]
+    },
+    {
+      "case_id": "response-wrong-boolean-type",
+      "fixture_id": "travel-team-offsite",
+      "target": "response",
+      "operations": [
+        {
+          "operation": "replace",
+          "path": "/response/answers/checked_baggage",
+          "value": "yes"
+        }
+      ]
+    }
+  ]
+}

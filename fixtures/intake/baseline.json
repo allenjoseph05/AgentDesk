@@ -1,0 +1,560 @@
+{
+  "benchmark_version": "1.0",
+  "case_results": [
+    {
+      "case_id": "amb-tech-01",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-tech-02",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-tech-03",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-tech-04",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-tech-05",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.5,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-tech-06",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.5,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-tech-07",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-tech-08",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.5,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-tech-09",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-tech-10",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.5,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-proc-01",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.5,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-proc-02",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-proc-03",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.5,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-proc-04",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-proc-05",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.5,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-proc-06",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-proc-07",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.5,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-proc-08",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-proc-09",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.5,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-proc-10",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-travel-01",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-travel-02",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-travel-03",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.5,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-travel-04",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-travel-05",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.5,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-travel-06",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-travel-07",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.5,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-travel-08",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-travel-09",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.5,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "amb-travel-10",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.2
+      }
+    },
+    {
+      "case_id": "control-tech-01",
+      "cohort": "complete_control",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      }
+    },
+    {
+      "case_id": "control-tech-02",
+      "cohort": "complete_control",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      }
+    },
+    {
+      "case_id": "control-tech-03",
+      "cohort": "complete_control",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      }
+    },
+    {
+      "case_id": "control-tech-04",
+      "cohort": "complete_control",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      }
+    },
+    {
+      "case_id": "control-proc-01",
+      "cohort": "complete_control",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      }
+    },
+    {
+      "case_id": "control-proc-02",
+      "cohort": "complete_control",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      }
+    },
+    {
+      "case_id": "control-proc-03",
+      "cohort": "complete_control",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      }
+    },
+    {
+      "case_id": "control-travel-01",
+      "cohort": "complete_control",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      }
+    },
+    {
+      "case_id": "control-travel-02",
+      "cohort": "complete_control",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      }
+    },
+    {
+      "case_id": "control-travel-03",
+      "cohort": "complete_control",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      }
+    }
+  ],
+  "cohort_results": {
+    "ambiguous": {
+      "case_count": 30,
+      "constraint_capture": 0.0,
+      "criterion_relevance": 0.2167,
+      "downstream_request_validity": 0.0,
+      "final_recommendation_usefulness": 0.0,
+      "option_completeness": 0.7833,
+      "quality_score": 0.2
+    },
+    "complete_control": {
+      "case_count": 10,
+      "constraint_capture": 1.0,
+      "criterion_relevance": 1.0,
+      "downstream_request_validity": 1.0,
+      "final_recommendation_usefulness": 0.0,
+      "option_completeness": 1.0,
+      "quality_score": 0.8
+    }
+  },
+  "go_no_go": {
+    "ambiguous_direct_quality": 0.2,
+    "calculation": "0.2000 * 1.15 = 0.2300",
+    "decision": "not_eligible",
+    "reasons": [
+      "No scoped candidate exists before the scoping-agent stories.",
+      "Final recommendation usefulness has not been executed and remains scored as zero.",
+      "Story 7 must execute and preserve direct and scoped outputs before rollout."
+    ],
+    "relative_improvement_required": 0.15,
+    "required_scoped_quality": 0.23
+  },
+  "model_calls": 0,
+  "profile": "contract-only-direct-baseline",
+  "rubric_version": "1.0"
+}

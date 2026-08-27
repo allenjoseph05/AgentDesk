@@ -1,0 +1,69 @@
+{
+  "fixture_id": "procurement-design-laptop",
+  "domain": "procurement",
+  "artifact": {
+    "schema_version": "1.0",
+    "provenance": {
+      "producer_agent": "decision-scoper",
+      "remote_task_id": "scope-task-procurement-001",
+      "created_at": "2026-08-27T09:01:00Z"
+    },
+    "payload": {
+      "schema_version": "1.0",
+      "proposal_id": "proposal-procurement-design-laptop",
+      "question": "Which laptop should the design team buy?",
+      "summary": "Identify the approved candidates, budget, and design-work priorities.",
+      "fields": [
+        {
+          "field_id": "candidate_models",
+          "label": "Candidate models",
+          "help_text": "Select two to four models that procurement can purchase.",
+          "required": true,
+          "destination": "option",
+          "kind": "multi_select",
+          "choices": ["MacBook Pro 16", "Dell Precision 5690", "Lenovo ThinkPad P1"]
+        },
+        {
+          "field_id": "unit_budget",
+          "label": "Maximum unit budget",
+          "help_text": "Choose the approved purchase ceiling per laptop.",
+          "required": true,
+          "destination": "constraint",
+          "kind": "single_select",
+          "choices": ["Up to 2500 USD", "Up to 3500 USD", "Up to 4500 USD"]
+        },
+        {
+          "field_id": "design_priorities",
+          "label": "Design-work priorities",
+          "help_text": "Select the qualities that should determine the purchase.",
+          "required": true,
+          "destination": "criterion",
+          "kind": "multi_select",
+          "choices": ["GPU performance", "Display accuracy", "Battery life", "Supportability"]
+        }
+      ],
+      "suggested_options": [],
+      "suggested_criteria": ["Supportability"],
+      "suggested_constraints": [],
+      "default_depth": "normal"
+    }
+  },
+  "response": {
+    "schema_version": "1.0",
+    "session_id": "session-procurement-001",
+    "proposal_id": "proposal-procurement-design-laptop",
+    "proposal_version": "1.0",
+    "answers": {
+      "candidate_models": ["MacBook Pro 16", "Dell Precision 5690"],
+      "unit_budget": "Up to 3500 USD",
+      "design_priorities": ["GPU performance", "Display accuracy"]
+    }
+  },
+  "expected_request": {
+    "question": "Which laptop should the design team buy?",
+    "options": ["MacBook Pro 16", "Dell Precision 5690"],
+    "constraints": ["Up to 3500 USD"],
+    "criteria": ["Supportability", "GPU performance", "Display accuracy"],
+    "desired_depth": "normal"
+  }
+}

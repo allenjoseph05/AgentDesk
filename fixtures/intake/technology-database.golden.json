@@ -1,0 +1,63 @@
+{
+  "fixture_id": "technology-database",
+  "domain": "technology",
+  "artifact": {
+    "schema_version": "1.0",
+    "provenance": {
+      "producer_agent": "decision-scoper",
+      "remote_task_id": "scope-task-technology-001",
+      "created_at": "2026-08-27T09:00:00Z"
+    },
+    "payload": {
+      "schema_version": "1.0",
+      "proposal_id": "proposal-technology-database",
+      "question": "Which database should we choose for the new product?",
+      "summary": "Clarify the workload and operational priorities before comparing databases.",
+      "fields": [
+        {
+          "field_id": "workload_profile",
+          "label": "Primary workload",
+          "help_text": "Choose the workload that best represents the first production year.",
+          "required": true,
+          "destination": "constraint",
+          "kind": "single_select",
+          "choices": [
+            "Transactional integrity",
+            "Flexible document ingestion",
+            "Mixed transactional and analytical"
+          ]
+        },
+        {
+          "field_id": "operating_priorities",
+          "label": "Operating priorities",
+          "help_text": "Select the qualities that should drive the comparison.",
+          "required": false,
+          "destination": "criterion",
+          "kind": "multi_select",
+          "choices": ["Data integrity", "Developer velocity", "Operational simplicity"]
+        }
+      ],
+      "suggested_options": ["PostgreSQL", "MongoDB"],
+      "suggested_criteria": ["Data model fit"],
+      "suggested_constraints": [],
+      "default_depth": "normal"
+    }
+  },
+  "response": {
+    "schema_version": "1.0",
+    "session_id": "session-technology-001",
+    "proposal_id": "proposal-technology-database",
+    "proposal_version": "1.0",
+    "answers": {
+      "workload_profile": "Transactional integrity",
+      "operating_priorities": ["Data integrity", "Operational simplicity"]
+    }
+  },
+  "expected_request": {
+    "question": "Which database should we choose for the new product?",
+    "options": ["PostgreSQL", "MongoDB"],
+    "constraints": ["Transactional integrity"],
+    "criteria": ["Data model fit", "Data integrity", "Operational simplicity"],
+    "desired_depth": "normal"
+  }
+}
