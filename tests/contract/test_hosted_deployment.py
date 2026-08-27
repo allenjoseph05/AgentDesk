@@ -132,7 +132,10 @@ def test_codespaces_devcontainer_installs_docker_and_forwards_only_the_web_port(
     configuration = json.loads(DEVCONTAINER.read_text(encoding="utf-8"))
 
     assert configuration["image"] == "mcr.microsoft.com/devcontainers/base:ubuntu-24.04"
-    assert configuration["features"] == {"ghcr.io/devcontainers/features/docker-in-docker:2": {}}
+    assert configuration["features"] == {
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+        "ghcr.io/devcontainers/features/sshd:1": {"version": "latest"},
+    }
     assert configuration["forwardPorts"] == [5173]
     assert configuration["portsAttributes"] == {
         "5173": {

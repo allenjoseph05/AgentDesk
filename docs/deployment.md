@@ -54,8 +54,9 @@ repository, Codespaces secrets, terminal history, an issue, a PR, or chat for th
 2. Select **Code**, then **Codespaces**, then **Create codespace on main**. Before AD-112 is merged,
    use **New with options** and select `story/ad-112-hosted-demo` instead.
 3. Keep the default two-core machine. The committed
-   [dev-container configuration](../.devcontainer/devcontainer.json) requests Docker-in-Docker,
-   forwards port `5173`, and does not start the demo automatically.
+   [dev-container configuration](../.devcontainer/devcontainer.json) requests Docker-in-Docker and
+   SSH support for remote verification, forwards port `5173`, and does not start the demo
+   automatically.
 4. Wait until the browser editor and terminal are ready.
 
 The dev container deliberately does not expose the port publicly or start workloads without the
