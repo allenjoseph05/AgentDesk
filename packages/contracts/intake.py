@@ -29,9 +29,11 @@ MAX_SCOPE_FIELDS = 8
 MAX_SCOPE_CHOICES = 8
 MAX_INTAKE_ARTIFACT_BYTES = 256 * 1024
 MAX_INTAKE_RESPONSE_BYTES = 64 * 1024
+MAX_SCOPING_REQUEST_BYTES = 64 * 1024
 MAX_SUGGESTED_OPTIONS = 4
 MAX_SUGGESTED_CRITERIA = 8
 MAX_SUGGESTED_CONSTRAINTS = 8
+MAX_REQUEST_VALUES = 20
 
 FieldDestination = Literal["option", "criterion", "constraint"]
 FieldKind = Literal["short_text", "single_select", "multi_select", "boolean"]
@@ -168,6 +170,32 @@ class ScopeProposal(ContractModel):
         return self
 
 
+class ScopingRequest(ContractModel):
+    """Bounded application input sent to the isolated decision scoper."""
+
+    schema_version: Literal["1.0"] = INTAKE_SCHEMA_VERSION
+    question: IntakeText
+    options: list[IntakeText] = Field(default_factory=list, max_length=MAX_SUGGESTED_OPTIONS)
+    constraints: list[IntakeText] = Field(default_factory=list, max_length=MAX_REQUEST_VALUES)
+    criteria: list[IntakeText] = Field(default_factory=list, max_length=MAX_REQUEST_VALUES)
+    desired_depth: Depth = "normal"
+
+    @field_validator("question", "options", "constraints", "criteria")
+    @classmethod
+    def validate_plain_values(cls, value: str | list[str]) -> str | list[str]:
+        values = [value] if isinstance(value, str) else value
+        for item in values:
+            _validate_plain_text(item)
+        if isinstance(value, list):
+            _require_unique(value, "Scoping request values")
+        return value
+
+    @model_validator(mode="after")
+    def validate_encoded_size(self) -> ScopingRequest:
+        _require_json_size(self.model_dump(mode="json"), MAX_SCOPING_REQUEST_BYTES, "request")
+        return self
+
+
 class ScopeProposalArtifact(ArtifactEnvelope[ScopeProposal]):
     """Versioned A2A artifact envelope for the decision-scoping skill."""
 
@@ -210,6 +238,12 @@ def parse_scope_proposal_artifact(value: Any) -> ScopeProposalArtifact:
 
     _require_json_size(value, MAX_INTAKE_ARTIFACT_BYTES, "artifact")
     return ScopeProposalArtifact.model_validate(value)
+
+
+def parse_scoping_request(value: Any) -> ScopingRequest:
+    """Apply the serialized-size gate before validating a scoper request."""
+    _require_json_size(value, MAX_SCOPING_REQUEST_BYTES, "request")
+    return ScopingRequest.model_validate(value)
 
 
 def parse_intake_response(value: Any) -> IntakeResponse:
