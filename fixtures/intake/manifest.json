@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "fixtures": [
+    {
+      "fixture_id": "technology-database",
+      "domain": "technology",
+      "file": "technology-database.golden.json"
+    },
+    {
+      "fixture_id": "procurement-design-laptop",
+      "domain": "procurement",
+      "file": "procurement-design-laptop.golden.json"
+    },
+    {
+      "fixture_id": "travel-team-offsite",
+      "domain": "travel",
+      "file": "travel-team-offsite.golden.json"
+    }
+  ],
+  "malformed_file": "malformed.json"
+}

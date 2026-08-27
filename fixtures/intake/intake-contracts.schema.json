@@ -1,0 +1,301 @@
+{
+  "$defs": {
+    "ArtifactProvenance": {
+      "additionalProperties": false,
+      "description": "Transport metadata identifying who produced an artifact and when.",
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "producer_agent": {
+          "minLength": 1,
+          "title": "Producer Agent",
+          "type": "string"
+        },
+        "remote_task_id": {
+          "minLength": 1,
+          "title": "Remote Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "producer_agent",
+        "remote_task_id",
+        "created_at"
+      ],
+      "title": "ArtifactProvenance",
+      "type": "object"
+    },
+    "IntakeAnswer": {
+      "anyOf": [
+        {
+          "maxLength": 16384,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "items": {
+            "maxLength": 16384,
+            "minLength": 1,
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "boolean"
+        }
+      ]
+    },
+    "IntakeResponse": {
+      "additionalProperties": false,
+      "description": "Bounded browser answers tied to one immutable proposal version.",
+      "properties": {
+        "answers": {
+          "maxProperties": 8,
+          "patternProperties": {
+            "^[a-z][a-z0-9_-]*$": {
+              "$ref": "#/$defs/IntakeAnswer"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 128,
+            "minLength": 1
+          },
+          "title": "Answers",
+          "type": "object"
+        },
+        "proposal_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Proposal Id",
+          "type": "string"
+        },
+        "proposal_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Proposal Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "session_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Session Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "session_id",
+        "proposal_id",
+        "answers"
+      ],
+      "title": "IntakeResponse",
+      "type": "object"
+    },
+    "ScopeField": {
+      "additionalProperties": false,
+      "description": "One trusted field description emitted by the decision-scoping agent.",
+      "properties": {
+        "choices": {
+          "items": {
+            "maxLength": 16384,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Choices",
+          "type": "array"
+        },
+        "destination": {
+          "enum": [
+            "option",
+            "criterion",
+            "constraint"
+          ],
+          "title": "Destination",
+          "type": "string"
+        },
+        "field_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "title": "Field Id",
+          "type": "string"
+        },
+        "help_text": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "title": "Help Text",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "short_text",
+            "single_select",
+            "multi_select",
+            "boolean"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "field_id",
+        "label",
+        "help_text",
+        "required",
+        "destination",
+        "kind"
+      ],
+      "title": "ScopeField",
+      "type": "object"
+    },
+    "ScopeProposal": {
+      "additionalProperties": false,
+      "description": "Validated decision-scoping result before it is compiled into A2UI.",
+      "properties": {
+        "default_depth": {
+          "default": "normal",
+          "enum": [
+            "fast",
+            "normal",
+            "deep"
+          ],
+          "title": "Default Depth",
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/ScopeField"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Fields",
+          "type": "array"
+        },
+        "proposal_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Proposal Id",
+          "type": "string"
+        },
+        "question": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "suggested_constraints": {
+          "items": {
+            "maxLength": 16384,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Suggested Constraints",
+          "type": "array"
+        },
+        "suggested_criteria": {
+          "items": {
+            "maxLength": 16384,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Suggested Criteria",
+          "type": "array"
+        },
+        "suggested_options": {
+          "items": {
+            "maxLength": 16384,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 4,
+          "title": "Suggested Options",
+          "type": "array"
+        },
+        "summary": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "proposal_id",
+        "question",
+        "summary",
+        "fields",
+        "suggested_criteria"
+      ],
+      "title": "ScopeProposal",
+      "type": "object"
+    },
+    "ScopeProposalArtifact": {
+      "additionalProperties": false,
+      "description": "Versioned A2A artifact envelope for the decision-scoping skill.",
+      "properties": {
+        "payload": {
+          "$ref": "#/$defs/ScopeProposal"
+        },
+        "provenance": {
+          "$ref": "#/$defs/ArtifactProvenance"
+        },
+        "schema_version": {
+          "const": "1.0",
+          "default": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provenance",
+        "payload"
+      ],
+      "title": "ScopeProposalArtifact",
+      "type": "object"
+    }
+  },
+  "$id": "https://agentdesk.dev/schemas/intake-contracts-1.0.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact": {
+      "$ref": "#/$defs/ScopeProposalArtifact"
+    },
+    "response": {
+      "$ref": "#/$defs/IntakeResponse"
+    }
+  },
+  "required": [
+    "artifact",
+    "response"
+  ],
+  "title": "AgentDesk adaptive-intake artifact and response",
+  "type": "object"
+}

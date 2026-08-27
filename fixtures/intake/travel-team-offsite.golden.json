@@ -1,0 +1,73 @@
+{
+  "fixture_id": "travel-team-offsite",
+  "domain": "travel",
+  "artifact": {
+    "schema_version": "1.0",
+    "provenance": {
+      "producer_agent": "decision-scoper",
+      "remote_task_id": "scope-task-travel-001",
+      "created_at": "2026-08-27T09:02:00Z"
+    },
+    "payload": {
+      "schema_version": "1.0",
+      "proposal_id": "proposal-travel-team-offsite",
+      "question": "How should the team travel to the offsite?",
+      "summary": "Capture the arrival requirement and group travel priorities.",
+      "fields": [
+        {
+          "field_id": "arrival_requirement",
+          "label": "Arrival requirement",
+          "help_text": "State when the full team must be ready at the venue.",
+          "required": true,
+          "destination": "constraint",
+          "kind": "short_text",
+          "choices": []
+        },
+        {
+          "field_id": "travel_priorities",
+          "label": "Travel priorities",
+          "help_text": "Select the qualities that should determine the travel mode.",
+          "required": true,
+          "destination": "criterion",
+          "kind": "multi_select",
+          "choices": ["Total travel time", "Reliability", "Carbon impact", "Team comfort"]
+        },
+        {
+          "field_id": "checked_baggage",
+          "label": "Checked baggage required",
+          "help_text": "Enable this when the group must transport checked equipment.",
+          "required": false,
+          "destination": "constraint",
+          "kind": "boolean",
+          "choices": []
+        }
+      ],
+      "suggested_options": ["Train", "Flight"],
+      "suggested_criteria": ["Cost per traveller"],
+      "suggested_constraints": ["Group of 12 travellers"],
+      "default_depth": "fast"
+    }
+  },
+  "response": {
+    "schema_version": "1.0",
+    "session_id": "session-travel-001",
+    "proposal_id": "proposal-travel-team-offsite",
+    "proposal_version": "1.0",
+    "answers": {
+      "arrival_requirement": "Arrive before 17:00 on Thursday",
+      "travel_priorities": ["Reliability", "Carbon impact"],
+      "checked_baggage": true
+    }
+  },
+  "expected_request": {
+    "question": "How should the team travel to the offsite?",
+    "options": ["Train", "Flight"],
+    "constraints": [
+      "Group of 12 travellers",
+      "Arrive before 17:00 on Thursday",
+      "Checked baggage required"
+    ],
+    "criteria": ["Cost per traveller", "Reliability", "Carbon impact"],
+    "desired_depth": "fast"
+  }
+}

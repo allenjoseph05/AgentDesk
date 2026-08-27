@@ -32,6 +32,7 @@ test("frontend scripts and CI retain lint, type, catalog, schema, and test gates
   assert.match(packageJson.scripts.typecheck, /tsconfig\.e2e\.json/u);
   assert.match(packageJson.scripts.test, /node --test test\/\*\.test\.mjs/u);
   assert.match(packageJson.scripts["test:contracts"], /agui-contract-fixtures\.test\.mjs/u);
+  assert.match(packageJson.scripts["test:contracts"], /intake-contract-fixtures\.test\.mjs/u);
   assert.match(packageJson.scripts["test:contracts"], /component-catalog\.test\.mjs/u);
   assert.match(packageJson.scripts["test:agui"], /agui-python-interop\.test\.mjs/u);
   assert.equal(packageJson.scripts["test:e2e"], "playwright test");

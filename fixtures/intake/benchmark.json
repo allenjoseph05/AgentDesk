@@ -1,0 +1,326 @@
+{
+  "benchmark_version": "1.0",
+  "rubric_version": "1.0",
+  "cases": [
+    {
+      "case_id": "amb-tech-01",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "prompt": "Should we use PostgreSQL or MongoDB for the new product?",
+      "expected": {"options": ["PostgreSQL", "MongoDB"], "constraints": ["Production workload"], "criteria": ["Data model fit", "Operational complexity"]},
+      "direct_capture": {"options": ["PostgreSQL", "MongoDB"]}
+    },
+    {
+      "case_id": "amb-tech-02",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "prompt": "Should our platform run on AWS or Azure?",
+      "expected": {"options": ["AWS", "Azure"], "constraints": ["Existing team skills"], "criteria": ["Service fit", "Total operating cost"]},
+      "direct_capture": {"options": ["AWS", "Azure"]}
+    },
+    {
+      "case_id": "amb-tech-03",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "prompt": "Would React or Vue be better for the customer portal?",
+      "expected": {"options": ["React", "Vue"], "constraints": ["Customer portal"], "criteria": ["Team productivity", "Ecosystem maturity"]},
+      "direct_capture": {"options": ["React", "Vue"]}
+    },
+    {
+      "case_id": "amb-tech-04",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "prompt": "Should we deploy the API on Kubernetes or Amazon ECS?",
+      "expected": {"options": ["Kubernetes", "Amazon ECS"], "constraints": ["Small operations team"], "criteria": ["Operational effort", "Portability"]},
+      "direct_capture": {"options": ["Kubernetes", "Amazon ECS"]}
+    },
+    {
+      "case_id": "amb-tech-05",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "prompt": "Is Kafka or RabbitMQ the right messaging system?",
+      "expected": {"options": ["Kafka", "RabbitMQ"], "constraints": ["Event delivery workload"], "criteria": ["Throughput", "Delivery semantics"]},
+      "direct_capture": {"options": ["Kafka"], "criteria": ["Throughput"]}
+    },
+    {
+      "case_id": "amb-tech-06",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "prompt": "Should we build authentication ourselves or buy a managed identity service?",
+      "expected": {"options": ["Build authentication", "Managed identity service"], "constraints": ["Regulated customer data"], "criteria": ["Security risk", "Delivery speed"]},
+      "direct_capture": {"options": ["Build authentication"], "criteria": ["Security risk"]}
+    },
+    {
+      "case_id": "amb-tech-07",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "prompt": "Should product search use PostgreSQL full-text search or a vector database?",
+      "expected": {"options": ["PostgreSQL full-text search", "Vector database"], "constraints": ["Current product catalogue"], "criteria": ["Search relevance", "Operating cost"]},
+      "direct_capture": {"options": ["PostgreSQL full-text search", "Vector database"]}
+    },
+    {
+      "case_id": "amb-tech-08",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "prompt": "Should the next release remain a monolith or move to microservices?",
+      "expected": {"options": ["Modular monolith", "Microservices"], "constraints": ["Next release timeline"], "criteria": ["Change isolation", "Operational complexity"]},
+      "direct_capture": {"options": ["Modular monolith"], "criteria": ["Operational complexity"]}
+    },
+    {
+      "case_id": "amb-tech-09",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "prompt": "Should the ingestion service be written in Python or Go?",
+      "expected": {"options": ["Python", "Go"], "constraints": ["Existing ingestion service"], "criteria": ["Runtime performance", "Team familiarity"]},
+      "direct_capture": {"options": ["Python", "Go"]}
+    },
+    {
+      "case_id": "amb-tech-10",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "prompt": "Should the partner API expose REST or GraphQL?",
+      "expected": {"options": ["REST", "GraphQL"], "constraints": ["External partner clients"], "criteria": ["Client flexibility", "Governance effort"]},
+      "direct_capture": {"options": ["REST"], "criteria": ["Client flexibility"]}
+    },
+    {
+      "case_id": "amb-proc-01",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "prompt": "Which laptop should the design team buy?",
+      "expected": {"options": ["MacBook Pro 16", "Dell Precision 5690"], "constraints": ["Maximum 3500 USD per unit"], "criteria": ["GPU performance", "Display accuracy"]},
+      "direct_capture": {"options": ["MacBook Pro 16"], "criteria": ["GPU performance"]}
+    },
+    {
+      "case_id": "amb-proc-02",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "prompt": "Should sales buy HubSpot or Salesforce?",
+      "expected": {"options": ["HubSpot", "Salesforce"], "constraints": ["Fifty sales users"], "criteria": ["Workflow fit", "Administration cost"]},
+      "direct_capture": {"options": ["HubSpot", "Salesforce"]}
+    },
+    {
+      "case_id": "amb-proc-03",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "prompt": "Which monitor should we standardize on for engineering?",
+      "expected": {"options": ["Dell UltraSharp 27", "LG UltraFine 27"], "constraints": ["USB-C laptop fleet"], "criteria": ["Text clarity", "Docking capability"]},
+      "direct_capture": {"options": ["Dell UltraSharp 27"], "criteria": ["Text clarity"]}
+    },
+    {
+      "case_id": "amb-proc-04",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "prompt": "Should support use Zendesk or Freshdesk?",
+      "expected": {"options": ["Zendesk", "Freshdesk"], "constraints": ["Twenty support agents"], "criteria": ["Automation coverage", "Total cost"]},
+      "direct_capture": {"options": ["Zendesk", "Freshdesk"]}
+    },
+    {
+      "case_id": "amb-proc-05",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "prompt": "Which payroll provider should we choose?",
+      "expected": {"options": ["Deel", "Remote"], "constraints": ["Employees in five countries"], "criteria": ["Compliance coverage", "Support quality"]},
+      "direct_capture": {"options": ["Deel"], "criteria": ["Compliance coverage"]}
+    },
+    {
+      "case_id": "amb-proc-06",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "prompt": "Should the office buy Herman Miller Aeron or Steelcase Gesture chairs?",
+      "expected": {"options": ["Herman Miller Aeron", "Steelcase Gesture"], "constraints": ["Shared desk environment"], "criteria": ["Ergonomic adjustability", "Warranty"]},
+      "direct_capture": {"options": ["Herman Miller Aeron", "Steelcase Gesture"]}
+    },
+    {
+      "case_id": "amb-proc-07",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "prompt": "Should the delivery fleet lease Tesla Model Y or Hyundai Ioniq 5 vehicles?",
+      "expected": {"options": ["Tesla Model Y", "Hyundai Ioniq 5"], "constraints": ["Urban delivery routes"], "criteria": ["Range", "Fleet serviceability"]},
+      "direct_capture": {"options": ["Tesla Model Y"], "criteria": ["Range"]}
+    },
+    {
+      "case_id": "amb-proc-08",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "prompt": "Which product analytics platform should we purchase?",
+      "expected": {"options": ["Amplitude", "Mixpanel"], "constraints": ["EU customer data"], "criteria": ["Analysis flexibility", "Privacy controls"]},
+      "direct_capture": {"options": ["Amplitude", "Mixpanel"]}
+    },
+    {
+      "case_id": "amb-proc-09",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "prompt": "Should manufacturing contract with Vendor North or Vendor South?",
+      "expected": {"options": ["Vendor North", "Vendor South"], "constraints": ["Ten thousand units per quarter"], "criteria": ["Defect rate", "Lead-time reliability"]},
+      "direct_capture": {"options": ["Vendor North"], "criteria": ["Defect rate"]}
+    },
+    {
+      "case_id": "amb-proc-10",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "prompt": "Should finance adopt NetSuite or Microsoft Dynamics 365?",
+      "expected": {"options": ["NetSuite", "Microsoft Dynamics 365"], "constraints": ["Multi-entity accounting"], "criteria": ["Financial controls", "Implementation effort"]},
+      "direct_capture": {"options": ["NetSuite", "Microsoft Dynamics 365"]}
+    },
+    {
+      "case_id": "amb-travel-01",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "prompt": "Should the team take the train or fly to the offsite?",
+      "expected": {"options": ["Train", "Flight"], "constraints": ["Group of twelve travellers"], "criteria": ["Total travel time", "Carbon impact"]},
+      "direct_capture": {"options": ["Train", "Flight"]}
+    },
+    {
+      "case_id": "amb-travel-02",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "prompt": "Should we book Hotel Central or Riverside Suites for the conference?",
+      "expected": {"options": ["Hotel Central", "Riverside Suites"], "constraints": ["Conference dates"], "criteria": ["Venue access", "Total stay cost"]},
+      "direct_capture": {"options": ["Hotel Central", "Riverside Suites"]}
+    },
+    {
+      "case_id": "amb-travel-03",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "prompt": "Should the annual offsite be in Lisbon or Prague?",
+      "expected": {"options": ["Lisbon", "Prague"], "constraints": ["Distributed European team"], "criteria": ["Travel accessibility", "Venue cost"]},
+      "direct_capture": {"options": ["Lisbon"], "criteria": ["Travel accessibility"]}
+    },
+    {
+      "case_id": "amb-travel-04",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "prompt": "Should visitors rent cars or use regional rail?",
+      "expected": {"options": ["Rental cars", "Regional rail"], "constraints": ["Four-day regional itinerary"], "criteria": ["Schedule flexibility", "Total group cost"]},
+      "direct_capture": {"options": ["Rental cars", "Regional rail"]}
+    },
+    {
+      "case_id": "amb-travel-05",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "prompt": "Is a direct flight or a one-stop rail connection better for the client visit?",
+      "expected": {"options": ["Direct flight", "One-stop rail connection"], "constraints": ["Morning client meeting"], "criteria": ["Arrival reliability", "Travel fatigue"]},
+      "direct_capture": {"options": ["Direct flight"], "criteria": ["Arrival reliability"]}
+    },
+    {
+      "case_id": "amb-travel-06",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "prompt": "Should we use Airline East or Airline West for recurring team travel?",
+      "expected": {"options": ["Airline East", "Airline West"], "constraints": ["Recurring monthly travel"], "criteria": ["Schedule coverage", "Change flexibility"]},
+      "direct_capture": {"options": ["Airline East", "Airline West"]}
+    },
+    {
+      "case_id": "amb-travel-07",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "prompt": "Should the workshop use the airport hotel or the city-centre venue?",
+      "expected": {"options": ["Airport hotel", "City-centre venue"], "constraints": ["One-day workshop"], "criteria": ["Participant access", "Meeting facilities"]},
+      "direct_capture": {"options": ["Airport hotel"], "criteria": ["Participant access"]}
+    },
+    {
+      "case_id": "amb-travel-08",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "prompt": "Should the company subsidize public transit or ride sharing for commuters?",
+      "expected": {"options": ["Public transit subsidy", "Ride-sharing subsidy"], "constraints": ["Hybrid workforce"], "criteria": ["Employee coverage", "Cost predictability"]},
+      "direct_capture": {"options": ["Public transit subsidy", "Ride-sharing subsidy"]}
+    },
+    {
+      "case_id": "amb-travel-09",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "prompt": "Should the field team use the coastal route or the inland route?",
+      "expected": {"options": ["Coastal route", "Inland route"], "constraints": ["Equipment van"], "criteria": ["Travel time reliability", "Road risk"]},
+      "direct_capture": {"options": ["Coastal route"], "criteria": ["Road risk"]}
+    },
+    {
+      "case_id": "amb-travel-10",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "prompt": "Should we buy annual trip insurance or insure each trip separately?",
+      "expected": {"options": ["Annual travel policy", "Per-trip insurance"], "constraints": ["International employee travel"], "criteria": ["Coverage fit", "Expected annual cost"]},
+      "direct_capture": {"options": ["Annual travel policy", "Per-trip insurance"]}
+    },
+    {
+      "case_id": "control-tech-01",
+      "cohort": "complete_control",
+      "domain": "technology",
+      "prompt": "Compare PostgreSQL and MongoDB for a regulated transactional workload, prioritizing integrity and operational effort.",
+      "expected": {"options": ["PostgreSQL", "MongoDB"], "constraints": ["Regulated transactional workload"], "criteria": ["Data integrity", "Operational effort"], "desired_depth": "normal"},
+      "direct_capture": {"options": ["PostgreSQL", "MongoDB"], "constraints": ["Regulated transactional workload"], "criteria": ["Data integrity", "Operational effort"], "desired_depth": "normal"}
+    },
+    {
+      "case_id": "control-tech-02",
+      "cohort": "complete_control",
+      "domain": "technology",
+      "prompt": "Compare AWS and Azure for an EU-hosted platform with a five-person operations team, using cost and managed-service fit.",
+      "expected": {"options": ["AWS", "Azure"], "constraints": ["EU hosting", "Five-person operations team"], "criteria": ["Total operating cost", "Managed-service fit"], "desired_depth": "deep"},
+      "direct_capture": {"options": ["AWS", "Azure"], "constraints": ["EU hosting", "Five-person operations team"], "criteria": ["Total operating cost", "Managed-service fit"], "desired_depth": "deep"}
+    },
+    {
+      "case_id": "control-tech-03",
+      "cohort": "complete_control",
+      "domain": "technology",
+      "prompt": "Compare Kafka and RabbitMQ for 5000 events per second with at-least-once delivery, prioritizing operability and replay.",
+      "expected": {"options": ["Kafka", "RabbitMQ"], "constraints": ["5000 events per second", "At-least-once delivery"], "criteria": ["Operability", "Event replay"], "desired_depth": "deep"},
+      "direct_capture": {"options": ["Kafka", "RabbitMQ"], "constraints": ["5000 events per second", "At-least-once delivery"], "criteria": ["Operability", "Event replay"], "desired_depth": "deep"}
+    },
+    {
+      "case_id": "control-tech-04",
+      "cohort": "complete_control",
+      "domain": "technology",
+      "prompt": "Compare REST and GraphQL for an externally governed partner API, prioritizing compatibility and governance effort.",
+      "expected": {"options": ["REST", "GraphQL"], "constraints": ["Externally governed partner API"], "criteria": ["Client compatibility", "Governance effort"], "desired_depth": "fast"},
+      "direct_capture": {"options": ["REST", "GraphQL"], "constraints": ["Externally governed partner API"], "criteria": ["Client compatibility", "Governance effort"], "desired_depth": "fast"}
+    },
+    {
+      "case_id": "control-proc-01",
+      "cohort": "complete_control",
+      "domain": "procurement",
+      "prompt": "Compare MacBook Pro 16 and Dell Precision 5690 under 3500 USD for design work, prioritizing GPU performance and display accuracy.",
+      "expected": {"options": ["MacBook Pro 16", "Dell Precision 5690"], "constraints": ["Maximum 3500 USD per unit"], "criteria": ["GPU performance", "Display accuracy"], "desired_depth": "normal"},
+      "direct_capture": {"options": ["MacBook Pro 16", "Dell Precision 5690"], "constraints": ["Maximum 3500 USD per unit"], "criteria": ["GPU performance", "Display accuracy"], "desired_depth": "normal"}
+    },
+    {
+      "case_id": "control-proc-02",
+      "cohort": "complete_control",
+      "domain": "procurement",
+      "prompt": "Compare HubSpot and Salesforce for fifty users, prioritizing workflow fit, administration cost, and EU data controls.",
+      "expected": {"options": ["HubSpot", "Salesforce"], "constraints": ["Fifty users", "EU data controls"], "criteria": ["Workflow fit", "Administration cost"], "desired_depth": "deep"},
+      "direct_capture": {"options": ["HubSpot", "Salesforce"], "constraints": ["Fifty users", "EU data controls"], "criteria": ["Workflow fit", "Administration cost"], "desired_depth": "deep"}
+    },
+    {
+      "case_id": "control-proc-03",
+      "cohort": "complete_control",
+      "domain": "procurement",
+      "prompt": "Compare Herman Miller Aeron and Steelcase Gesture for shared desks, prioritizing adjustability and warranty.",
+      "expected": {"options": ["Herman Miller Aeron", "Steelcase Gesture"], "constraints": ["Shared desk environment"], "criteria": ["Ergonomic adjustability", "Warranty"], "desired_depth": "fast"},
+      "direct_capture": {"options": ["Herman Miller Aeron", "Steelcase Gesture"], "constraints": ["Shared desk environment"], "criteria": ["Ergonomic adjustability", "Warranty"], "desired_depth": "fast"}
+    },
+    {
+      "case_id": "control-travel-01",
+      "cohort": "complete_control",
+      "domain": "travel",
+      "prompt": "Compare train and flight for twelve travellers arriving before Thursday 17:00, prioritizing reliability, carbon impact, and total cost.",
+      "expected": {"options": ["Train", "Flight"], "constraints": ["Twelve travellers", "Arrive before Thursday 17:00"], "criteria": ["Reliability", "Carbon impact", "Total cost"], "desired_depth": "fast"},
+      "direct_capture": {"options": ["Train", "Flight"], "constraints": ["Twelve travellers", "Arrive before Thursday 17:00"], "criteria": ["Reliability", "Carbon impact", "Total cost"], "desired_depth": "fast"}
+    },
+    {
+      "case_id": "control-travel-02",
+      "cohort": "complete_control",
+      "domain": "travel",
+      "prompt": "Compare Lisbon and Prague for a September offsite for forty European employees, prioritizing flight access and venue cost.",
+      "expected": {"options": ["Lisbon", "Prague"], "constraints": ["September dates", "Forty European employees"], "criteria": ["Flight accessibility", "Venue cost"], "desired_depth": "normal"},
+      "direct_capture": {"options": ["Lisbon", "Prague"], "constraints": ["September dates", "Forty European employees"], "criteria": ["Flight accessibility", "Venue cost"], "desired_depth": "normal"}
+    },
+    {
+      "case_id": "control-travel-03",
+      "cohort": "complete_control",
+      "domain": "travel",
+      "prompt": "Compare rental cars and regional rail for eight visitors on a four-day itinerary, prioritizing flexibility and group cost.",
+      "expected": {"options": ["Rental cars", "Regional rail"], "constraints": ["Eight visitors", "Four-day itinerary"], "criteria": ["Schedule flexibility", "Total group cost"], "desired_depth": "normal"},
+      "direct_capture": {"options": ["Rental cars", "Regional rail"], "constraints": ["Eight visitors", "Four-day itinerary"], "criteria": ["Schedule flexibility", "Total group cost"], "desired_depth": "normal"}
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Adaptive Decision Intake implementation plan
 
-- Status: Story 1 compatibility spike complete; Story 2 is next
+- Status: Stories 1 and 2 complete; Story 3 is next
 - Decision: [ADR 0003](./adr/0003-bounded-a2ui-adk-intake.md)
 - Last verified: 2026-08-27
 
@@ -251,6 +251,9 @@ Completed 2026-08-27. See the
 - No product route or hosted service is added yet.
 
 ### Story 2: scope contracts and evaluation fixtures
+
+Completed 2026-08-27. See the
+[benchmark, rubric, baseline, and go/no-go evidence](./adaptive-intake-benchmark.md).
 
 - Add `ScopeProposal`, `ScopeField`, and `IntakeResponse` schemas and limits.
 - Add cross-language golden/malformed fixtures and JSON Schema where useful.
