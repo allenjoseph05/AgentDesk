@@ -97,6 +97,9 @@ GitHub forwards configured ports privately by default. After the stack is health
    ```text
    https://<codespace-name>-5173.app.github.dev
    ```
+5. On the first visit, GitHub displays a development-port safety warning. Confirm that the hostname
+   matches the Codespace, then select **Continue**. Do not enter credentials or sensitive data into
+   this fixture demo.
 
 Anyone with a public forwarded-port URL can access it without GitHub authentication. Return the port
 to **Private** or stop the Codespace when the demonstration ends. GitHub documents the visibility and
@@ -117,14 +120,21 @@ restart behavior in its
 
 ## Deployment evidence
 
-- Public demo URL: _pending first on-demand Codespaces run_
-- Verified commit: _pending first on-demand Codespaces run_
-- Verified at: _pending first on-demand Codespaces run_
-- Availability: _on demand; URL is not promised while the Codespace is stopped_
+- Public demo URL: <https://agentdesk-demo-gwrv6gj46qx29qv6-5173.app.github.dev>
+- Verified commit: `46fa89f8d481d011ddc8f8b1378d6fca802fe97b`
+- Verified at: `2026-08-27T08:15:46Z`
+- Availability: on demand; the URL is not promised while the Codespace is stopped
 
 The public URL is runtime evidence rather than a permanent README link. For an always-available
 portfolio artifact, record the deterministic walkthrough and attach screenshots or video to the
 GitHub repository or release.
+
+The existing browser test can verify either localhost or the public forwarded URL. From a shell
+with the repository dependencies installed, run:
+
+```bash
+AGENTDESK_DEMO_BASE_URL=https://<codespace-name>-5173.app.github.dev npm run test:e2e:demo
+```
 
 ## Troubleshooting
 

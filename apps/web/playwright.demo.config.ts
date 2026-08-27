@@ -15,7 +15,7 @@ export default defineConfig({
   outputDir: "demo-test-results",
   use: {
     ...devices["Desktop Chrome"],
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: process.env.AGENTDESK_DEMO_BASE_URL ?? "http://127.0.0.1:5173",
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
     video: "retain-on-failure",
