@@ -28,17 +28,21 @@ def test_scoper_dependencies_are_exact_and_isolated_from_root() -> None:
     assert "opentelemetry-sdk==1.44.0" in root_lock
 
 
-def test_a2ui_compatibility_graphs_are_exact_and_not_runtime_dependencies() -> None:
+def test_a2ui_compatibility_graphs_are_exact_at_each_delivery_boundary() -> None:
     python_project = (A2UI_PYTHON / "pyproject.toml").read_text(encoding="utf-8")
     python_lock = (A2UI_PYTHON / "requirements.lock").read_text(encoding="utf-8")
     web_package = json.loads((A2UI_WEB / "package.json").read_text(encoding="utf-8"))
     production_web = json.loads(
         (ROOT / "apps" / "web" / "package.json").read_text(encoding="utf-8")
     )
+    root_project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    root_lock = (ROOT / "requirements.lock").read_text(encoding="utf-8")
 
     assert '"a2ui-core==0.1.1"' in python_project
     assert "a2ui-core==0.1.1" in python_lock
     assert "opentelemetry-sdk==1.44.0" in python_lock
+    assert '"a2ui-core==0.1.1"' in root_project
+    assert "a2ui-core==0.1.1" in root_lock
     assert web_package["dependencies"]["@a2ui/react"] == "0.10.2"
     assert web_package["dependencies"]["@a2ui/web_core"] == "0.10.6"
     assert web_package["overrides"] == {"dompurify": "3.4.13"}

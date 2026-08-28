@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.14,<3.15"
 dependencies = [
     "a2a-sdk[fastapi]==1.1.2",
+    "a2ui-core==0.1.1",
     "ag-ui-protocol==0.1.20",
     "alembic==1.18.5",
     "fastapi==0.141.1",

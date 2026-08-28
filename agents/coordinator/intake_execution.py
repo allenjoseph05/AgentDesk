@@ -10,11 +10,13 @@ from typing import Protocol
 from uuid import NAMESPACE_URL, uuid5
 
 from agents.coordinator.a2a_client import A2AClientAdapter, RemoteTaskResult
+from agents.coordinator.a2ui import compile_intake_surface
 from agents.coordinator.intake import direct_research_request, request_is_complete
 from agents.coordinator.persistence import WorkflowPersistenceService
 from agents.coordinator.projection import DurableAgUiProjector
 from agents.coordinator.registry import AgentRegistry, RegisteredAgent
 from agents.coordinator.run_adapter import (
+    CoordinatorA2uiSurfaceUpdate,
     CoordinatorCommand,
     CoordinatorCommandExecutor,
     CoordinatorRunOutcome,
@@ -182,6 +184,10 @@ class AdaptiveIntakeCommandExecutor:
             artifact = ScopeProposalArtifact.model_validate(
                 result.artifact.model_dump(mode="python")
             )
+            surface = compile_intake_surface(
+                command.correlation.session_id,
+                artifact.payload,
+            )
             self._persistence.persist_intake_proposal(
                 session_id=command.correlation.session_id,
                 agent_task_id=task_id,
@@ -202,6 +208,7 @@ class AdaptiveIntakeCommandExecutor:
                 self._projector.snapshot(command.correlation.session_id),
                 sequence=machine.history[-1].sequence,
             )
+            yield CoordinatorA2uiSurfaceUpdate(surface)
             yield CoordinatorRunOutcome(
                 status="completed",
                 message="Clarification questions are ready.",

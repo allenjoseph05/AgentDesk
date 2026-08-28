@@ -2,7 +2,7 @@
 
 AgentDesk is an adaptive research and decision-support workspace. A Coordinator delegates work to independently deployed specialist agents through A2A and progressively presents validated results to a React application through AG-UI.
 
-The implemented system includes Researcher, Analyst, and Verifier services, durable PostgreSQL state, browser-to-agent streaming, failure recovery, and an API-key-free deterministic demo. See the [architecture guide](./docs/architecture.md), [demo walkthrough](./docs/demo.md), and [current protocol decision](./docs/adr/0002-ag-ui-frontend-protocol.md).
+The implemented system includes Researcher, Analyst, and Verifier services, durable PostgreSQL state, browser-to-agent streaming, failure recovery, and an API-key-free deterministic demo. See the [architecture guide](./docs/architecture.md), [demo walkthrough](./docs/demo.md), and [bounded adaptive-intake decision](./docs/adr/0003-bounded-a2ui-adk-intake.md).
 
 ## Protocol boundaries
 
@@ -10,7 +10,7 @@ AgentDesk deliberately uses two protocols because the browser and specialist ser
 
 - **AG-UI** is the browser-to-Coordinator boundary. It carries user actions, thread/run lifecycle, messages, semantic steps, shared state snapshots and deltas, errors, and cancellation over HTTP with an SSE response.
 - **A2A** is the Coordinator-to-specialist boundary. It provides Agent Card discovery, remote task identity, typed artifacts, streamed task updates, and cancellation between independently deployable services.
-- **A2UI is not part of the running system.** It was the original generative-UI baseline in ADR 0001, then was superseded by AG-UI. The React application now selects from trusted, repository-owned components using validated application state; agents cannot send HTML, JavaScript, component names, or arbitrary render trees.
+- **A2UI** is a bounded description format for adaptive intake only. The Coordinator deterministically compiles a validated, persisted scoping proposal into A2UI 0.9.1 messages, validates them against a seven-component catalog with `a2ui-core`, and transports them in the namespaced AG-UI custom event `agentdesk.a2ui.surface.v1`. Agents cannot emit A2UI, HTML, JavaScript, styles, URLs, or arbitrary component trees. The trusted React renderer is delivered separately from this backend compiler.
 
 Domain contracts and persisted artifacts remain protocol-neutral. This keeps browser interaction concerns out of specialist implementations and keeps A2A transport models out of the database model. The complete boundary and identifier mapping are documented in the [architecture guide](./docs/architecture.md).
 

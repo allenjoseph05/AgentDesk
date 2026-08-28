@@ -15,8 +15,10 @@ import pytest
 from ag_ui.core import RunAgentInput
 from ag_ui.encoder import EventEncoder
 
+from agents.coordinator.a2ui import compile_intake_surface
 from agents.coordinator.run_adapter import (
     ChallengeRecommendationCommand,
+    CoordinatorA2uiSurfaceUpdate,
     CoordinatorActivityUpdate,
     CoordinatorCommand,
     CoordinatorRunAdapter,
@@ -29,7 +31,8 @@ from agents.coordinator.run_adapter import (
     RetryFailedAgentCommand,
     StartResearchCommand,
 )
-from packages.contracts import AgentDeskViewState
+from packages.contracts import A2UI_SURFACE_EVENT_NAME, A2uiSurface, AgentDeskViewState
+from packages.testing import load_intake_fixture
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -505,6 +508,95 @@ def test_state_updates_emit_deltas_and_ignore_stale_sequences() -> None:
     assert latest["/status"] == "analyzing"
     assert latest["/activeStep"] == "analysis"
     assert events[-1]["type"] == "RUN_FINISHED"
+
+
+def test_a2ui_surface_uses_namespaced_custom_event_before_terminal() -> None:
+    fixture = load_intake_fixture("technology-database")
+    surface = compile_intake_surface("run-1", fixture.artifact.payload)
+
+    class SurfaceExecutor:
+        async def execute(
+            self,
+            command: CoordinatorCommand,
+        ) -> AsyncIterator[CoordinatorRunUpdate]:
+            awaiting = AgentDeskViewState(
+                session_id=command.correlation.session_id,
+                question=fixture.artifact.payload.question,
+                status="awaiting_input",
+                active_step="await-intake-response",
+                available_actions=["submit_intake", "skip_intake"],
+                last_updated_at=datetime(2026, 8, 28, 12, 0, tzinfo=UTC),
+            )
+            yield CoordinatorStateUpdate(awaiting, sequence=1)
+            yield CoordinatorA2uiSurfaceUpdate(surface)
+            yield CoordinatorRunOutcome(status="completed")
+
+    events = asyncio.run(
+        _events(
+            CoordinatorRunAdapter(executor=SurfaceExecutor()),
+            _input(
+                {
+                    "schemaVersion": "1.0",
+                    "actionId": "prepare-a2ui",
+                    "type": "prepare_research",
+                    "sessionId": None,
+                    "payload": {"question": fixture.artifact.payload.question},
+                },
+                fixture.artifact.payload.question,
+            ),
+        )
+    )
+
+    custom = next(event for event in events if event["type"] == "CUSTOM")
+    assert custom["name"] == A2UI_SURFACE_EVENT_NAME
+    assert custom["value"] == surface.to_ag_ui()
+    assert events.index(custom) < len(events) - 1
+    assert events[-1]["type"] == "RUN_FINISHED"
+    assert all(event["type"] != "CUSTOM" for event in events[events.index(custom) + 1 : -1])
+
+
+def test_awaiting_input_snapshot_recompiles_surface_for_rehydration() -> None:
+    fixture = load_intake_fixture("technology-database")
+    surface = compile_intake_surface("session-1", fixture.artifact.payload)
+
+    class SurfaceProjector:
+        calls: list[str] = []
+
+        def surface(self, session_id: str) -> A2uiSurface:
+            self.calls.append(session_id)
+            return surface
+
+    projector = SurfaceProjector()
+    state = _state()
+    state.update(
+        {
+            "status": "awaiting_input",
+            "activeStep": "await-intake-response",
+            "availableActions": ["submit_intake", "skip_intake"],
+        }
+    )
+    action = {
+        "schemaVersion": "1.0",
+        "actionId": "skip-rehydrated-intake",
+        "type": "skip_intake",
+        "sessionId": "session-1",
+        "payload": {},
+    }
+
+    events = asyncio.run(
+        _events(
+            CoordinatorRunAdapter(
+                executor=RecordingExecutor(),
+                surface_projector=projector,
+            ),
+            _input(action, "Skip clarification.", state=state),
+        )
+    )
+
+    assert projector.calls == ["session-1"]
+    assert next(event for event in events if event["type"] == "CUSTOM")["value"] == (
+        surface.to_ag_ui()
+    )
 
 
 def test_run_adapter_has_no_specialist_implementation_imports() -> None:

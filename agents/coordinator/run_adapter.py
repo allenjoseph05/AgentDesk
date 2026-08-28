@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from ag_ui.core import (
     ActivitySnapshotEvent,
+    CustomEvent,
     RunAgentInput,
     RunErrorEvent,
     RunFinishedEvent,
@@ -31,6 +32,8 @@ from agents.coordinator.agui_security import MAX_AG_UI_MESSAGE_BYTES
 from agents.coordinator.projection import AgUiEventProjection
 from agents.coordinator.run_tasks import A2ATaskFactory, ActiveA2ATask
 from packages.contracts import (
+    A2UI_SURFACE_EVENT_NAME,
+    A2uiSurface,
     AgentDeskAction,
     AgentDeskViewState,
     IntakeResponse,
@@ -203,6 +206,13 @@ class CoordinatorActivityUpdate:
 
 
 @dataclass(frozen=True)
+class CoordinatorA2uiSurfaceUpdate:
+    """One already-validated A2UI surface ready for AG-UI transport."""
+
+    surface: A2uiSurface
+
+
+@dataclass(frozen=True)
 class CoordinatorRunOutcome:
     """One terminal Coordinator result mapped to an AG-UI terminal event."""
 
@@ -227,6 +237,7 @@ CoordinatorRunUpdate = (
     CoordinatorStateUpdate
     | CoordinatorStepUpdate
     | CoordinatorActivityUpdate
+    | CoordinatorA2uiSurfaceUpdate
     | CoordinatorRunOutcome
 )
 
@@ -235,6 +246,12 @@ class CoordinatorCommandExecutor(Protocol):
     """UI-neutral execution boundary implemented by Coordinator application services."""
 
     def execute(self, command: CoordinatorCommand) -> AsyncIterator[CoordinatorRunUpdate]: ...
+
+
+class A2uiSurfaceProjector(Protocol):
+    """Persistence-backed A2UI recompilation used for browser rehydration."""
+
+    def surface(self, session_id: str) -> A2uiSurface: ...
 
 
 @dataclass(frozen=True)
@@ -291,9 +308,11 @@ class CoordinatorRunAdapter:
         *,
         executor: CoordinatorCommandExecutor,
         admissions: RunAdmissionRegistry | None = None,
+        surface_projector: A2uiSurfaceProjector | None = None,
     ) -> None:
         self._executor = executor
         self._admissions = admissions or RunAdmissionRegistry()
+        self._surface_projector = surface_projector
 
     async def stream(
         self,
@@ -389,6 +408,25 @@ class CoordinatorRunAdapter:
         projection = AgUiEventProjection(initial_state)
         yield encoder.encode(StepStartedEvent(step_name=step_name))
         yield encoder.encode(projection.snapshot_event())
+        if initial_state.status == "awaiting_input" and self._surface_projector is not None:
+            try:
+                rehydrated_surface = self._surface_projector.surface(correlation.session_id)
+            except Exception:
+                log_event(
+                    LOGGER,
+                    "agui.a2ui_rehydration",
+                    level=logging.ERROR,
+                    ids=_log_ids(correlation),
+                    outcome="failed",
+                    error_code="a2ui_rehydration_failed",
+                )
+            else:
+                yield encoder.encode(
+                    CustomEvent(
+                        name=A2UI_SURFACE_EVENT_NAME,
+                        value=rehydrated_surface.to_ag_ui(),
+                    )
+                )
 
         terminal_seen = False
         try:
@@ -421,6 +459,14 @@ class CoordinatorRunAdapter:
                                 "status": update.status,
                                 "summary": update.summary,
                             },
+                        )
+                    )
+                    continue
+                if isinstance(update, CoordinatorA2uiSurfaceUpdate):
+                    yield encoder.encode(
+                        CustomEvent(
+                            name=A2UI_SURFACE_EVENT_NAME,
+                            value=update.surface.to_ag_ui(),
                         )
                     )
                     continue

@@ -1,6 +1,6 @@
 # Adaptive Decision Intake implementation plan
 
-- Status: Stories 1 through 4 complete; Story 5 is next
+- Status: Stories 1 through 5 complete; Story 6 is next
 - Decision: [ADR 0003](./adr/0003-bounded-a2ui-adk-intake.md)
 - Last verified: 2026-08-27
 
@@ -280,6 +280,9 @@ Completed 2026-08-28. See the
 - Keep current `start_research` behavior as the direct/fallback path.
 
 ### Story 5: bounded A2UI compiler and transport
+
+Completed 2026-08-28. See the
+[bounded compiler, transport, and rehydration evidence](./adaptive-intake-a2ui.md).
 
 - Add exact `a2ui-core` dependency and the proposal-to-A2UI 0.9.1 compiler.
 - Validate size, structure, catalog, binding, and reachability before emission.

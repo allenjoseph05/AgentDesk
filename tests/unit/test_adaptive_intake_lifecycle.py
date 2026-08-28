@@ -14,6 +14,7 @@ from a2a.utils.constants import TransportProtocol
 from sqlalchemy.pool import StaticPool
 
 from agents.coordinator.a2a_client import RemoteTaskResult
+from agents.coordinator.a2ui import DurableA2uiProjector
 from agents.coordinator.intake import (
     IntakeCompilationError,
     compile_research_request,
@@ -307,8 +308,11 @@ def test_prepare_persists_proposal_before_projecting_awaiting_input(
     assert proposal is not None
     assert proposal.artifact == fixture.artifact
     assert [item.to_status for item in transitions] == ["scoping", "awaiting_input"]
-    assert updates[-2].snapshot.status == "awaiting_input"
-    assert updates[-2].snapshot.available_actions == ["submit_intake", "skip_intake"]
+    assert updates[-3].snapshot.status == "awaiting_input"
+    assert updates[-3].snapshot.available_actions == ["submit_intake", "skip_intake"]
+    assert updates[-2].surface.proposal_id == fixture.artifact.payload.proposal_id
+    assert DurableA2uiProjector(database).surface("intake-session") == updates[-2].surface
+    assert "messages" not in proposal.model_dump(mode="json")
     assert updates[-1].status == "completed"
 
 
@@ -342,6 +346,8 @@ def test_submit_persists_response_and_resumes_same_session(database: Database) -
         saved = repositories.intake.get_response_by_action("submit-action")
     assert proposal is not None and proposal.status == "accepted"
     assert saved is not None and saved.normalized_request == fixture.expected_request
+    with pytest.raises(ValueError, match="No active intake proposal"):
+        DurableA2uiProjector(database).surface("intake-session")
 
 
 def test_skip_uses_trusted_defaults_and_direct_complete_request_bypasses_scoper(
