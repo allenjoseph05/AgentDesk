@@ -21,7 +21,7 @@ flowchart LR
 | Boundary | Responsibility | Must not own |
 |---|---|---|
 | React web app | User input, trusted presentation, AG-UI client lifecycle, validated local view state | Workflow decisions, A2A calls, arbitrary agent-selected UI |
-| Coordinator | AG-UI admission, planning, orchestration, persistence, state projection, recovery | Specialist implementation details, browser rendering |
+| Coordinator | AG-UI admission, bounded A2UI compilation, planning, orchestration, persistence, state projection, recovery | Specialist implementation details, browser rendering |
 | Researcher | Gather and synthesize evidence into an `EvidenceBundle` | Recommendation or UI state |
 | Analyst | Compare options and challenge recommendations using accepted evidence | Research transport or verification verdicts |
 | Verifier | Check claims against the accepted evidence bundle | Workflow ordering or presentation |
@@ -33,7 +33,7 @@ AG-UI and A2A solve different layers of the request.
 
 - **AG-UI** is user-to-agent interaction. `RunAgentInput` carries a stable thread, a unique run, the transcript, the last observed state, and a strict AgentDesk action envelope. The Coordinator returns ordered run, step, activity, message, state, error, and terminal events over SSE.
 - **A2A** is agent-to-agent collaboration. Agent Cards advertise capabilities and readiness. The Coordinator creates remote tasks, consumes typed task streams and artifacts, retains remote task/context IDs, and propagates cancellation.
-- **A2UI is intentionally absent from runtime.** The project initially selected it for generative UI, but the implemented product does not need agents to generate render trees. React components are repository-owned and selected from runtime-validated AG-UI state. ADR 0002 supersedes the A2UI portion of ADR 0001.
+- **A2UI** is used only for the adaptive-intake surface approved by ADR 0003. The scoper returns a protocol-neutral `ScopeProposal`; the Coordinator—not the agent—maps it to a full A2UI 0.9.1 surface from a seven-component allowlist, validates protocol structure and graph integrity with `a2ui-core`, and embeds it in `agentdesk.a2ui.surface.v1`. AG-UI remains the lifecycle, action, cancellation, and transport boundary. Persisted proposals are recompiled during rehydration, so renderer messages never become domain state.
 
 The split lets specialists remain independently deployable and UI-neutral, while the browser receives a protocol designed for interactive run state. Shared Pydantic domain contracts sit between these adapters and are the persistence source of truth.
 

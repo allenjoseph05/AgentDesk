@@ -19,6 +19,7 @@ DOCUMENTS = (
     ROOT / "docs" / "adr" / "0003-bounded-a2ui-adk-intake.md",
     ROOT / "docs" / "adaptive-intake-plan.md",
     ROOT / "docs" / "adaptive-intake-benchmark.md",
+    ROOT / "docs" / "adaptive-intake-a2ui.md",
 )
 MARKDOWN_LINK = re.compile(r"\[[^]]+\]\(([^)]+)\)")
 
@@ -40,7 +41,8 @@ def test_readme_explains_current_and_superseded_protocol_boundaries() -> None:
 
     assert "**AG-UI** is the browser-to-Coordinator boundary" in readme
     assert "**A2A** is the Coordinator-to-specialist boundary" in readme
-    assert "**A2UI is not part of the running system.**" in readme
+    assert "**A2UI** is a bounded description format for adaptive intake only" in readme
+    assert "agentdesk.a2ui.surface.v1" in readme
     assert "./docs/architecture.md" in readme
     assert "./docs/demo.md" in readme
     assert "./docs/deployment.md" in readme
@@ -89,11 +91,12 @@ def test_adaptive_intake_plan_preserves_protocol_and_dependency_boundaries() -> 
     assert "Keep the existing Coordinator as the deterministic control plane" in adr
     assert "Do not install `google-adk` or `a2ui-agent-sdk` in the root" in adr
     assert "AG-UI remains the sole browser" in adr
-    assert "Stories 1 through 4 complete; Story 5 is next" in plan
+    assert "Stories 1 through 5 complete; Story 6 is next" in plan
     assert "compatibility decision and evidence" in plan
     assert "benchmark, rubric, baseline, and go/no-go evidence" in plan
     assert "isolated service implementation and evidence" in plan
     assert "Coordinator lifecycle and persistence evidence" in plan
+    assert "bounded compiler, transport, and rehydration evidence" in plan
     assert "A2UI protocol 0.9.1" in plan
     assert "improves the predefined ambiguous-prompt quality score" in plan
 

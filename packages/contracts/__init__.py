@@ -1,5 +1,14 @@
 """Versioned cross-agent contracts."""
 
+from packages.contracts.a2ui import (
+    A2UI_CATALOG_ID,
+    A2UI_CATALOG_VERSION,
+    A2UI_EVENT_SCHEMA_VERSION,
+    A2UI_PROTOCOL_VERSION,
+    A2UI_SURFACE_EVENT_NAME,
+    A2UI_WIRE_VERSION,
+    A2uiSurface,
+)
 from packages.contracts.agui import (
     AG_UI_ACTION_SCHEMA_VERSION,
     AG_UI_STATE_SCHEMA_VERSION,
@@ -47,6 +56,13 @@ from packages.contracts.intake import (
 )
 
 __all__ = [
+    "A2UI_CATALOG_ID",
+    "A2UI_CATALOG_VERSION",
+    "A2UI_EVENT_SCHEMA_VERSION",
+    "A2UI_PROTOCOL_VERSION",
+    "A2UI_SURFACE_EVENT_NAME",
+    "A2UI_WIRE_VERSION",
+    "A2uiSurface",
     "AG_UI_ACTION_SCHEMA_VERSION",
     "AG_UI_STATE_SCHEMA_VERSION",
     "ActionType",

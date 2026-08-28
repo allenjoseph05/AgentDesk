@@ -12,6 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
 
+from agents.coordinator.a2ui import DurableA2uiProjector
 from agents.coordinator.agui import router as ag_ui_router
 from agents.coordinator.agui_security import (
     CORRELATION_HEADER,
@@ -127,7 +128,10 @@ def create_app(
             planner_override=(planner_factory(agent_registry) if planner_factory else None),
         )
     )
-    application.state.ag_ui_run_adapter = CoordinatorRunAdapter(executor=executor)
+    application.state.ag_ui_run_adapter = CoordinatorRunAdapter(
+        executor=executor,
+        surface_projector=DurableA2uiProjector(history_database),
+    )
     application.state.agent_registry = agent_registry
     application.state.research_history = ResearchHistoryService(history_database)
     application.include_router(ag_ui_router)
