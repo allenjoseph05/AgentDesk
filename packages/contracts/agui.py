@@ -12,7 +12,7 @@ from pydantic import (
     model_validator,
 )
 
-from packages.contracts.base import ContractModel
+from packages.contracts.base import MAX_BOUNDED_TEXT_LENGTH, ContractModel
 from packages.contracts.domain import (
     Claim,
     DecisionAnalysis,
@@ -21,10 +21,11 @@ from packages.contracts.domain import (
     RecommendationChallenge,
     VerificationReport,
 )
+from packages.contracts.intake import IntakeResponse
 
 AG_UI_STATE_SCHEMA_VERSION: Literal["1.0"] = "1.0"
 AG_UI_ACTION_SCHEMA_VERSION: Literal["1.0"] = "1.0"
-MAX_AG_UI_TEXT_LENGTH = 16 * 1024
+MAX_AG_UI_TEXT_LENGTH = MAX_BOUNDED_TEXT_LENGTH
 MAX_AG_UI_ACTION_LIST_LENGTH = 20
 AgUiText = Annotated[
     str,
@@ -45,7 +46,10 @@ def _camelize(value: Any, *, transform_keys: bool = True) -> Any:
                 if transform_keys
                 else key
             )
-            result[normalized_key] = _camelize(item, transform_keys=key != "scores")
+            result[normalized_key] = _camelize(
+                item,
+                transform_keys=key not in {"scores", "answers"},
+            )
         return result
     if isinstance(value, list):
         return [_camelize(item, transform_keys=transform_keys) for item in value]
@@ -57,7 +61,10 @@ def _snakeize(value: Any, *, transform_keys: bool = True) -> Any:
         result: dict[str, Any] = {}
         for key, item in value.items():
             normalized_key = re.sub(r"(?<!^)(?=[A-Z])", "_", key).lower() if transform_keys else key
-            result[normalized_key] = _snakeize(item, transform_keys=key != "scores")
+            result[normalized_key] = _snakeize(
+                item,
+                transform_keys=key not in {"scores", "answers"},
+            )
         return result
     if isinstance(value, list):
         return [_snakeize(item, transform_keys=transform_keys) for item in value]
@@ -66,6 +73,8 @@ def _snakeize(value: Any, *, transform_keys: bool = True) -> Any:
 
 SessionStatus = Literal[
     "idle",
+    "scoping",
+    "awaiting_input",
     "planning",
     "researching",
     "analyzing",
@@ -85,6 +94,9 @@ SpecialistStatus = Literal[
     "failed",
 ]
 ActionType = Literal[
+    "prepare_research",
+    "submit_intake",
+    "skip_intake",
     "start_research",
     "challenge_recommendation",
     "research_deeper",
@@ -92,6 +104,8 @@ ActionType = Literal[
     "retry_failed_agent",
 ]
 FollowUpActionType = Literal[
+    "submit_intake",
+    "skip_intake",
     "challenge_recommendation",
     "research_deeper",
     "focus_on_criterion",
@@ -223,6 +237,23 @@ class StartResearchPayload(ContractModel):
     )
 
 
+class PrepareResearchPayload(StartResearchPayload):
+    """Potentially incomplete request that may require adaptive intake."""
+
+
+class SubmitIntakePayload(ContractModel):
+    response: IntakeResponse
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_response_camel_case(cls, value: Any) -> Any:
+        return _snakeize(value)
+
+
+class SkipIntakePayload(ContractModel):
+    """Explicit request to continue with proposal defaults."""
+
+
 class ChallengeRecommendationPayload(ContractModel):
     challenge: AgUiText | None = None
 
@@ -279,6 +310,34 @@ class StartResearchAction(_ActionBase):
     payload: StartResearchPayload
 
 
+class PrepareResearchAction(_ActionBase):
+    type: Literal["prepare_research"]
+    session_id: None = Field(
+        default=None,
+        validation_alias=AliasChoices("sessionId", "session_id"),
+        serialization_alias="sessionId",
+    )
+    payload: PrepareResearchPayload
+
+
+class SubmitIntakeAction(_ActionBase):
+    type: Literal["submit_intake"]
+    session_id: AgUiText = Field(
+        validation_alias=AliasChoices("sessionId", "session_id"),
+        serialization_alias="sessionId",
+    )
+    payload: SubmitIntakePayload
+
+
+class SkipIntakeAction(_ActionBase):
+    type: Literal["skip_intake"]
+    session_id: AgUiText = Field(
+        validation_alias=AliasChoices("sessionId", "session_id"),
+        serialization_alias="sessionId",
+    )
+    payload: SkipIntakePayload = Field(default_factory=SkipIntakePayload)
+
+
 class ChallengeRecommendationAction(_ActionBase):
     type: Literal["challenge_recommendation"]
     session_id: AgUiText = Field(
@@ -316,7 +375,10 @@ class RetryFailedAgentAction(_ActionBase):
 
 
 ActionEnvelope = Annotated[
-    StartResearchAction
+    PrepareResearchAction
+    | SubmitIntakeAction
+    | SkipIntakeAction
+    | StartResearchAction
     | ChallengeRecommendationAction
     | ResearchDeeperAction
     | FocusOnCriterionAction

@@ -16,14 +16,13 @@ from pydantic import (
     model_validator,
 )
 
-from packages.contracts.agui import MAX_AG_UI_TEXT_LENGTH
 from packages.contracts.artifacts import ArtifactEnvelope
-from packages.contracts.base import ContractModel
+from packages.contracts.base import MAX_BOUNDED_TEXT_LENGTH, ContractModel
 from packages.contracts.domain import Depth
 
 INTAKE_SCHEMA_VERSION: Literal["1.0"] = "1.0"
 SCOPE_PROPOSAL_ARTIFACT_NAME = "scope-proposal"
-MAX_INTAKE_TEXT_LENGTH = MAX_AG_UI_TEXT_LENGTH
+MAX_INTAKE_TEXT_LENGTH = MAX_BOUNDED_TEXT_LENGTH
 MAX_SCOPE_SUMMARY_LENGTH = 1024
 MAX_SCOPE_FIELDS = 8
 MAX_SCOPE_CHOICES = 8

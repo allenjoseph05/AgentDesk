@@ -1,6 +1,6 @@
 # Adaptive Decision Intake implementation plan
 
-- Status: Stories 1 through 3 complete; Story 4 is next
+- Status: Stories 1 through 4 complete; Story 5 is next
 - Decision: [ADR 0003](./adr/0003-bounded-a2ui-adk-intake.md)
 - Last verified: 2026-08-27
 
@@ -270,6 +270,9 @@ Completed 2026-08-27. See the
 - Ensure fixture mode has no network/model credential dependency.
 
 ### Story 4: Coordinator intake lifecycle and persistence
+
+Completed 2026-08-28. See the
+[Coordinator lifecycle and persistence evidence](./adaptive-intake-lifecycle.md).
 
 - Add prepare/submit/skip commands, idempotency, legal states, and A2A delegation.
 - Add proposal/response persistence and Alembic migration with downgrade coverage.

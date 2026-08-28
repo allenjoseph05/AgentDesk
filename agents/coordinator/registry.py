@@ -27,6 +27,7 @@ from packages.resilience import OperationPolicy, OperationTimeoutError, run_with
 DEFAULT_RESEARCH_AGENT_URL = "http://127.0.0.1:8005"
 DEFAULT_ANALYST_AGENT_URL = "http://127.0.0.1:8006"
 DEFAULT_VERIFIER_AGENT_URL = "http://127.0.0.1:8007"
+SCOPER_AGENT_URL_ENV = "SCOPER_AGENT_URL"
 AGENT_ENDPOINTS_ENV = "AGENTDESK_AGENT_ENDPOINTS"
 REGISTRY_TIMEOUT_ENV = "AGENTDESK_REGISTRY_TIMEOUT_SECONDS"
 REGISTRY_MAX_ATTEMPTS_ENV = "AGENTDESK_REGISTRY_MAX_ATTEMPTS"
@@ -136,6 +137,15 @@ class AgentRegistrySettings(ContractModel):
                     }
                 ),
             ]
+            if scoper_url := source.get(SCOPER_AGENT_URL_ENV):
+                endpoints.append(
+                    AgentEndpointConfig.model_validate(
+                        {
+                            "agent_id": "scoper",
+                            "base_url": scoper_url,
+                        }
+                    )
+                )
 
         timeout = source.get(REGISTRY_TIMEOUT_ENV, "5")
         attempts = source.get(REGISTRY_MAX_ATTEMPTS_ENV, "3")

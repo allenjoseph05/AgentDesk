@@ -36,7 +36,8 @@ sessions = sa.Table(
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint(
-        "status IN ('created', 'planning', 'researching', 'analyzing', "
+        "status IN ('created', 'scoping', 'awaiting_input', 'planning', "
+        "'researching', 'analyzing', "
         "'verifying', 'cancelling', 'completed', 'partial', 'failed', 'cancelled')",
         name="status",
     ),
@@ -133,6 +134,67 @@ agent_tasks = sa.Table(
 sa.Index("ix_agent_tasks_session_status", agent_tasks.c.session_id, agent_tasks.c.status)
 sa.Index("ix_agent_tasks_remote_task", agent_tasks.c.remote_task_id)
 sa.Index("ix_agent_tasks_a2a_context", agent_tasks.c.a2a_context_id)
+
+intake_proposals = sa.Table(
+    "intake_proposals",
+    metadata,
+    sa.Column("proposal_id", sa.String(255), primary_key=True),
+    sa.Column(
+        "session_id",
+        sa.String(255),
+        sa.ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    ),
+    sa.Column(
+        "agent_task_id",
+        sa.String(255),
+        sa.ForeignKey("agent_tasks.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    ),
+    sa.Column("request_payload", sa.JSON(), nullable=False),
+    sa.Column("artifact_payload", sa.JSON(), nullable=False),
+    sa.Column("status", sa.String(32), nullable=False),
+    sa.Column("normalized_request", sa.JSON()),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("decided_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint(
+        "status IN ('awaiting_response', 'accepted', 'skipped')",
+        name="status",
+    ),
+)
+sa.Index(
+    "ix_intake_proposals_session_status", intake_proposals.c.session_id, intake_proposals.c.status
+)
+
+intake_responses = sa.Table(
+    "intake_responses",
+    metadata,
+    sa.Column("action_id", sa.String(255), primary_key=True),
+    sa.Column(
+        "session_id",
+        sa.String(255),
+        sa.ForeignKey("sessions.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    ),
+    sa.Column(
+        "proposal_id",
+        sa.String(255),
+        sa.ForeignKey("intake_proposals.proposal_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    ),
+    sa.Column("response_payload", sa.JSON(), nullable=False),
+    sa.Column("normalized_request", sa.JSON(), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+)
+sa.Index(
+    "ix_intake_responses_session_created",
+    intake_responses.c.session_id,
+    intake_responses.c.created_at,
+)
 
 evidence = sa.Table(
     "evidence",

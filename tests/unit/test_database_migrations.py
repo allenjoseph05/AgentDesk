@@ -25,6 +25,8 @@ EXPECTED_TABLES = {
     "coordinator_runs",
     "agent_tasks",
     "evidence",
+    "intake_proposals",
+    "intake_responses",
     "claims",
     "research_artifacts",
     "analysis",
@@ -112,6 +114,8 @@ def test_migration_creates_required_tables_correlations_and_indexes() -> None:
                 "ix_agent_tasks_session_status",
                 "ix_agent_tasks_remote_task",
                 "ix_evidence_session_retrieved",
+                "ix_intake_proposals_session_status",
+                "ix_intake_responses_session_created",
                 "ix_analysis_session_created",
                 "ix_research_artifacts_session_created",
                 "ix_recommendation_challenges_session_created",
@@ -136,6 +140,30 @@ def test_upgrade_is_idempotent_and_downgrade_returns_to_base() -> None:
             with engine.connect() as connection:
                 rows = connection.exec_driver_sql("SELECT version_num FROM alembic_version").all()
                 assert rows == []
+        finally:
+            engine.dispose()
+
+
+def test_adaptive_intake_revision_downgrades_cleanly_to_previous_schema() -> None:
+    with _database_paths("intake-round-trip") as (database,):
+        config = _config(database)
+        command.upgrade(config, "head")
+        command.downgrade(config, "20260822_0006")
+
+        engine = sa.create_engine(f"sqlite:///{database.as_posix()}")
+        try:
+            tables = set(sa.inspect(engine).get_table_names())
+            assert "intake_proposals" not in tables
+            assert "intake_responses" not in tables
+        finally:
+            engine.dispose()
+
+        command.upgrade(config, "head")
+        engine = sa.create_engine(f"sqlite:///{database.as_posix()}")
+        try:
+            with engine.connect() as connection:
+                context = MigrationContext.configure(connection)
+                assert compare_metadata(context, metadata) == []
         finally:
             engine.dispose()
 

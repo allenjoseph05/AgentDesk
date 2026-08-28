@@ -16,6 +16,7 @@ from agents.coordinator.registry import (
     REGISTRY_MAX_ATTEMPTS_ENV,
     REGISTRY_RETRY_DELAY_ENV,
     REGISTRY_TIMEOUT_ENV,
+    SCOPER_AGENT_URL_ENV,
     AgentEndpointConfig,
     AgentRegistry,
     AgentRegistrySettings,
@@ -93,6 +94,20 @@ def test_default_configuration_includes_the_verifier_service() -> None:
         "verifier",
     ]
     assert settings.endpoints[-1].normalized_url == "http://127.0.0.1:8007"
+
+
+def test_scoper_is_added_only_when_its_local_endpoint_is_configured() -> None:
+    settings = AgentRegistrySettings.from_environment(
+        {SCOPER_AGENT_URL_ENV: "http://127.0.0.1:8011"}
+    )
+
+    assert [endpoint.agent_id for endpoint in settings.endpoints] == [
+        "researcher",
+        "analyst",
+        "verifier",
+        "scoper",
+    ]
+    assert settings.endpoints[-1].normalized_url == "http://127.0.0.1:8011"
 
 
 @pytest.mark.parametrize(

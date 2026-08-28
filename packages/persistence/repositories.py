@@ -18,7 +18,11 @@ from packages.contracts import (
     DecisionAnalysis,
     Evidence,
     EvidenceBundle,
+    IntakeResponse,
     RecommendationChallenge,
+    ResearchRequest,
+    ScopeProposalArtifact,
+    ScopingRequest,
     VerificationReport,
 )
 from packages.persistence.records import (
@@ -27,6 +31,8 @@ from packages.persistence.records import (
     ClaimRecord,
     CoordinatorRunRecord,
     EvidenceRecord,
+    IntakeProposalRecord,
+    IntakeResponseRecord,
     RecommendationChallengeRecord,
     ResearchArtifactRecord,
     SessionRecord,
@@ -39,6 +45,8 @@ from packages.persistence.schema import (
     claims,
     coordinator_runs,
     evidence,
+    intake_proposals,
+    intake_responses,
     recommendation_challenges,
     research_artifacts,
     sessions,
@@ -390,6 +398,99 @@ class AgentTaskRepository(_Repository):
         return tuple(_agent_task_record(row) for row in rows)
 
 
+class IntakeRepository(_Repository):
+    def add_proposal(self, record: IntakeProposalRecord) -> None:
+        validated = IntakeProposalRecord.model_validate(record.model_dump(mode="python"))
+        self._insert(
+            intake_proposals,
+            _intake_proposal_values(validated),
+            entity="intake proposal",
+            record_id=validated.proposal_id,
+        )
+
+    def get_proposal(self, proposal_id: str) -> IntakeProposalRecord | None:
+        row = (
+            self._connection.execute(
+                sa.select(intake_proposals).where(intake_proposals.c.proposal_id == proposal_id)
+            )
+            .mappings()
+            .one_or_none()
+        )
+        return _intake_proposal_record(row) if row is not None else None
+
+    def get_proposal_by_session(self, session_id: str) -> IntakeProposalRecord | None:
+        row = (
+            self._connection.execute(
+                sa.select(intake_proposals).where(intake_proposals.c.session_id == session_id)
+            )
+            .mappings()
+            .one_or_none()
+        )
+        return _intake_proposal_record(row) if row is not None else None
+
+    def replace_proposal(self, record: IntakeProposalRecord) -> None:
+        validated = IntakeProposalRecord.model_validate(record.model_dump(mode="python"))
+        current = self.get_proposal(validated.proposal_id)
+        if current is None:
+            raise RecordNotFoundError("intake proposal", validated.proposal_id)
+        _assert_immutable(
+            "intake proposal",
+            validated.proposal_id,
+            current,
+            validated,
+            ("session_id", "agent_task_id", "request", "artifact", "created_at"),
+        )
+        self._require_update(
+            sa.update(intake_proposals)
+            .where(intake_proposals.c.proposal_id == validated.proposal_id)
+            .values(
+                status=validated.status,
+                normalized_request=(
+                    validated.normalized_request.model_dump(mode="json")
+                    if validated.normalized_request is not None
+                    else None
+                ),
+                decided_at=validated.decided_at,
+            ),
+            entity="intake proposal",
+            record_id=validated.proposal_id,
+        )
+
+    def put_response(self, record: IntakeResponseRecord) -> bool:
+        validated = IntakeResponseRecord.model_validate(record.model_dump(mode="python"))
+        existing = self.get_response_by_action(validated.action_id)
+        if existing is not None:
+            _assert_same("intake response", validated.action_id, existing, validated)
+            return False
+        self._insert(
+            intake_responses,
+            _intake_response_values(validated),
+            entity="intake response",
+            record_id=validated.action_id,
+        )
+        return True
+
+    def get_response_by_action(self, action_id: str) -> IntakeResponseRecord | None:
+        row = (
+            self._connection.execute(
+                sa.select(intake_responses).where(intake_responses.c.action_id == action_id)
+            )
+            .mappings()
+            .one_or_none()
+        )
+        return _intake_response_record(row) if row is not None else None
+
+    def get_response_by_proposal(self, proposal_id: str) -> IntakeResponseRecord | None:
+        row = (
+            self._connection.execute(
+                sa.select(intake_responses).where(intake_responses.c.proposal_id == proposal_id)
+            )
+            .mappings()
+            .one_or_none()
+        )
+        return _intake_response_record(row) if row is not None else None
+
+
 class ArtifactRepository(_Repository):
     def put_research_artifact(self, record: ResearchArtifactRecord) -> bool:
         validated = ResearchArtifactRecord.model_validate(record.model_dump(mode="python"))
@@ -683,6 +784,7 @@ class RepositoryUnitOfWork:
         self.runs = CoordinatorRunRepository(connection)
         self.transitions = WorkflowTransitionRepository(connection)
         self.agent_tasks = AgentTaskRepository(connection)
+        self.intake = IntakeRepository(connection)
         self.artifacts = ArtifactRepository(connection)
 
 
@@ -753,6 +855,64 @@ def _agent_task_record(row: RowMapping) -> AgentTaskRecord:
     if values["finished_at"] is not None:
         values["finished_at"] = _aware(values["finished_at"])
     return AgentTaskRecord.model_validate(values)
+
+
+def _intake_proposal_values(record: IntakeProposalRecord) -> dict[str, Any]:
+    return {
+        "proposal_id": record.proposal_id,
+        "session_id": record.session_id,
+        "agent_task_id": record.agent_task_id,
+        "request_payload": record.request.model_dump(mode="json"),
+        "artifact_payload": record.artifact.model_dump(mode="json"),
+        "status": record.status,
+        "normalized_request": (
+            record.normalized_request.model_dump(mode="json")
+            if record.normalized_request is not None
+            else None
+        ),
+        "created_at": record.created_at,
+        "decided_at": record.decided_at,
+    }
+
+
+def _intake_proposal_record(row: RowMapping) -> IntakeProposalRecord:
+    return IntakeProposalRecord(
+        proposal_id=row["proposal_id"],
+        session_id=row["session_id"],
+        agent_task_id=row["agent_task_id"],
+        request=ScopingRequest.model_validate(row["request_payload"]),
+        artifact=ScopeProposalArtifact.model_validate(row["artifact_payload"]),
+        status=row["status"],
+        normalized_request=(
+            ResearchRequest.model_validate(row["normalized_request"])
+            if row["normalized_request"] is not None
+            else None
+        ),
+        created_at=_aware(row["created_at"]),
+        decided_at=(_aware(row["decided_at"]) if row["decided_at"] is not None else None),
+    )
+
+
+def _intake_response_values(record: IntakeResponseRecord) -> dict[str, Any]:
+    return {
+        "action_id": record.action_id,
+        "session_id": record.session_id,
+        "proposal_id": record.proposal_id,
+        "response_payload": record.response.model_dump(mode="json"),
+        "normalized_request": record.normalized_request.model_dump(mode="json"),
+        "created_at": record.created_at,
+    }
+
+
+def _intake_response_record(row: RowMapping) -> IntakeResponseRecord:
+    return IntakeResponseRecord(
+        action_id=row["action_id"],
+        session_id=row["session_id"],
+        proposal_id=row["proposal_id"],
+        response=IntakeResponse.model_validate(row["response_payload"]),
+        normalized_request=ResearchRequest.model_validate(row["normalized_request"]),
+        created_at=_aware(row["created_at"]),
+    )
 
 
 def _evidence_record(row: RowMapping) -> EvidenceRecord:

@@ -12,13 +12,19 @@ from packages.contracts import (
     DecisionAnalysis,
     Evidence,
     EvidenceBundle,
+    IntakeResponse,
     RecommendationChallenge,
+    ResearchRequest,
+    ScopeProposalArtifact,
+    ScopingRequest,
     VerificationReport,
 )
 from packages.contracts.base import ContractModel, NonEmptyText
 
 SessionPersistenceStatus = Literal[
     "created",
+    "scoping",
+    "awaiting_input",
     "planning",
     "researching",
     "analyzing",
@@ -45,6 +51,7 @@ AgentTaskPersistenceStatus = Literal[
     "failed",
     "cancelled",
 ]
+IntakeProposalStatus = Literal["awaiting_response", "accepted", "skipped"]
 
 
 class SessionRecord(ContractModel):
@@ -65,6 +72,8 @@ class SessionRecord(ContractModel):
     @model_validator(mode="after")
     def validate_state(self) -> SessionRecord:
         active = {
+            "scoping",
+            "awaiting_input",
             "planning",
             "researching",
             "analyzing",
@@ -186,3 +195,48 @@ class VerificationReportRecord(ContractModel):
     session_id: NonEmptyText
     agent_task_id: NonEmptyText
     envelope: ArtifactEnvelope[VerificationReport]
+
+
+class IntakeProposalRecord(ContractModel):
+    proposal_id: NonEmptyText
+    session_id: NonEmptyText
+    agent_task_id: NonEmptyText
+    request: ScopingRequest
+    artifact: ScopeProposalArtifact
+    status: IntakeProposalStatus = "awaiting_response"
+    normalized_request: ResearchRequest | None = None
+    created_at: AwareDatetime
+    decided_at: AwareDatetime | None = None
+
+    @model_validator(mode="after")
+    def validate_links(self) -> IntakeProposalRecord:
+        if self.artifact.payload.proposal_id != self.proposal_id:
+            raise ValueError("Intake proposal ID must match its artifact payload.")
+        if self.artifact.payload.question != self.request.question:
+            raise ValueError("Intake proposal question must match its scoping request.")
+        if self.status == "awaiting_response" and (
+            self.normalized_request is not None or self.decided_at is not None
+        ):
+            raise ValueError("Undecided intake proposal cannot retain a decision.")
+        if self.status != "awaiting_response" and (
+            self.normalized_request is None or self.decided_at is None
+        ):
+            raise ValueError("Decided intake proposal requires a normalized request and timestamp.")
+        return self
+
+
+class IntakeResponseRecord(ContractModel):
+    action_id: NonEmptyText
+    session_id: NonEmptyText
+    proposal_id: NonEmptyText
+    response: IntakeResponse
+    normalized_request: ResearchRequest
+    created_at: AwareDatetime
+
+    @model_validator(mode="after")
+    def validate_links(self) -> IntakeResponseRecord:
+        if self.response.session_id != self.session_id:
+            raise ValueError("Intake response session ID does not match its record.")
+        if self.response.proposal_id != self.proposal_id:
+            raise ValueError("Intake response proposal ID does not match its record.")
+        return self

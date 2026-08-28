@@ -7,12 +7,17 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import NAMESPACE_URL, uuid5
 
+from agents.coordinator.intake import compile_research_request
 from agents.coordinator.workflow_state import WorkflowSnapshot, WorkflowTransition
 from packages.contracts import (
     ArtifactEnvelope,
     DecisionAnalysis,
     EvidenceBundle,
+    IntakeResponse,
     RecommendationChallenge,
+    ResearchRequest,
+    ScopeProposalArtifact,
+    ScopingRequest,
     VerificationReport,
 )
 from packages.limits import LimitExceededError
@@ -23,6 +28,8 @@ from packages.persistence import (
     CoordinatorRunRecord,
     Database,
     EvidenceRecord,
+    IntakeProposalRecord,
+    IntakeResponseRecord,
     RecommendationChallengeRecord,
     RepositoryConflictError,
     ResearchArtifactRecord,
@@ -119,6 +126,140 @@ class WorkflowPersistenceService:
             evidence_bundle=latest_research,
             current_recommendation=latest_analysis.recommendation,
         )
+
+    def load_workflow(
+        self,
+        session_id: str,
+    ) -> tuple[WorkflowSnapshot, tuple[WorkflowTransition, ...]]:
+        """Rehydrate a state machine from its committed session and transitions."""
+        with self._database.transaction() as repositories:
+            session = repositories.sessions.require(session_id)
+            records = repositories.transitions.list_by_session(session_id)
+        snapshot = WorkflowSnapshot(
+            session_id=session.id,
+            status=session.status,
+            active_step=session.active_step,
+            completed_steps=session.completed_steps,
+            failed_steps=session.failed_steps,
+            updated_at=session.updated_at,
+        )
+        history = tuple(
+            WorkflowTransition.model_validate(record.model_dump(exclude={"session_id"}))
+            for record in records
+        )
+        return snapshot, history
+
+    def persist_intake_proposal(
+        self,
+        *,
+        session_id: str,
+        agent_task_id: str,
+        request: ScopingRequest,
+        artifact: ScopeProposalArtifact,
+    ) -> bool:
+        """Persist one scoper artifact only after validating its task provenance."""
+        record = IntakeProposalRecord(
+            proposal_id=artifact.payload.proposal_id,
+            session_id=session_id,
+            agent_task_id=agent_task_id,
+            request=request,
+            artifact=artifact,
+            created_at=artifact.provenance.created_at,
+        )
+        with self._database.transaction() as repositories:
+            task = repositories.agent_tasks.require(agent_task_id)
+            if task.session_id != session_id or task.skill != "decision-scoping":
+                raise ArtifactProvenanceError(
+                    "Intake artifact does not belong to its scoping task."
+                )
+            if task.remote_task_id != artifact.provenance.remote_task_id:
+                raise ArtifactProvenanceError("Intake artifact task provenance does not match.")
+            existing = repositories.intake.get_proposal(record.proposal_id)
+            if existing is not None:
+                if existing != record:
+                    raise RepositoryConflictError("intake proposal", record.proposal_id)
+                return False
+            repositories.intake.add_proposal(record)
+            return True
+
+    def accept_intake_response(
+        self,
+        *,
+        session_id: str,
+        action_id: str,
+        response: IntakeResponse,
+        decided_at: datetime,
+    ) -> ResearchRequest:
+        """Validate, normalize, and commit a response and proposal decision atomically."""
+        with self._database.transaction() as repositories:
+            proposal = repositories.intake.get_proposal_by_session(session_id)
+            if proposal is None:
+                raise WorkflowPersistenceError("Coordinator session has no intake proposal.")
+            normalized = compile_research_request(
+                proposal.request,
+                proposal.artifact.payload,
+                response,
+            )
+            record = IntakeResponseRecord(
+                action_id=action_id,
+                session_id=session_id,
+                proposal_id=proposal.proposal_id,
+                response=response,
+                normalized_request=normalized,
+                created_at=decided_at,
+            )
+            if proposal.status != "awaiting_response":
+                existing = repositories.intake.get_response_by_proposal(proposal.proposal_id)
+                if proposal.status == "accepted" and existing == record:
+                    return normalized
+                raise RepositoryConflictError("intake decision", proposal.proposal_id)
+            repositories.intake.put_response(record)
+            repositories.intake.replace_proposal(
+                proposal.model_copy(
+                    update={
+                        "status": "accepted",
+                        "normalized_request": normalized,
+                        "decided_at": decided_at,
+                    }
+                )
+            )
+            return normalized
+
+    def skip_intake(
+        self,
+        *,
+        session_id: str,
+        decided_at: datetime,
+    ) -> ResearchRequest:
+        """Commit an explicit skip using only trusted proposal defaults."""
+        with self._database.transaction() as repositories:
+            proposal = repositories.intake.get_proposal_by_session(session_id)
+            if proposal is None:
+                raise WorkflowPersistenceError("Coordinator session has no intake proposal.")
+            normalized = compile_research_request(
+                proposal.request,
+                proposal.artifact.payload,
+                None,
+            )
+            if proposal.status != "awaiting_response":
+                if proposal.status == "skipped" and proposal.normalized_request == normalized:
+                    return normalized
+                raise RepositoryConflictError("intake decision", proposal.proposal_id)
+            repositories.intake.replace_proposal(
+                proposal.model_copy(
+                    update={
+                        "status": "skipped",
+                        "normalized_request": normalized,
+                        "decided_at": decided_at,
+                    }
+                )
+            )
+            return normalized
+
+    def load_intake_proposal(self, session_id: str) -> IntakeProposalRecord | None:
+        with self._database.transaction() as repositories:
+            repositories.sessions.require(session_id)
+            return repositories.intake.get_proposal_by_session(session_id)
 
     def initialize(
         self,
