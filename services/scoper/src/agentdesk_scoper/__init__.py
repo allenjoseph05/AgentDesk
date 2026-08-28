@@ -1,1 +1,1 @@
-"""Isolated decision-scoper compatibility package."""
+"""Isolated Google ADK decision-scoping service for AgentDesk."""

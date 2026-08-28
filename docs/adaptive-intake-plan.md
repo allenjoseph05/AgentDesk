@@ -1,6 +1,6 @@
 # Adaptive Decision Intake implementation plan
 
-- Status: Stories 1 and 2 complete; Story 3 is next
+- Status: Stories 1 through 3 complete; Story 4 is next
 - Decision: [ADR 0003](./adr/0003-bounded-a2ui-adk-intake.md)
 - Last verified: 2026-08-27
 
@@ -261,6 +261,9 @@ Completed 2026-08-27. See the
 - Commit the benchmark prompts, rubric, baseline results, and go/no-go calculation.
 
 ### Story 3: isolated ADK scoping agent
+
+Completed 2026-08-27. See the
+[isolated service implementation and evidence](./adaptive-intake-scoper.md).
 
 - Implement structured ADK output, fixture and live provider modes, health/readiness, and Agent Card.
 - Add timeout, retry, cancellation, safe telemetry, and ADK eval cases.

@@ -1,0 +1,55 @@
+{
+  "eval_set_id": "agentdesk-scoper-fixture-v1",
+  "name": "Deterministic decision scoping",
+  "description": "Free, providerless ADK contract evaluations across three decision domains.",
+  "eval_cases": [
+    {
+      "eval_id": "technology-database",
+      "conversation": [
+        {
+          "invocation_id": "technology-1",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "{\"proposal_id\":\"eval-technology\",\"question\":\"Which database should we choose for the new product?\"}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "eval_id": "travel-team-offsite",
+      "conversation": [
+        {
+          "invocation_id": "travel-1",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "{\"proposal_id\":\"eval-travel\",\"question\":\"How should the team travel to the offsite?\"}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "eval_id": "procurement-design-laptop",
+      "conversation": [
+        {
+          "invocation_id": "career-1",
+          "user_content": {
+            "role": "user",
+            "parts": [
+              {
+                "text": "{\"proposal_id\":\"eval-procurement\",\"question\":\"Which laptop should the design team buy?\"}"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

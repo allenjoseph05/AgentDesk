@@ -186,6 +186,7 @@ def create_adapter_app(
             description="Deterministic ADK decision-scoping compatibility agent.",
             delay_seconds=delay_seconds,
             malformed_output=malformed_output,
+            bind_request_identifiers=False,
         ),
         timeout_seconds=timeout_seconds,
     )

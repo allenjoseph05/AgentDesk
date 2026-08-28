@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentdesk-scoper"
-version = "0.1.0"
-description = "Isolated Google ADK decision-scoping compatibility project for AgentDesk"
+version = "0.2.0"
+description = "Isolated Google ADK decision-scoping A2A service for AgentDesk"
 requires-python = ">=3.14,<3.15"
 dependencies = [
     "a2a-sdk[fastapi]==1.1.2",
