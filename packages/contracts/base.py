@@ -4,6 +4,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
+MAX_BOUNDED_TEXT_LENGTH = 16 * 1024
 NonEmptyText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 

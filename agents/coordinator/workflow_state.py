@@ -12,6 +12,8 @@ from packages.contracts.base import ContractModel, NonEmptyText
 
 WorkflowStatus = Literal[
     "created",
+    "scoping",
+    "awaiting_input",
     "planning",
     "researching",
     "analyzing",
@@ -28,10 +30,20 @@ TERMINAL_STATUSES: frozenset[WorkflowStatus] = frozenset(
     {"completed", "partial", "failed", "cancelled"}
 )
 ACTIVE_STATUSES: frozenset[WorkflowStatus] = frozenset(
-    {"planning", "researching", "analyzing", "verifying", "cancelling"}
+    {
+        "scoping",
+        "awaiting_input",
+        "planning",
+        "researching",
+        "analyzing",
+        "verifying",
+        "cancelling",
+    }
 )
 LEGAL_TRANSITIONS: dict[WorkflowStatus, frozenset[WorkflowStatus]] = {
-    "created": frozenset({"planning", "cancelling", "failed"}),
+    "created": frozenset({"scoping", "planning", "cancelling", "failed"}),
+    "scoping": frozenset({"awaiting_input", "cancelling", "failed"}),
+    "awaiting_input": frozenset({"planning", "cancelling", "failed"}),
     "planning": frozenset({"researching", "cancelling", "failed"}),
     "researching": frozenset({"analyzing", "partial", "cancelling", "failed"}),
     "analyzing": frozenset({"verifying", "completed", "partial", "cancelling", "failed"}),
@@ -106,14 +118,22 @@ class WorkflowStateMachine:
         *,
         clock: Callable[[], datetime] | None = None,
         on_transition: TransitionObserver | None = None,
+        initial_snapshot: WorkflowSnapshot | None = None,
+        history: Iterable[WorkflowTransition] = (),
     ) -> None:
         self._clock = clock or (lambda: datetime.now(UTC))
         self._on_transition = on_transition
-        self._snapshot = WorkflowSnapshot(
+        self._snapshot = initial_snapshot or WorkflowSnapshot(
             session_id=session_id,
             updated_at=self._clock(),
         )
-        self._history: list[WorkflowTransition] = []
+        self._history = list(history)
+        if self._snapshot.session_id != session_id:
+            raise ValueError("Initial workflow snapshot belongs to another session.")
+        if [item.sequence for item in self._history] != list(range(1, len(self._history) + 1)):
+            raise ValueError("Initial workflow history must have contiguous sequences.")
+        if self._history and self._history[-1].to_status != self._snapshot.status:
+            raise ValueError("Initial workflow history does not match its snapshot.")
 
     @property
     def snapshot(self) -> WorkflowSnapshot:

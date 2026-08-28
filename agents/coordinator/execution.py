@@ -12,6 +12,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 from agents.coordinator.a2a_client import A2AClientAdapter, RemoteTaskResult
 from agents.coordinator.cancellation import CancellationCoordinator
+from agents.coordinator.intake_execution import AdaptiveIntakeCommandExecutor
 from agents.coordinator.orchestrator import WorkflowExecution, WorkflowOrchestrator
 from agents.coordinator.persistence import WorkflowPersistenceError, WorkflowPersistenceService
 from agents.coordinator.planner import DecisionPlanner, PlanningFailedError, WorkflowPlan
@@ -21,15 +22,19 @@ from agents.coordinator.run_adapter import (
     ChallengeRecommendationCommand,
     CoordinatorActivityUpdate,
     CoordinatorCommand,
+    CoordinatorCommandExecutor,
     CoordinatorRunOutcome,
     CoordinatorRunUpdate,
     CoordinatorStateUpdate,
     CoordinatorStepUpdate,
     FocusOnCriterionCommand,
+    PrepareResearchCommand,
     RemoteTaskCorrelation,
     ResearchDeeperCommand,
     RetryFailedAgentCommand,
+    SkipIntakeCommand,
     StartResearchCommand,
+    SubmitIntakeCommand,
 )
 from agents.coordinator.workflow_state import TERMINAL_STATUSES, WorkflowStateMachine
 from packages.auth import AuthenticationSettings
@@ -209,12 +214,31 @@ class OrchestrationCommandExecutor:
         if isinstance(command, RetryFailedAgentCommand):
             yield self._record_unsupported_follow_up(command)
             return
+        if isinstance(command, (PrepareResearchCommand, SubmitIntakeCommand, SkipIntakeCommand)):
+            yield CoordinatorRunOutcome(
+                status="failed",
+                message="Adaptive intake executor is not configured.",
+                error_code="intake_executor_missing",
+            )
+            return
 
-        machine = WorkflowStateMachine(
-            command.correlation.session_id,
-            clock=self._clock,
-            on_transition=self._persistence.persist_transition,
-        )
+        if command.resume_session:
+            initial_snapshot, history = self._persistence.load_workflow(
+                command.correlation.session_id
+            )
+            machine = WorkflowStateMachine(
+                command.correlation.session_id,
+                clock=self._clock,
+                on_transition=self._persistence.persist_transition,
+                initial_snapshot=initial_snapshot,
+                history=history,
+            )
+        else:
+            machine = WorkflowStateMachine(
+                command.correlation.session_id,
+                clock=self._clock,
+                on_transition=self._persistence.persist_transition,
+            )
         cancellation = CancellationCoordinator(
             state_machine=machine,
             remote_canceller=self._orchestrator,
@@ -236,17 +260,31 @@ class OrchestrationCommandExecutor:
         verification_started = False
         try:
             self._limits.require_research_depth(command.request.desired_depth)
-            self._persistence.initialize(
-                snapshot=machine.snapshot,
-                ag_ui_thread_id=command.correlation.thread_id,
-                run_id=command.correlation.run_id,
-                action_id=command.correlation.action_id,
-                action_type="start_research",
-                question=command.request.question,
-                owner_id=command.correlation.principal_id,
-            )
+            if command.resume_session:
+                if not command.run_initialized:
+                    self._persistence.continue_session(
+                        session_id=command.correlation.session_id,
+                        ag_ui_thread_id=command.correlation.thread_id,
+                        run_id=command.correlation.run_id,
+                        action_id=command.correlation.action_id,
+                        action_type=command.action_type,
+                        started_at=machine.snapshot.updated_at,
+                        owner_id=command.correlation.principal_id,
+                    )
+                    self._persistence.start_run(command.correlation.run_id)
+            else:
+                self._persistence.initialize(
+                    snapshot=machine.snapshot,
+                    ag_ui_thread_id=command.correlation.thread_id,
+                    run_id=command.correlation.run_id,
+                    action_id=command.correlation.action_id,
+                    action_type=command.action_type,
+                    question=command.request.question,
+                    owner_id=command.correlation.principal_id,
+                )
             initialized = True
-            self._persistence.start_run(command.correlation.run_id)
+            if not command.resume_session:
+                self._persistence.start_run(command.correlation.run_id)
             self._persistence.ensure_remote_task_capacity(
                 command.correlation.session_id,
                 3,
@@ -1195,7 +1233,7 @@ def create_orchestration_executor(
     auth_settings: AuthenticationSettings | None = None,
     limit_settings: LimitSettings | None = None,
     planner_override: WorkflowPlanner | None = None,
-) -> OrchestrationCommandExecutor:
+) -> CoordinatorCommandExecutor:
     """Build the production executor without contacting external services eagerly."""
     limits = limit_settings or LimitSettings.from_environment()
     planner = planner_override
@@ -1209,18 +1247,28 @@ def create_orchestration_executor(
             )
         else:
             planner = _UnavailablePlanner()
-    return OrchestrationCommandExecutor(
+    remote_client = A2AClientAdapter(auth_settings)
+    persistence = WorkflowPersistenceService(
+        database,
+        max_remote_tasks_per_session=limits.max_remote_tasks_per_session,
+    )
+    projector = DurableAgUiProjector(database)
+    core = OrchestrationCommandExecutor(
         planner=planner,
         orchestrator=WorkflowOrchestrator(
             registry=registry,
-            remote_client=A2AClientAdapter(auth_settings),
+            remote_client=remote_client,
         ),
-        persistence=WorkflowPersistenceService(
-            database,
-            max_remote_tasks_per_session=limits.max_remote_tasks_per_session,
-        ),
-        projector=DurableAgUiProjector(database),
+        persistence=persistence,
+        projector=projector,
         limit_settings=limits,
+    )
+    return AdaptiveIntakeCommandExecutor(
+        downstream=core,
+        registry=registry,
+        persistence=persistence,
+        projector=projector,
+        remote_client=remote_client,
     )
 
 

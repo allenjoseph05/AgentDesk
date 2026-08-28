@@ -30,13 +30,23 @@ from pydantic import ValidationError
 from agents.coordinator.agui_security import MAX_AG_UI_MESSAGE_BYTES
 from agents.coordinator.projection import AgUiEventProjection
 from agents.coordinator.run_tasks import A2ATaskFactory, ActiveA2ATask
-from packages.contracts import AgentDeskAction, AgentDeskViewState, ResearchRequest, SpecialistView
+from packages.contracts import (
+    AgentDeskAction,
+    AgentDeskViewState,
+    IntakeResponse,
+    ResearchRequest,
+    ScopingRequest,
+    SpecialistView,
+)
 from packages.contracts.agui import (
     ChallengeRecommendationAction,
     FocusOnCriterionAction,
+    PrepareResearchAction,
     ResearchDeeperAction,
     RetryFailedAgentAction,
+    SkipIntakeAction,
     StartResearchAction,
+    SubmitIntakeAction,
 )
 from packages.observability import CorrelationIds, log_event
 
@@ -84,6 +94,29 @@ class StartResearchCommand:
     correlation: RunCorrelation
     request: ResearchRequest
     user_message: str
+    resume_session: bool = False
+    run_initialized: bool = False
+    action_type: str = "start_research"
+
+
+@dataclass(frozen=True)
+class PrepareResearchCommand:
+    correlation: RunCorrelation
+    request: ScopingRequest
+    user_message: str
+
+
+@dataclass(frozen=True)
+class SubmitIntakeCommand:
+    correlation: RunCorrelation
+    response: IntakeResponse
+    user_message: str
+
+
+@dataclass(frozen=True)
+class SkipIntakeCommand:
+    correlation: RunCorrelation
+    user_message: str
 
 
 @dataclass(frozen=True)
@@ -117,7 +150,10 @@ class RetryFailedAgentCommand:
 
 
 CoordinatorCommand = (
-    StartResearchCommand
+    PrepareResearchCommand
+    | SubmitIntakeCommand
+    | SkipIntakeCommand
+    | StartResearchCommand
     | ChallengeRecommendationCommand
     | ResearchDeeperCommand
     | FocusOnCriterionCommand
@@ -578,7 +614,7 @@ def _validate_rendered_text(value: str) -> None:
 def _validate_action_message(action: AgentDeskAction, user_message: str) -> None:
     root = action.root
     expected: str | None = None
-    if isinstance(root, StartResearchAction):
+    if isinstance(root, (PrepareResearchAction, StartResearchAction)):
         expected = root.payload.question
     elif isinstance(root, ChallengeRecommendationAction):
         expected = root.payload.challenge
@@ -594,6 +630,23 @@ def _to_command(
     user_message: str,
 ) -> CoordinatorCommand:
     root = action.root
+    if isinstance(root, PrepareResearchAction):
+        return PrepareResearchCommand(
+            correlation=correlation,
+            request=ScopingRequest.model_validate(root.payload.model_dump()),
+            user_message=user_message,
+        )
+    if isinstance(root, SubmitIntakeAction):
+        return SubmitIntakeCommand(
+            correlation=correlation,
+            response=root.payload.response,
+            user_message=user_message,
+        )
+    if isinstance(root, SkipIntakeAction):
+        return SkipIntakeCommand(
+            correlation=correlation,
+            user_message=user_message,
+        )
     if isinstance(root, StartResearchAction):
         return StartResearchCommand(
             correlation=correlation,
@@ -633,11 +686,12 @@ def _initial_state(
     input_data: RunAgentInput,
     command: CoordinatorCommand,
 ) -> AgentDeskViewState:
-    if isinstance(command, StartResearchCommand):
+    if isinstance(command, (PrepareResearchCommand, StartResearchCommand)):
+        question = command.request.question
         return AgentDeskViewState(
             session_id=command.correlation.session_id,
-            question=command.request.question,
-            status="planning",
+            question=question,
+            status=("scoping" if isinstance(command, PrepareResearchCommand) else "planning"),
             active_step=_step_name(command),
             last_updated_at=datetime.now(UTC),
         )
@@ -645,6 +699,12 @@ def _initial_state(
     previous = AgentDeskViewState.model_validate(input_data.state)
     if previous.session_id != command.correlation.session_id:
         raise ValueError("Action session does not match AG-UI state.")
+    if isinstance(command, (SubmitIntakeCommand, SkipIntakeCommand)) and (
+        previous.status != "awaiting_input"
+    ):
+        raise ValueError("Intake decisions require an awaiting-input session.")
+    if isinstance(command, (SubmitIntakeCommand, SkipIntakeCommand)):
+        return previous
     return previous.model_copy(
         update={
             "status": "planning",
@@ -656,6 +716,12 @@ def _initial_state(
 
 
 def _step_name(command: CoordinatorCommand) -> str:
+    if isinstance(command, PrepareResearchCommand):
+        return "scope-research-request"
+    if isinstance(command, SubmitIntakeCommand):
+        return "submit-intake"
+    if isinstance(command, SkipIntakeCommand):
+        return "skip-intake"
     if isinstance(command, StartResearchCommand):
         return "accept-research-request"
     if isinstance(command, ChallengeRecommendationCommand):

@@ -235,6 +235,8 @@ def _available_actions(
     has_failed_agent: bool,
 ) -> list[FollowUpActionType]:
     actions: list[FollowUpActionType] = []
+    if status == "awaiting_input":
+        actions.extend(["submit_intake", "skip_intake"])
     if status in {"completed", "partial"}:
         actions.extend(
             [
