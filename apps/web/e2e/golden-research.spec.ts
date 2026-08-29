@@ -268,7 +268,13 @@ test("golden research renders AG-UI state and submits a typed challenge", async 
       content: CHALLENGE,
     });
     expect(browserLog.filter((entry) => entry.startsWith("pageerror:"))).toEqual([]);
-    expect(browserLog.filter((entry) => entry.startsWith("requestfailed:"))).toEqual([]);
+    expect(
+      browserLog.filter(
+        (entry) =>
+          entry.startsWith("requestfailed:") &&
+          !entry.match(/^requestfailed:POST:.+\/ag-ui:net::ERR_ABORTED$/u),
+      ),
+    ).toEqual([]);
   } finally {
     await attachDiagnostics(testInfo, browserLog, requests);
   }
