@@ -1,6 +1,6 @@
 # Adaptive Decision Intake implementation plan
 
-- Status: Stories 1 through 6 complete; Story 7 is next
+- Status: Stories 1 through 7 complete; Story 8 is next
 - Decision: [ADR 0003](./adr/0003-bounded-a2ui-adk-intake.md)
 - Last verified: 2026-08-27
 
@@ -300,6 +300,9 @@ Completed 2026-08-28. See the
 - Add component, contract, accessibility, security, and browser tests.
 
 ### Story 7: end-to-end fixture demo and evaluation
+
+Completed 2026-08-29. See the
+[full-path fixture evidence, benchmark result, and no-go decision](./adaptive-intake-evaluation.md).
 
 - Run the full browser -> AG-UI -> Coordinator -> A2A scoper -> A2UI -> AG-UI submission -> existing
   specialists path with deterministic fixtures.

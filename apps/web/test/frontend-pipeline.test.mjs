@@ -37,12 +37,19 @@ test("frontend scripts and CI retain lint, type, catalog, schema, and test gates
   assert.match(packageJson.scripts["test:agui"], /agui-python-interop\.test\.mjs/u);
   assert.equal(packageJson.scripts["test:e2e"], "playwright test");
   assert.equal(
+    repositoryPackageJson.scripts["test:e2e:intake"],
+    "npm run test:e2e:intake --workspace @agentdesk/web",
+  );
+  assert.equal(
     repositoryPackageJson.scripts["test:e2e:demo"],
     "npm run test:e2e:demo --workspace @agentdesk/web",
   );
   assert.match(workflow, /run: npm run test:agui/u);
   assert.match(workflow, /run: npx playwright install --with-deps chromium/u);
   assert.match(workflow, /run: npm run test:e2e/u);
+  assert.match(workflow, /adaptive-intake-e2e:/u);
+  assert.match(workflow, /run: python scripts\/setup_adaptive_intake_e2e\.py/u);
+  assert.match(workflow, /run: npm run test:e2e:intake/u);
   assert.match(workflow, /uses: actions\/upload-artifact@v4/u);
   assert.match(workflow, /run: npm run lint:web/u);
   assert.match(workflow, /run: npm run typecheck:web/u);

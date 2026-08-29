@@ -220,11 +220,23 @@ p {
 
 .history-entry {
   display: flex;
+  width: 100%;
   gap: 0.65rem;
   margin-top: 0.75rem;
   padding: 0.8rem;
+  border: 0;
   border-radius: 0.75rem;
   background: rgb(255 255 255 / 8%);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.history-entry:hover,
+.history-entry:focus-visible,
+.history-entry--active {
+  background: rgb(255 255 255 / 13%);
 }
 
 .history-entry__status {
@@ -237,7 +249,7 @@ p {
   box-shadow: 0 0 0 0.25rem rgb(120 182 151 / 12%);
 }
 
-.history-entry > div {
+.history-entry > span:last-child {
   display: grid;
   min-width: 0;
 }
@@ -504,6 +516,41 @@ p {
   border-radius: 0.85rem;
   color: #753828;
   background: #fff2ed;
+}
+
+.direct-fallback {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  padding: 1.25rem;
+  border: 1px solid #d9cdb7;
+  border-radius: 0.9rem;
+  background: #fffaf1;
+}
+
+.direct-fallback h2,
+.direct-fallback p {
+  margin: 0;
+}
+
+.direct-fallback label {
+  margin-top: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.direct-fallback input {
+  min-height: 2.65rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #c8c0b2;
+  border-radius: 0.55rem;
+  background: #fff;
+  font: inherit;
+}
+
+.direct-fallback button {
+  justify-self: start;
+  margin-top: 0.25rem;
 }
 
 .runtime-alert strong,

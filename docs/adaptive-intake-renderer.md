@@ -26,8 +26,9 @@ agent output.
 
 ## AG-UI action mapping
 
-Live composer requests now use `prepare_research`; fixture demo mode intentionally retains the
-direct `start_research` path. A valid A2UI submit reads only the processor's declared answer model,
+The explicit adaptive-intake flag and `adaptive-demo` profile use `prepare_research`; live mode now
+defaults to the direct path after Story 7's no-go result, and fixture demo mode retains its fixed
+`start_research` path. A valid A2UI submit reads only the processor's declared answer model,
 normalizes a single selection to one string, omits empty optional values, validates required and
 choice constraints, and creates the strict versioned `submit_intake` action. Skip creates the empty
 strict `skip_intake` action. Both recheck current session/status immediately before dispatch, use the

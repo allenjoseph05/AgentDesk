@@ -9,12 +9,13 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
-    "lint": "biome lint --error-on-warnings src test e2e demo-e2e production-server.mjs playwright.config.ts playwright.demo.config.ts vite.config.ts",
+    "lint": "biome lint --error-on-warnings src test e2e demo-e2e intake-e2e production-server.mjs playwright.config.ts playwright.demo.config.ts playwright.intake.config.ts vite.config.ts",
     "typecheck": "tsc --noEmit --pretty false && tsc --noEmit --pretty false -p tsconfig.e2e.json",
     "test:contracts": "node --test test/agui-contract-fixtures.test.mjs test/intake-contract-fixtures.test.mjs test/component-catalog.test.mjs test/frontend-pipeline.test.mjs",
     "test:agui": "node --test test/agui-contract-fixtures.test.mjs test/agui-client.test.mjs test/agui-python-interop.test.mjs test/agui-store.test.mjs",
     "test:e2e": "playwright test",
     "test:e2e:demo": "playwright test --config playwright.demo.config.ts",
+    "test:e2e:intake": "playwright test --config playwright.intake.config.ts",
     "test": "node --test test/*.test.mjs && npm run typecheck"
   },
   "dependencies": {

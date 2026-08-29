@@ -19,6 +19,7 @@ test("runtime mode is strict and demo input matches the shared golden fixture", 
     const {
       DEMO_RESEARCH_PARAMETERS,
       DEMO_RESEARCH_QUESTION,
+      resolveAdaptiveIntakeEnabled,
       resolveRuntimeMode,
     } = await vite.ssrLoadModule("/src/app/runtime-mode.ts");
     const fixture = JSON.parse(await readFile(fixtureUrl, "utf8"));
@@ -26,7 +27,12 @@ test("runtime mode is strict and demo input matches the shared golden fixture", 
     assert.equal(resolveRuntimeMode(undefined), "live");
     assert.equal(resolveRuntimeMode("live"), "live");
     assert.equal(resolveRuntimeMode("demo"), "demo");
-    assert.throws(() => resolveRuntimeMode("fixture"), /must be live or demo/u);
+    assert.equal(resolveRuntimeMode("adaptive-demo"), "adaptive-demo");
+    assert.throws(() => resolveRuntimeMode("fixture"), /must be live, demo, or adaptive-demo/u);
+    assert.equal(resolveAdaptiveIntakeEnabled(undefined), false);
+    assert.equal(resolveAdaptiveIntakeEnabled("false"), false);
+    assert.equal(resolveAdaptiveIntakeEnabled("true"), true);
+    assert.throws(() => resolveAdaptiveIntakeEnabled("yes"), /must be true or false/u);
     assert.equal(DEMO_RESEARCH_QUESTION, fixture.action.payload.question);
     assert.deepEqual(DEMO_RESEARCH_PARAMETERS, {
       options: fixture.action.payload.options,

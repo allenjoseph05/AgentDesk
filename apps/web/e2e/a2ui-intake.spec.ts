@@ -1,5 +1,7 @@
 import { expect, test, type Route } from "@playwright/test";
 
+import { installEmptyHistoryRoute } from "./history-route";
+
 type AgUiRequest = {
   forwardedProps: { agentdesk: Record<string, unknown> };
   runId: string;
@@ -12,6 +14,10 @@ const encode = (events: Record<string, unknown>[]) =>
 async function fulfill(route: Route, events: Record<string, unknown>[]) {
   await route.fulfill({ body: encode(events), contentType: "text/event-stream", status: 200 });
 }
+
+test.beforeEach(async ({ page }) => {
+  await installEmptyHistoryRoute(page);
+});
 
 test("live adaptive intake renders through the trusted A2UI catalog and blocks invalid input", async ({ page }) => {
   const requests: AgUiRequest[] = [];
@@ -47,6 +53,68 @@ test("live adaptive intake renders through the trusted A2UI catalog and blocks i
   const prepareRequest = requests[0];
   if (prepareRequest === undefined) throw new Error("Expected the prepare AG-UI request.");
   expect(prepareRequest.forwardedProps.agentdesk.type).toBe("prepare_research");
+});
+
+test("a scoper failure exposes a trusted direct form and bypasses adaptive intake", async ({
+  page,
+}) => {
+  const requests: AgUiRequest[] = [];
+  await page.route("**/ag-ui", async (route) => {
+    const request = route.request().postDataJSON() as AgUiRequest;
+    requests.push(request);
+    const action = request.forwardedProps.agentdesk;
+    if (action.type === "prepare_research") {
+      await fulfill(route, [
+        { type: "RUN_STARTED", threadId: request.threadId, runId: request.runId },
+        {
+          type: "STATE_SNAPSHOT",
+          snapshot: {
+            ...awaitingInputState(),
+            status: "failed",
+            activeStep: "decision-scoping",
+            availableActions: [],
+          },
+        },
+        {
+          type: "RUN_ERROR",
+          message: "Decision scoping failed; use the direct research form instead.",
+          code: "decision_scoping_failed",
+        },
+      ]);
+      return;
+    }
+    await fulfill(route, [
+      { type: "RUN_STARTED", threadId: request.threadId, runId: request.runId },
+      {
+        type: "RUN_FINISHED",
+        threadId: request.threadId,
+        runId: request.runId,
+        result: { status: "accepted" },
+      },
+    ]);
+  });
+
+  await page.goto("/");
+  await page
+    .getByRole("textbox", { name: "Research question", exact: true })
+    .fill("Which database should we choose?");
+  await page.getByRole("button", { name: "Start research" }).click();
+  await expect(page.getByRole("button", { name: "Use direct form" })).toBeVisible();
+  await page.getByRole("button", { name: "Use direct form" }).click();
+  await page.getByLabel("Options, separated by commas").fill("PostgreSQL, MongoDB");
+  await page.getByLabel("Decision criteria, separated by commas").fill("Integrity, Flexibility");
+  await page.getByLabel("Constraints, separated by commas").fill("Transactional workload");
+  await page.getByRole("button", { name: "Start direct research" }).click();
+
+  await expect.poll(() => requests.length).toBe(2);
+  expect(requests[1]?.forwardedProps.agentdesk).toMatchObject({
+    type: "start_research",
+    payload: {
+      options: ["PostgreSQL", "MongoDB"],
+      constraints: ["Transactional workload"],
+      criteria: ["Integrity", "Flexibility"],
+    },
+  });
 });
 
 function awaitingInputState() {

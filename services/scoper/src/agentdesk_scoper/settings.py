@@ -26,6 +26,7 @@ class ScoperSettings:
     timeout_seconds: float = 10.0
     max_attempts: int = 1
     retry_delay_seconds: float = 0.1
+    fixture_delay_seconds: float = 0.0
     model_name: str | None = None
     provider_configured: bool = False
 
@@ -42,6 +43,8 @@ class ScoperSettings:
             raise ValueError("SCOPER_MAX_ATTEMPTS must be 1 or 2.")
         if self.retry_delay_seconds < 0 or self.retry_delay_seconds > 5:
             raise ValueError("SCOPER_RETRY_DELAY_SECONDS must be between 0 and 5.")
+        if self.fixture_delay_seconds < 0 or self.fixture_delay_seconds > 30:
+            raise ValueError("SCOPER_FIXTURE_DELAY_SECONDS must be between 0 and 30.")
 
     @property
     def ready(self) -> bool:
@@ -84,6 +87,7 @@ class ScoperSettings:
             timeout_seconds=float(os.getenv("SCOPER_TIMEOUT_SECONDS", "10")),
             max_attempts=int(os.getenv("SCOPER_MAX_ATTEMPTS", "1")),
             retry_delay_seconds=float(os.getenv("SCOPER_RETRY_DELAY_SECONDS", "0.1")),
+            fixture_delay_seconds=float(os.getenv("SCOPER_FIXTURE_DELAY_SECONDS", "0")),
             model_name=model_name,
             provider_configured=provider_configured,
         )

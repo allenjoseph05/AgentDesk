@@ -1,5 +1,6 @@
 .env
 .venv/
+.venv-scoper/
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -19,6 +20,8 @@ playwright-report/
 test-results/
 demo-playwright-report/
 demo-test-results/
+intake-playwright-report/
+intake-test-results/
 
 .idea/
 .vscode/

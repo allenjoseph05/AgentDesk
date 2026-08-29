@@ -19,6 +19,7 @@ DOCUMENTS = (
     ROOT / "docs" / "adr" / "0003-bounded-a2ui-adk-intake.md",
     ROOT / "docs" / "adaptive-intake-plan.md",
     ROOT / "docs" / "adaptive-intake-benchmark.md",
+    ROOT / "docs" / "adaptive-intake-evaluation.md",
     ROOT / "docs" / "adaptive-intake-a2ui.md",
 )
 MARKDOWN_LINK = re.compile(r"\[[^]]+\]\(([^)]+)\)")
@@ -91,7 +92,8 @@ def test_adaptive_intake_plan_preserves_protocol_and_dependency_boundaries() -> 
     assert "Keep the existing Coordinator as the deterministic control plane" in adr
     assert "Do not install `google-adk` or `a2ui-agent-sdk` in the root" in adr
     assert "AG-UI remains the sole browser" in adr
-    assert "Stories 1 through 6 complete; Story 7 is next" in plan
+    assert "Stories 1 through 7 complete; Story 8 is next" in plan
+    assert "adaptive-intake-evaluation.md" in plan
     assert "compatibility decision and evidence" in plan
     assert "benchmark, rubric, baseline, and go/no-go evidence" in plan
     assert "isolated service implementation and evidence" in plan

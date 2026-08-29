@@ -11,6 +11,7 @@ export default defineConfig({
     strictPort: true,
     proxy: {
       "/ag-ui": coordinatorTarget,
+      "/api/sessions": coordinatorTarget,
     },
   },
 });

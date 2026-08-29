@@ -7,6 +7,10 @@
 - Verified: 2026-08-27
 - Rollout decision: not eligible
 
+Story 7 has now executed the complete suite against the zero-cost deterministic fixture profile.
+See the [published candidate result and gate matrix](./adaptive-intake-evaluation.md). The fixture
+candidate remains `not_eligible`; this baseline is intentionally unchanged.
+
 ## What is fixed before agent tuning
 
 The committed benchmark contains 30 ambiguous comparison prompts and 10 already-complete controls.
@@ -66,6 +70,7 @@ The authoritative inputs and generated evidence are:
 
 - `fixtures/intake/benchmark.json`: human-reviewed prompts, targets, and direct captures;
 - `fixtures/intake/baseline.json`: generated per-case scores, cohort means, and go/no-go calculation;
+- `fixtures/intake/fixture-evaluation.json`: generated Story 7 deterministic candidate and no-go;
 - `fixtures/intake/intake-contracts.schema.json`: generated schema for the artifact and response;
 - `scripts/export_intake_evidence.py`: deterministic generator for both generated files.
 
