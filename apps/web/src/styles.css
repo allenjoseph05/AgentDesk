@@ -571,6 +571,115 @@ p {
   background: #f7ded6;
 }
 
+.state-pill--awaiting_input {
+  color: #725044;
+  background: #f7e5d8;
+}
+
+.a2ui-intake {
+  margin-top: 1.2rem;
+  padding: 1.25rem;
+  border: 1px solid #cfdcd4;
+  border-radius: 0.95rem;
+  background: #f5f8f3;
+}
+
+.a2ui-intake__column {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.a2ui-intake__title,
+.a2ui-intake__text,
+.a2ui-intake__help {
+  margin: 0;
+}
+
+.a2ui-intake__help,
+.a2ui-intake__description {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.a2ui-intake__field {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0.85rem;
+  border: 1px solid #dfe5dd;
+  border-radius: 0.75rem;
+  background: var(--paper);
+}
+
+fieldset.a2ui-intake__field {
+  border: 1px solid #dfe5dd;
+}
+
+.a2ui-intake__field > label,
+.a2ui-intake__field > legend {
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.a2ui-intake__field > input {
+  width: 100%;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid #cbd3cd;
+  border-radius: 0.55rem;
+  background: white;
+}
+
+.a2ui-intake__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.a2ui-intake__choices label,
+.a2ui-intake__checkbox > label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.a2ui-intake__error {
+  color: #9c392c;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.a2ui-intake__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+}
+
+.a2ui-intake__button {
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.a2ui-intake__button--primary {
+  border: 1px solid var(--forest);
+  color: white;
+  background: var(--forest);
+}
+
+.a2ui-intake__button--borderless {
+  border: 0;
+  color: var(--forest);
+  background: transparent;
+}
+
 .research-status-panel {
   display: grid;
   gap: 1rem;

@@ -4,8 +4,11 @@ import test from "node:test";
 import {
   createChallengeRecommendationAction,
   createFocusOnCriterionAction,
+  createPrepareResearchAction,
   createResearchDeeperAction,
   createRetryFailedAgentAction,
+  createSkipIntakeAction,
+  createSubmitIntakeAction,
 } from "../src/agui/actions.ts";
 import {
   createBrowserCoordinatorAgent,
@@ -106,6 +109,57 @@ test("state boundary rejects unsupported schemas and malformed counts", () => {
       }),
     /evidenceCount/,
   );
+});
+
+test("adaptive-intake action builders preserve exact proposal identity", () => {
+  const prepare = createPrepareResearchAction("  Which database?  ");
+  assert.equal(prepare.type, "prepare_research");
+  assert.equal(prepare.payload.question, "Which database?");
+  const submit = createSubmitIntakeAction({
+    schemaVersion: "1.0",
+    sessionId: "session-intake",
+    proposalId: "proposal-intake",
+    proposalVersion: "1.0",
+    answers: { workload: "Transactional" },
+  });
+  assert.equal(submit.type, "submit_intake");
+  assert.equal(submit.sessionId, "session-intake");
+  assert.equal(submit.payload.response.proposalId, "proposal-intake");
+  assert.deepEqual(createSkipIntakeAction(" session-intake ").payload, {});
+  assert.throws(
+    () => createSubmitIntakeAction({
+      schemaVersion: "1.0",
+      sessionId: "session-intake",
+      proposalId: "proposal-intake",
+      proposalVersion: "1.0",
+      answers: { workload: "" },
+    }),
+    /too_small|at least 1|Invalid/u,
+  );
+});
+
+test("official HttpAgent forwards only the named A2UI custom event", async () => {
+  const expectedSurface = { marker: "trusted-boundary-input" };
+  const mockFetch = async (_url, init) => {
+    const request = JSON.parse(init.body);
+    return new Response(
+      [
+        { type: "RUN_STARTED", threadId: request.threadId, runId: request.runId },
+        { type: "CUSTOM", name: "unrelated.custom.event", value: { ignored: true } },
+        { type: "CUSTOM", name: "agentdesk.a2ui.surface.v1", value: expectedSurface },
+        { type: "RUN_FINISHED", threadId: request.threadId, runId: request.runId },
+      ].map(encode).join(""),
+      { headers: { "content-type": "text/event-stream" } },
+    );
+  };
+  const values = [];
+  await runResearch(createCoordinatorAgent(mockFetch), "Which database?", {
+    onA2uiSurface: (value) => {
+      values.push(value);
+      return true;
+    },
+  });
+  assert.deepEqual(values, [expectedSurface]);
 });
 
 test("abortRun cancels the HTTP fetch and reports the SDK-suppressed abort", async () => {

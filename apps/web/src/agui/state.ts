@@ -110,6 +110,8 @@ const specialistViewSchema = z
   .strict();
 
 const followUpActionSchema = z.enum([
+  "submit_intake",
+  "skip_intake",
   "challenge_recommendation",
   "research_deeper",
   "focus_on_criterion",
@@ -123,6 +125,8 @@ export const AgentDeskViewStateSchema = z
     question: nonEmptyText.nullable().default(null),
     status: z.enum([
       "idle",
+      "scoping",
+      "awaiting_input",
       "planning",
       "researching",
       "analyzing",

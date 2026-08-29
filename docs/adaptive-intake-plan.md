@@ -1,6 +1,6 @@
 # Adaptive Decision Intake implementation plan
 
-- Status: Stories 1 through 5 complete; Story 6 is next
+- Status: Stories 1 through 6 complete; Story 7 is next
 - Decision: [ADR 0003](./adr/0003-bounded-a2ui-adk-intake.md)
 - Last verified: 2026-08-27
 
@@ -290,6 +290,9 @@ Completed 2026-08-28. See the
 - Test invalid proposals, compiler determinism, and no event after terminal.
 
 ### Story 6: trusted React intake renderer
+
+Completed 2026-08-28. See the
+[trusted React renderer and browser-boundary evidence](./adaptive-intake-renderer.md).
 
 - Add exact A2UI renderer packages, audited overrides, and lockfile.
 - Implement the small accessible custom catalog and local static fallback.

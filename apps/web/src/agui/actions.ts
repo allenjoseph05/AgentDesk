@@ -15,6 +15,23 @@ const startResearchPayloadSchema = z
     desiredDepth: z.enum(["fast", "normal", "deep"]).default("normal"),
   })
   .strict();
+const intakeAnswerSchema = z.union([
+  nonEmptyText,
+  z.boolean(),
+  z.array(nonEmptyText).max(8).refine((values) => new Set(values).size === values.length),
+]);
+const intakeAnswersSchema = z
+  .record(z.string().regex(/^[a-z][a-z0-9_-]{0,127}$/), intakeAnswerSchema)
+  .refine((answers) => Object.keys(answers).length <= 8, "Intake answers contain too many fields.");
+export const IntakeResponseSchema = z
+  .object({
+    schemaVersion: z.literal("1.0"),
+    sessionId: nonEmptyText,
+    proposalId: nonEmptyText,
+    proposalVersion: z.literal("1.0"),
+    answers: intakeAnswersSchema,
+  })
+  .strict();
 
 const common = {
   schemaVersion: z.literal(AG_UI_ACTION_SCHEMA_VERSION),
@@ -22,6 +39,30 @@ const common = {
 };
 
 export const AgentDeskActionSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      ...common,
+      type: z.literal("prepare_research"),
+      sessionId: z.null(),
+      payload: startResearchPayloadSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      type: z.literal("submit_intake"),
+      sessionId: nonEmptyText,
+      payload: z.object({ response: IntakeResponseSchema }).strict(),
+    })
+    .strict(),
+  z
+    .object({
+      ...common,
+      type: z.literal("skip_intake"),
+      sessionId: nonEmptyText,
+      payload: z.object({}).strict(),
+    })
+    .strict(),
   z
     .object({
       ...common,
@@ -76,6 +117,10 @@ export const AgentDeskActionSchema = z.discriminatedUnion("type", [
 
 export type AgentDeskAction = z.infer<typeof AgentDeskActionSchema>;
 export type StartResearchAction = Extract<AgentDeskAction, { type: "start_research" }>;
+export type PrepareResearchAction = Extract<AgentDeskAction, { type: "prepare_research" }>;
+export type SubmitIntakeAction = Extract<AgentDeskAction, { type: "submit_intake" }>;
+export type SkipIntakeAction = Extract<AgentDeskAction, { type: "skip_intake" }>;
+export type IntakeResponse = z.infer<typeof IntakeResponseSchema>;
 export type StartResearchParameters = Omit<StartResearchAction["payload"], "question">;
 export type ChallengeRecommendationAction = Extract<
   AgentDeskAction,
@@ -132,6 +177,46 @@ export function createStartResearchAction(
       criteria: [...parameters.criteria],
       desiredDepth: parameters.desiredDepth,
     },
+  });
+}
+
+export function createPrepareResearchAction(
+  question: string,
+  parameters: StartResearchParameters = DEFAULT_START_RESEARCH_PARAMETERS,
+): PrepareResearchAction {
+  return validateBuiltAction({
+    schemaVersion: AG_UI_ACTION_SCHEMA_VERSION,
+    actionId: crypto.randomUUID(),
+    type: "prepare_research",
+    sessionId: null,
+    payload: {
+      question: question.trim(),
+      options: [...parameters.options],
+      constraints: [...parameters.constraints],
+      criteria: [...parameters.criteria],
+      desiredDepth: parameters.desiredDepth,
+    },
+  });
+}
+
+export function createSubmitIntakeAction(response: IntakeResponse): SubmitIntakeAction {
+  const parsedResponse = IntakeResponseSchema.parse(response);
+  return validateBuiltAction({
+    schemaVersion: AG_UI_ACTION_SCHEMA_VERSION,
+    actionId: crypto.randomUUID(),
+    type: "submit_intake",
+    sessionId: parsedResponse.sessionId,
+    payload: { response: parsedResponse },
+  });
+}
+
+export function createSkipIntakeAction(sessionId: string): SkipIntakeAction {
+  return validateBuiltAction({
+    schemaVersion: AG_UI_ACTION_SCHEMA_VERSION,
+    actionId: crypto.randomUUID(),
+    type: "skip_intake",
+    sessionId: sessionId.trim(),
+    payload: {},
   });
 }
 

@@ -9,6 +9,8 @@ import {
 
 const researchStatuses = [
   "idle",
+  "scoping",
+  "awaiting_input",
   "planning",
   "researching",
   "analyzing",
