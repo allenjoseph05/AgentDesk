@@ -75,6 +75,7 @@ test("browser cancellation reaches the active scoping run and permits a fresh ru
 }) => {
   await openAdaptiveFixture(page);
   await page.getByRole("button", { name: "Start research" }).click();
+  await expect(page.getByText("Scoping", { exact: true }).first()).toBeVisible();
   await page.getByRole("button", { name: "Cancel active run" }).click();
   await expect(page.getByText("Cancelled", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Research run cancelled.", { exact: true })).toBeVisible();

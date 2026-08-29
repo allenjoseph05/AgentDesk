@@ -8,15 +8,17 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 
 
-def test_ci_builds_and_scans_both_runtime_images() -> None:
+def test_ci_builds_and_scans_all_runtime_images() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
     assert "container-images:" in workflow
     assert 'docker build --tag "$PYTHON_IMAGE" .' in workflow
+    assert 'docker build --file services/scoper/Dockerfile --tag "$SCOPER_IMAGE" .' in workflow
     assert 'docker build --file apps/web/Dockerfile --tag "$WEB_IMAGE" .' in workflow
-    assert workflow.count("uses: aquasecurity/trivy-action@v0.36.0") == 2
-    assert workflow.count("version: v0.72.0") == 2
+    assert workflow.count("uses: aquasecurity/trivy-action@v0.36.0") == 3
+    assert workflow.count("version: v0.72.0") == 3
     assert "reports/python-vulnerabilities.json" in workflow
+    assert "reports/scoper-vulnerabilities.json" in workflow
     assert "reports/web-vulnerabilities.json" in workflow
     assert "name: container-vulnerability-reports-${{ github.run_id }}" in workflow
     assert "retention-days: 14" in workflow

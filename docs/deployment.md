@@ -24,14 +24,16 @@ The resulting path remains:
 public TLS URL
     -> production React server and same-origin proxy
     -> Coordinator over the Compose network
+    -> optional health-gated Scoper over A2A (delegation disabled)
     -> Researcher, Analyst, and Verifier over A2A
     -> PostgreSQL
 ```
 
-Researcher, Analyst, Verifier, and Coordinator run in separate containers and communicate over the
-private Compose network. The Codespaces override removes their host port publications. Only the web
-server binds to the Codespace host on loopback port `5173`; GitHub port forwarding is the sole public
-ingress.
+Scoper, Researcher, Analyst, Verifier, and Coordinator run in separate containers and communicate
+over the private Compose network. The Codespaces override removes their host port publications. The
+scoper runs in deterministic fixture mode and is discoverable, while adaptive delegation remains
+disabled. Only the web server binds to the Codespace host on loopback port `5173`; GitHub port
+forwarding is the sole public ingress.
 
 This is an on-demand portfolio/demo environment, not an always-on production deployment. It has no
 uptime SLA, stops when the Codespace stops, and retains its Docker volume only while the Codespace
@@ -71,8 +73,8 @@ bash scripts/codespaces_demo.sh up
 ```
 
 The command validates the merged Compose model, builds the Python and production web images, starts
-PostgreSQL, applies every Alembic migration, waits for the three specialists and Coordinator, and
-finishes only after the production web health check succeeds.
+PostgreSQL, applies every Alembic migration, waits for the scoper, three specialists, and
+Coordinator, and finishes only after the production web health check succeeds.
 
 Useful follow-up commands are:
 
@@ -114,8 +116,8 @@ restart behavior in its
 - [ ] Research completes through Researcher, Analyst, and Verifier with persisted evidence.
 - [ ] The recommendation challenge renders **Strongest alternative: MongoDB**.
 - [ ] Browser developer tools show `/ag-ui` on the same public origin.
-- [ ] Only port `5173` is public; Coordinator and specialist ports remain unforwarded or private.
-- [ ] `docker compose` reports PostgreSQL and the four Python services healthy.
+- [ ] Only port `5173` is public; Coordinator, scoper, and specialist ports remain unforwarded or private.
+- [ ] `docker compose` reports PostgreSQL and the five Python services healthy.
 - [ ] A page reload can rehydrate the durable session while the Codespace remains running.
 
 ## Deployment evidence
@@ -159,3 +161,8 @@ or demonstrate AgentDesk.
 
 Provisioning that file creates paid resources. It must never be deployed without separate explicit
 cost authorization. Removing the Blueprint from Git does not delete already-created Render resources.
+
+The Blueprint intentionally excludes the adaptive scoper. Adding another private service requires
+explicit recurring-cost authorization and passing the quality gates in the
+[adaptive-intake rollout runbook](./adaptive-intake-rollout.md). Local and CI users can instead run
+the key-free `compose.adaptive.yaml` opt-in overlay documented there.

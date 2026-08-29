@@ -8,6 +8,9 @@ services:
   verifier:
     ports: !override []
 
+  scoper:
+    ports: !override []
+
   coordinator:
     ports: !override []
 

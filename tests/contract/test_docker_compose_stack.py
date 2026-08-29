@@ -18,6 +18,7 @@ REQUIRED_SERVICES = {
     "researcher",
     "analyst",
     "verifier",
+    "scoper",
     "postgres",
 }
 
@@ -64,5 +65,10 @@ def test_compose_startup_uses_health_and_completion_conditions_without_sleeps() 
     assert coordinator_dependencies["migrate"]["condition"] == "service_completed_successfully"
     for specialist in ("researcher", "analyst", "verifier"):
         assert coordinator_dependencies[specialist]["condition"] == "service_healthy"
+    assert coordinator_dependencies["scoper"]["condition"] == "service_healthy"
+    assert services["coordinator"]["environment"]["AGENTDESK_ADAPTIVE_SCOPING_ENABLED"] == "false"
+    assert services["scoper"]["environment"]["SCOPER_MODE"] == "fixture"
+    assert "GOOGLE_API_KEY" not in services["scoper"]["environment"]
+    assert services["web"]["environment"]["VITE_AGENTDESK_ADAPTIVE_INTAKE_ENABLED"] == "false"
     assert services["web"]["depends_on"]["coordinator"]["condition"] == "service_healthy"
     assert "sleep" not in json.dumps(config).casefold()

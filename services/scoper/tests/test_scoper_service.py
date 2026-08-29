@@ -258,6 +258,15 @@ def test_safe_telemetry_excludes_question_and_credentials(caplog: Any, monkeypat
     assert question not in logs
     assert secret not in logs
     assert "scoper.request" in logs
+    completed = next(
+        json.loads(record.getMessage())
+        for record in caplog.records
+        if '"event":"scoper.request"' in record.getMessage()
+        and '"outcome":"completed"' in record.getMessage()
+    )
+    assert completed["duration_ms"] >= 0
+    assert completed["input_tokens"] == 0
+    assert completed["output_tokens"] == 0
 
 
 def test_adk_evalset_executes_free_fixture_cases() -> None:

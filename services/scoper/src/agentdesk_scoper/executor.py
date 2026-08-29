@@ -6,7 +6,9 @@ import asyncio
 import hashlib
 import json
 from contextlib import suppress
+from dataclasses import dataclass
 from datetime import UTC, datetime
+from time import perf_counter
 
 from a2a.helpers.proto_helpers import new_data_part, new_task_from_user_message, new_text_message
 from a2a.server.agent_execution import AgentExecutor, RequestContext
@@ -42,6 +44,13 @@ class ScoperExecutionError(RuntimeError):
     """The configured agent failed before producing an output."""
 
 
+@dataclass(frozen=True)
+class ScoperExecutionResult:
+    proposal: ScopeProposal
+    input_tokens: int
+    output_tokens: int
+
+
 class ScoperAgentExecutor(AgentExecutor):
     """Run one bounded ADK task and expose only a typed A2A artifact."""
 
@@ -61,7 +70,7 @@ class ScoperAgentExecutor(AgentExecutor):
             session_service=self._sessions,
             memory_service=InMemoryMemoryService(),
         )
-        self._active: dict[str, asyncio.Task[ScopeProposal]] = {}
+        self._active: dict[str, asyncio.Task[ScoperExecutionResult]] = {}
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.message is None or context.task_id is None or context.context_id is None:
@@ -84,25 +93,49 @@ class ScoperAgentExecutor(AgentExecutor):
 
         await updater.start_work(self._status(context, "Decision scoping started."))
         self._emit(context, "scoper.request", "started")
+        started_at = perf_counter()
         execution = asyncio.create_task(self._produce(context, request))
         self._active[context.task_id] = execution
         try:
-            proposal = await execution
+            result = await execution
         except asyncio.CancelledError:
-            self._emit(context, "scoper.request", "cancelled")
+            self._emit(
+                context,
+                "scoper.request",
+                "cancelled",
+                duration_ms=_duration_ms(started_at),
+            )
             return
         except TimeoutError:
-            self._emit(context, "scoper.request", "failed", error_code="timeout")
+            self._emit(
+                context,
+                "scoper.request",
+                "failed",
+                error_code="timeout",
+                duration_ms=_duration_ms(started_at),
+            )
             await updater.failed(self._status(context, "Decision scoping timed out."))
             return
         except InvalidScoperOutputError:
-            self._emit(context, "scoper.request", "failed", error_code="invalid_output")
+            self._emit(
+                context,
+                "scoper.request",
+                "failed",
+                error_code="invalid_output",
+                duration_ms=_duration_ms(started_at),
+            )
             await updater.failed(
                 self._status(context, "Decision scoping returned an invalid artifact.")
             )
             return
         except Exception:
-            self._emit(context, "scoper.request", "failed", error_code="provider_failure")
+            self._emit(
+                context,
+                "scoper.request",
+                "failed",
+                error_code="provider_failure",
+                duration_ms=_duration_ms(started_at),
+            )
             await updater.failed(self._status(context, "Decision scoping provider failed."))
             return
         finally:
@@ -114,7 +147,7 @@ class ScoperAgentExecutor(AgentExecutor):
                 remote_task_id=context.task_id,
                 created_at=datetime.now(UTC),
             ),
-            payload=proposal,
+            payload=result.proposal,
         )
         await updater.add_artifact(
             [new_data_part(artifact.model_dump(mode="json"), media_type="application/json")],
@@ -123,7 +156,14 @@ class ScoperAgentExecutor(AgentExecutor):
             last_chunk=True,
         )
         await updater.complete(self._status(context, "Decision scoping completed."))
-        self._emit(context, "scoper.request", "completed")
+        self._emit(
+            context,
+            "scoper.request",
+            "completed",
+            duration_ms=_duration_ms(started_at),
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
+        )
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
         if context.task_id is None or context.context_id is None:
@@ -137,7 +177,9 @@ class ScoperAgentExecutor(AgentExecutor):
         await updater.cancel(self._status(context, "Decision scoping cancelled."))
         self._emit(context, "scoper.cancel", "cancelled")
 
-    async def _produce(self, context: RequestContext, request: ScopingRequest) -> ScopeProposal:
+    async def _produce(
+        self, context: RequestContext, request: ScopingRequest
+    ) -> ScoperExecutionResult:
         proposal_id = self._proposal_id(context.task_id or "missing")
         command = json.dumps(
             {
@@ -159,7 +201,9 @@ class ScoperAgentExecutor(AgentExecutor):
                 ) as span:
                     try:
                         async with asyncio.timeout(self._settings.timeout_seconds):
-                            output = await self._run_adk(context, command, attempt)
+                            output, input_tokens, output_tokens = await self._run_adk(
+                                context, command, attempt
+                            )
                         proposal = ScopeProposal.model_validate_json(output)
                     except (ValidationError, ValueError) as error:
                         span.set_status(Status(StatusCode.ERROR))
@@ -169,7 +213,11 @@ class ScoperAgentExecutor(AgentExecutor):
                         "Scoper output changed bound request identifiers."
                     )
                 self._emit(context, "scoper.attempt", "completed", attempt=attempt)
-                return proposal
+                return ScoperExecutionResult(
+                    proposal=proposal,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                )
             except asyncio.CancelledError:
                 raise
             except InvalidScoperOutputError:
@@ -183,7 +231,9 @@ class ScoperAgentExecutor(AgentExecutor):
             raise final_error
         raise ScoperExecutionError from final_error
 
-    async def _run_adk(self, context: RequestContext, command: str, attempt: int) -> str:
+    async def _run_adk(
+        self, context: RequestContext, command: str, attempt: int
+    ) -> tuple[str, int, int]:
         context_id = context.context_id or "missing"
         user_id = f"A2A_USER_{context_id}"
         session_id = f"{context_id}-attempt-{attempt}"
@@ -193,6 +243,8 @@ class ScoperAgentExecutor(AgentExecutor):
             session_id=session_id,
         )
         output = ""
+        input_tokens = 0
+        output_tokens = 0
         async for event in self._runner.run_async(
             user_id=user_id,
             session_id=session_id,
@@ -201,6 +253,10 @@ class ScoperAgentExecutor(AgentExecutor):
                 parts=[genai_types.Part(text=command)],
             ),
         ):
+            usage = getattr(event, "usage_metadata", None)
+            if usage is not None:
+                input_tokens = max(input_tokens, int(usage.prompt_token_count or 0))
+                output_tokens = max(output_tokens, int(usage.candidates_token_count or 0))
             if event.partial or event.content is None:
                 continue
             for part in event.content.parts or []:
@@ -208,7 +264,7 @@ class ScoperAgentExecutor(AgentExecutor):
                     output = part.text
         if not output:
             raise ScoperExecutionError("ADK execution returned no final text.")
-        return output
+        return output, input_tokens, output_tokens
 
     def _emit(
         self,
@@ -218,6 +274,9 @@ class ScoperAgentExecutor(AgentExecutor):
         *,
         attempt: int | None = None,
         error_code: str | None = None,
+        duration_ms: int | None = None,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
     ) -> None:
         self._telemetry.emit(
             ScoperEvent(
@@ -228,6 +287,9 @@ class ScoperAgentExecutor(AgentExecutor):
                 task_id=context.task_id,
                 attempt=attempt,
                 error_code=error_code,
+                duration_ms=duration_ms,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
             )
         )
 
@@ -239,3 +301,7 @@ class ScoperAgentExecutor(AgentExecutor):
     @staticmethod
     def _status(context: RequestContext, text: str) -> Message:
         return new_text_message(text, context_id=context.context_id, task_id=context.task_id)
+
+
+def _duration_ms(started_at: float) -> int:
+    return max(0, round((perf_counter() - started_at) * 1000))

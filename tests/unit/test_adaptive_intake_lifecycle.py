@@ -22,6 +22,10 @@ from agents.coordinator.intake import (
     request_is_complete,
 )
 from agents.coordinator.intake_execution import AdaptiveIntakeCommandExecutor
+from agents.coordinator.intake_settings import (
+    ADAPTIVE_SCOPING_ENABLED_ENV,
+    AdaptiveIntakeSettings,
+)
 from agents.coordinator.persistence import WorkflowPersistenceService
 from agents.coordinator.projection import DurableAgUiProjector
 from agents.coordinator.registry import RegisteredAgent
@@ -200,6 +204,8 @@ def _correlation(
 def _executor(
     database: Database,
     fixture_id: str = "technology-database",
+    *,
+    enabled: bool = True,
 ) -> tuple[
     AdaptiveIntakeCommandExecutor,
     RecordingDownstream,
@@ -217,6 +223,7 @@ def _executor(
         persistence=persistence,
         projector=DurableAgUiProjector(database),
         remote_client=remote,
+        enabled=enabled,
         clock=clock,
     )
     return executor, downstream, remote, clock
@@ -249,6 +256,29 @@ def test_completeness_bypass_is_deterministic() -> None:
     assert direct_research_request(complete).options == ["A", "B"]
     with pytest.raises(IntakeCompilationError):
         direct_research_request(incomplete)
+
+
+def test_adaptive_scoping_rollout_flag_is_strict_and_fails_closed(database: Database) -> None:
+    assert not AdaptiveIntakeSettings.from_environment({}).scoping_enabled
+    assert AdaptiveIntakeSettings.from_environment(
+        {ADAPTIVE_SCOPING_ENABLED_ENV: "true"}
+    ).scoping_enabled
+    with pytest.raises(ValueError, match="must be true or false"):
+        AdaptiveIntakeSettings.from_environment({ADAPTIVE_SCOPING_ENABLED_ENV: "yes"})
+
+    executor, downstream, remote, _ = _executor(database, enabled=False)
+    command = PrepareResearchCommand(
+        correlation=_correlation(run_id="disabled-run", action_id="disabled-action"),
+        request=ScopingRequest(question="A or B?"),
+        user_message="A or B?",
+    )
+
+    updates = asyncio.run(_collect(executor.execute(command)))
+
+    assert updates[-1].status == "failed"
+    assert updates[-1].error_code == "adaptive_intake_disabled"
+    assert downstream.commands == []
+    assert remote.requests == []
 
 
 def test_new_agui_actions_are_strict_and_versioned() -> None:
@@ -443,6 +473,7 @@ def test_browser_cancellation_reaches_active_scoper_and_commits_no_proposal(
         persistence=persistence,
         projector=DurableAgUiProjector(database),
         remote_client=remote,
+        enabled=True,
         clock=clock,
     )
     command = PrepareResearchCommand(

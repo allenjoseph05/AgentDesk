@@ -21,6 +21,7 @@ DOCUMENTS = (
     ROOT / "docs" / "adaptive-intake-benchmark.md",
     ROOT / "docs" / "adaptive-intake-evaluation.md",
     ROOT / "docs" / "adaptive-intake-a2ui.md",
+    ROOT / "docs" / "adaptive-intake-rollout.md",
 )
 MARKDOWN_LINK = re.compile(r"\[[^]]+\]\(([^)]+)\)")
 
@@ -92,7 +93,7 @@ def test_adaptive_intake_plan_preserves_protocol_and_dependency_boundaries() -> 
     assert "Keep the existing Coordinator as the deterministic control plane" in adr
     assert "Do not install `google-adk` or `a2ui-agent-sdk` in the root" in adr
     assert "AG-UI remains the sole browser" in adr
-    assert "Stories 1 through 7 complete; Story 8 is next" in plan
+    assert "Stories 1 through 8 complete; rollout remains disabled by evidence" in plan
     assert "adaptive-intake-evaluation.md" in plan
     assert "compatibility decision and evidence" in plan
     assert "benchmark, rubric, baseline, and go/no-go evidence" in plan
@@ -100,6 +101,7 @@ def test_adaptive_intake_plan_preserves_protocol_and_dependency_boundaries() -> 
     assert "Coordinator lifecycle and persistence evidence" in plan
     assert "bounded compiler, transport, and rehydration evidence" in plan
     assert "trusted React renderer and browser-boundary evidence" in plan
+    assert "feature flags, dashboard contract, rollout gates, and rollback evidence" in plan
     assert "A2UI protocol 0.9.1" in plan
     assert "improves the predefined ambiguous-prompt quality score" in plan
 
@@ -113,3 +115,13 @@ def test_adaptive_intake_baseline_is_explicitly_not_a_rollout_claim() -> None:
     assert "zero model calls" in benchmark
     assert "not evidence that adaptive intake" in benchmark
     assert "improves final recommendations" in benchmark
+
+
+def test_adaptive_rollout_documents_zero_cost_boundary_and_no_go_decision() -> None:
+    rollout = (ROOT / "docs" / "adaptive-intake-rollout.md").read_text(encoding="utf-8")
+
+    assert "compose.adaptive.yaml" in rollout
+    assert "needs no API key, provider account, or payment method" in rollout
+    assert "render.yaml` intentionally has no scoper service" in rollout
+    assert "Default-on (blocked)" in rollout
+    assert "User prompts, answers, artifacts" in rollout

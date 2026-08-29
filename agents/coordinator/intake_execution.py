@@ -70,6 +70,7 @@ class AdaptiveIntakeCommandExecutor:
         persistence: WorkflowPersistenceService,
         projector: DurableAgUiProjector,
         remote_client: IntakeRemoteClient | None = None,
+        enabled: bool = False,
         timeout_seconds: float = 10,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
@@ -80,11 +81,19 @@ class AdaptiveIntakeCommandExecutor:
         self._persistence = persistence
         self._projector = projector
         self._remote = remote_client or A2AClientAdapter()
+        self._enabled = enabled
         self._timeout_seconds = timeout_seconds
         self._clock = clock or (lambda: datetime.now(UTC))
 
     async def execute(self, command: CoordinatorCommand) -> AsyncIterator[CoordinatorRunUpdate]:
         if isinstance(command, PrepareResearchCommand):
+            if not self._enabled:
+                yield CoordinatorRunOutcome(
+                    status="failed",
+                    message="Adaptive intake is disabled for new research requests.",
+                    error_code="adaptive_intake_disabled",
+                )
+                return
             if request_is_complete(command.request):
                 async for update in self._downstream.execute(
                     StartResearchCommand(

@@ -1,0 +1,9 @@
+services:
+  coordinator:
+    environment:
+      AGENTDESK_ADAPTIVE_SCOPING_ENABLED: "true"
+
+  web:
+    environment:
+      VITE_AGENTDESK_ADAPTIVE_INTAKE_ENABLED: "true"
+      VITE_AGENTDESK_RUNTIME_MODE: adaptive-demo

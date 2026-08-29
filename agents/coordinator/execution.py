@@ -13,6 +13,7 @@ from uuid import NAMESPACE_URL, uuid5
 from agents.coordinator.a2a_client import A2AClientAdapter, RemoteTaskResult
 from agents.coordinator.cancellation import CancellationCoordinator
 from agents.coordinator.intake_execution import AdaptiveIntakeCommandExecutor
+from agents.coordinator.intake_settings import AdaptiveIntakeSettings
 from agents.coordinator.orchestrator import WorkflowExecution, WorkflowOrchestrator
 from agents.coordinator.persistence import WorkflowPersistenceError, WorkflowPersistenceService
 from agents.coordinator.planner import DecisionPlanner, PlanningFailedError, WorkflowPlan
@@ -1233,6 +1234,7 @@ def create_orchestration_executor(
     auth_settings: AuthenticationSettings | None = None,
     limit_settings: LimitSettings | None = None,
     planner_override: WorkflowPlanner | None = None,
+    intake_settings: AdaptiveIntakeSettings | None = None,
 ) -> CoordinatorCommandExecutor:
     """Build the production executor without contacting external services eagerly."""
     limits = limit_settings or LimitSettings.from_environment()
@@ -1269,6 +1271,7 @@ def create_orchestration_executor(
         persistence=persistence,
         projector=projector,
         remote_client=remote_client,
+        enabled=(intake_settings or AdaptiveIntakeSettings.from_environment()).scoping_enabled,
     )
 
 

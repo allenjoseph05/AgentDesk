@@ -51,6 +51,7 @@ def main() -> int:
         common.update(
             {
                 "AGENTDESK_AUTH_MODE": "local",
+                "AGENTDESK_ADAPTIVE_SCOPING_ENABLED": "true",
                 "AGENTDESK_COORDINATOR_MODEL": "",
                 "AGENTDESK_REGISTRY_MAX_ATTEMPTS": "1",
                 "ANALYST_AGENT_URL": ANALYST_URL,
