@@ -196,7 +196,7 @@ test("golden research renders AG-UI state and submits a typed challenge", async 
     requests.push(request);
     const action = request.forwardedProps.agentdesk;
     const events =
-      action.type === "start_research" ? researchEvents(request) : challengeEvents(request);
+      action.type === "prepare_research" ? researchEvents(request) : challengeEvents(request);
     await route.fulfill({
       body: encode(events),
       contentType: "text/event-stream",
@@ -220,14 +220,14 @@ test("golden research renders AG-UI state and submits a typed challenge", async 
     await expect(page.getByRole("heading", { name: "Verification" })).toBeVisible();
 
     expect(requests).toHaveLength(1);
-    const startRequest = requireRequest(requests, 0);
-    expect(startRequest.forwardedProps.agentdesk).toMatchObject({
+    const prepareRequest = requireRequest(requests, 0);
+    expect(prepareRequest.forwardedProps.agentdesk).toMatchObject({
       schemaVersion: "1.0",
-      type: "start_research",
+      type: "prepare_research",
       sessionId: null,
       payload: { question: QUESTION },
     });
-    expect(startRequest.state).toMatchObject({ schemaVersion: "1.0", status: "idle" });
+    expect(prepareRequest.state).toMatchObject({ schemaVersion: "1.0", status: "idle" });
 
     await page.getByLabel("Optional challenge").fill(CHALLENGE);
     await page.getByRole("button", { name: "Test counterargument" }).click();
@@ -243,8 +243,8 @@ test("golden research renders AG-UI state and submits a typed challenge", async 
 
     expect(requests).toHaveLength(2);
     const challengeRequest = requireRequest(requests, 1);
-    expect(challengeRequest.threadId).toBe(startRequest.threadId);
-    expect(challengeRequest.runId).not.toBe(startRequest.runId);
+    expect(challengeRequest.threadId).toBe(prepareRequest.threadId);
+    expect(challengeRequest.runId).not.toBe(prepareRequest.runId);
     expect(challengeRequest.state).toMatchObject({
       schemaVersion: "1.0",
       sessionId: "session-golden",

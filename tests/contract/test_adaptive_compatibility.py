@@ -35,6 +35,7 @@ def test_a2ui_compatibility_graphs_are_exact_at_each_delivery_boundary() -> None
     production_web = json.loads(
         (ROOT / "apps" / "web" / "package.json").read_text(encoding="utf-8")
     )
+    root_package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
     root_project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     root_lock = (ROOT / "requirements.lock").read_text(encoding="utf-8")
 
@@ -46,8 +47,12 @@ def test_a2ui_compatibility_graphs_are_exact_at_each_delivery_boundary() -> None
     assert web_package["dependencies"]["@a2ui/react"] == "0.10.2"
     assert web_package["dependencies"]["@a2ui/web_core"] == "0.10.6"
     assert web_package["overrides"] == {"dompurify": "3.4.13"}
-    assert "@a2ui/react" not in production_web["dependencies"]
-    assert "@a2ui/web_core" not in production_web["dependencies"]
+    assert production_web["dependencies"]["@a2ui/react"] == "0.10.2"
+    assert production_web["dependencies"]["@a2ui/web_core"] == "0.10.6"
+    assert root_package["dependencies"]["@a2ui/react"] == "0.10.2"
+    assert root_package["dependencies"]["@a2ui/web_core"] == "0.10.6"
+    assert root_package["dependencies"]["dompurify"] == "3.4.13"
+    assert root_package["overrides"] == {"dompurify": "$dompurify"}
 
 
 def test_compatibility_job_resolves_and_tests_each_environment() -> None:

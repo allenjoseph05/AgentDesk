@@ -14,14 +14,23 @@ import {
   type AgentDeskAction,
   createChallengeRecommendationAction,
   createFocusOnCriterionAction,
+  createPrepareResearchAction,
   createResearchDeeperAction,
   createRetryFailedAgentAction,
+  createSkipIntakeAction,
   createStartResearchAction,
+  createSubmitIntakeAction,
 } from "../agui/actions";
 import { createCoordinatorAgent, runAgentDeskAction } from "../agui/client";
 import { userSafeAgUiError } from "../agui/client-config";
 import { useAgentDeskStateStore } from "../agui/store-react";
 import { type TimelineItem, upsertTimelineItem } from "../agui/timeline";
+import {
+  isCurrentIntakeSurface,
+  type IntakeAnswers,
+  parseA2uiSurfaceEvent,
+  type TrustedIntakeSurface,
+} from "../a2ui/contracts";
 import { agentDeskRuntimeMode, DEMO_RESEARCH_PARAMETERS } from "./runtime-mode";
 
 export type RuntimePhase = "idle" | "connecting" | "running" | "error";
@@ -32,6 +41,7 @@ interface AgentDeskRuntimeValue {
   challengeRecommendation(sessionId: string, challenge: string | null): Promise<boolean>;
   error: string | null;
   focusOnCriterion(sessionId: string, criterion: string): Promise<boolean>;
+  intakeSurface: TrustedIntakeSurface | null;
   message: string;
   phase: RuntimePhase;
   researchDeeper(sessionId: string, focusAreas: string[]): Promise<boolean>;
@@ -41,6 +51,8 @@ interface AgentDeskRuntimeValue {
     remoteTaskId: string | null,
   ): Promise<boolean>;
   startResearch(question: string): Promise<boolean>;
+  skipIntake(surface: TrustedIntakeSurface): Promise<boolean>;
+  submitIntake(surface: TrustedIntakeSurface, answers: IntakeAnswers): Promise<boolean>;
   threadId: string;
   timeline: TimelineItem[];
 }
@@ -69,6 +81,7 @@ export function AgentDeskRuntimeProvider({
   const [message, setMessage] = useState("Ready for a new research question.");
   const [error, setError] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
+  const [intakeSurface, setIntakeSurface] = useState<TrustedIntakeSurface | null>(null);
 
   useEffect(
     () =>
@@ -104,9 +117,27 @@ export function AgentDeskRuntimeProvider({
     setMessage("Connecting to the Coordinator...");
     try {
       await runAgentDeskAction(agent, action, userMessage, {
+        onA2uiSurface: (value) => {
+          try {
+            const candidate = parseA2uiSurfaceEvent(value);
+            if (!isCurrentIntakeSurface(candidate, stateStore.getSnapshot())) {
+              throw new Error("The A2UI intake surface is stale for the current session.");
+            }
+            setIntakeSurface(candidate);
+            return true;
+          } catch (surfaceError) {
+            setError(userSafeAgUiError(surfaceError));
+            setMessage("An untrusted or stale intake surface was rejected.");
+            setPhase("error");
+            return false;
+          }
+        },
         onDelta: stateStore.applyDelta,
         onRunning: () => setPhase("running"),
         onSnapshot: stateStore.replaceSnapshot,
+        onState: (state) => {
+          if (state.status !== "awaiting_input") setIntakeSurface(null);
+        },
         onMessage: setMessage,
         onTimelineItem: (item) => setTimeline((items) => upsertTimelineItem(items, item)),
         onFinished: () => setPhase((current) => (current === "error" ? current : "idle")),
@@ -134,13 +165,41 @@ export function AgentDeskRuntimeProvider({
     (question: string) =>
       executeAction(
         () =>
-          createStartResearchAction(
-            question,
-            agentDeskRuntimeMode === "demo" ? DEMO_RESEARCH_PARAMETERS : undefined,
-          ),
+          agentDeskRuntimeMode === "demo"
+            ? createStartResearchAction(question, DEMO_RESEARCH_PARAMETERS)
+            : createPrepareResearchAction(question),
         question,
       ),
     [executeAction],
+  );
+
+  const submitIntake = useCallback(
+    (surface: TrustedIntakeSurface, answers: IntakeAnswers) => {
+      if (!isCurrentIntakeSurface(surface, stateStore.getSnapshot())) return Promise.resolve(false);
+      return executeAction(
+        () =>
+          createSubmitIntakeAction({
+            schemaVersion: "1.0",
+            sessionId: surface.sessionId,
+            proposalId: surface.proposalId,
+            proposalVersion: surface.proposalVersion,
+            answers,
+          }),
+        "Continue research with the clarified scope.",
+      );
+    },
+    [executeAction, stateStore],
+  );
+
+  const skipIntake = useCallback(
+    (surface: TrustedIntakeSurface) => {
+      if (!isCurrentIntakeSurface(surface, stateStore.getSnapshot())) return Promise.resolve(false);
+      return executeAction(
+        () => createSkipIntakeAction(surface.sessionId),
+        "Skip clarification and continue with the proposed defaults.",
+      );
+    },
+    [executeAction, stateStore],
   );
 
   const challengeRecommendation = useCallback(
@@ -195,11 +254,14 @@ export function AgentDeskRuntimeProvider({
       challengeRecommendation,
       error,
       focusOnCriterion,
+      intakeSurface,
       message,
       phase,
       researchDeeper,
       retryFailedAgent,
+      skipIntake,
       startResearch,
+      submitIntake,
       threadId: agent.threadId,
       timeline,
     }),
@@ -210,11 +272,14 @@ export function AgentDeskRuntimeProvider({
       challengeRecommendation,
       error,
       focusOnCriterion,
+      intakeSurface,
       message,
       phase,
       researchDeeper,
       retryFailedAgent,
+      skipIntake,
       startResearch,
+      submitIntake,
       timeline,
     ],
   );

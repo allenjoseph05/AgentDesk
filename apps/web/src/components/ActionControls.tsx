@@ -17,6 +17,9 @@ interface ActionControlsProps {
 }
 
 const ACTION_LABELS: Record<AgentDeskAction["type"], string> = {
+  prepare_research: "Scoping research",
+  submit_intake: "Submitting clarification",
+  skip_intake: "Skipping clarification",
   start_research: "Starting research",
   challenge_recommendation: "Testing counterargument",
   research_deeper: "Researching deeper",
@@ -41,6 +44,12 @@ export function ActionControls({
   const suggestedCriterion = analysis?.criteria[0]?.criterion ?? "";
   const failedAgents = agents.filter((agent) => agent.status === "failed");
   const actions = new Set(availableActions);
+  const hasFollowUpAction = [
+    "challenge_recommendation",
+    "research_deeper",
+    "focus_on_criterion",
+    "retry_failed_agent",
+  ].some((action) => actions.has(action as AgentDeskViewState["availableActions"][number]));
 
   useEffect(() => {
     if (suggestedCriterion) {
@@ -48,7 +57,7 @@ export function ActionControls({
     }
   }, [suggestedCriterion]);
 
-  if (!isBusy && availableActions.length === 0) {
+  if (!isBusy && !hasFollowUpAction) {
     return null;
   }
 

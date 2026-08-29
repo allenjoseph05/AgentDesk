@@ -9,7 +9,14 @@
     "node": ">=22.12.0",
     "npm": ">=10.0.0"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@a2ui/react": "0.10.2",
+    "@a2ui/web_core": "0.10.6",
+    "dompurify": "3.4.13"
+  },
+  "overrides": {
+    "dompurify": "$dompurify"
+  },
   "scripts": {
     "setup": "npm install --workspaces --include-workspace-root && python scripts/setup.py",
     "dev": "python scripts/dev.py",

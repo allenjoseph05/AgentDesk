@@ -12,6 +12,7 @@ import {
   selectWarnings,
 } from "../agui/selectors";
 import { useAgentDeskSelector } from "../agui/store-react";
+import { TrustedA2uiIntake } from "../a2ui/renderer";
 import { agentDeskComponentCatalog } from "../components/catalog";
 import { useAgentDeskRuntime } from "./AgentDeskRuntime";
 import {
@@ -29,6 +30,8 @@ const { ActionControls, ActivityTimeline, ResearchResults, ResearchStatusPanel }
 
 const STATUS_LABELS = {
   idle: "Ready",
+  scoping: "Scoping",
+  awaiting_input: "Needs input",
   planning: "Planning",
   researching: "Researching",
   analyzing: "Analyzing",
@@ -57,10 +60,12 @@ export function AgentDeskWorkspace() {
   const hasSession = session !== null;
   const activeSessionId = session?.sessionId ?? "";
   const status = session?.status ?? "idle";
+  const isIntakePending = status === "awaiting_input";
+  const composerDisabled = isBusy || isIntakePending;
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!isBusy && question.trim()) {
+    if (!composerDisabled && question.trim()) {
       void runtime.startResearch(question);
     }
   };
@@ -148,10 +153,10 @@ export function AgentDeskWorkspace() {
               value={question}
               onChange={(event) => setQuestion(event.target.value)}
               placeholder="Ask a complex question, compare options, or investigate a decision..."
-              disabled={isBusy}
+              disabled={composerDisabled}
               readOnly={isDemoMode}
             />
-            <button type="submit" disabled={isBusy || !question.trim()}>
+            <button type="submit" disabled={composerDisabled || !question.trim()}>
               {isBusy ? "Researching..." : "Start research"}
               <span aria-hidden="true">→</span>
             </button>
@@ -207,6 +212,14 @@ export function AgentDeskWorkspace() {
 
           {hasSession ? (
             <>
+              {runtime.intakeSurface !== null && isIntakePending && (
+                <TrustedA2uiIntake
+                  busy={isBusy}
+                  onSkip={runtime.skipIntake}
+                  onSubmit={runtime.submitIntake}
+                  surface={runtime.intakeSurface}
+                />
+              )}
               <ResearchStatusPanel
                 agents={agents}
                 evidenceCount={evidence.length}

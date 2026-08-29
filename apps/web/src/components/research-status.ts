@@ -29,6 +29,16 @@ export const RESEARCH_STATUS_PRESENTATION = {
     description: "Submit a question when you are ready to begin.",
     tone: "neutral",
   },
+  scoping: {
+    label: "Scoping",
+    description: "The Coordinator is deciding whether clarification would improve the research plan.",
+    tone: "active",
+  },
+  awaiting_input: {
+    label: "Needs input",
+    description: "Answer the bounded clarification questions or continue with the proposed defaults.",
+    tone: "warning",
+  },
   planning: {
     label: "Planning",
     description: "The Coordinator is shaping the question into a research plan.",

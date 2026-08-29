@@ -26,6 +26,7 @@ import {
   semanticLabel,
   type TimelineItem,
 } from "./timeline.ts";
+import { A2UI_SURFACE_EVENT_NAME } from "../a2ui/contracts.ts";
 
 export const AG_UI_ENDPOINT = DEFAULT_AG_UI_ENDPOINT;
 
@@ -44,6 +45,7 @@ export interface BrowserCoordinatorAgentOptions {
 }
 
 export interface AgentDeskRunObserver {
+  onA2uiSurface?(value: unknown): boolean;
   onDelta?(delta: unknown): boolean;
   onRunning?(): void;
   onSnapshot?(snapshot: unknown): boolean;
@@ -169,6 +171,12 @@ export async function runAgentDeskAction(
       observer.onDelta?.(event.delta) === false
         ? { stopPropagation: true }
         : undefined,
+    onCustomEvent: ({ event }) => {
+      if (event.name !== A2UI_SURFACE_EVENT_NAME) return undefined;
+      return observer.onA2uiSurface?.(event.value) === false
+        ? { stopPropagation: true }
+        : undefined;
+    },
     onStateChanged: ({ state }) => {
       if (observer.onState !== undefined) {
         observer.onState(parseAgentDeskViewState(state));
