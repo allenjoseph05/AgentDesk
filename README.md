@@ -91,7 +91,19 @@ npm run test:e2e:intake
 ```
 
 Its committed benchmark result is intentionally `not_eligible`, so normal live builds keep adaptive
-intake disabled unless `VITE_AGENTDESK_ADAPTIVE_INTAKE_ENABLED=true` is explicitly selected.
+intake disabled unless both `VITE_AGENTDESK_ADAPTIVE_INTAKE_ENABLED=true` and
+`AGENTDESK_ADAPTIVE_SCOPING_ENABLED=true` are explicitly selected.
+
+To run the complete key-free adaptive path through the containerized scoper, use the explicit
+opt-in overlay:
+
+```powershell
+docker compose -f compose.yaml -f compose.demo.yaml -f compose.adaptive.yaml up --build --wait
+```
+
+The base and hosted profiles remain disabled. See the
+[adaptive-intake rollout runbook](./docs/adaptive-intake-rollout.md) for feature flags, safe
+telemetry, rollout evidence, and rollback.
 
 ### Zero-cost hosted demo
 

@@ -158,9 +158,10 @@ jobs:
   container-images:
     name: Container images
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       PYTHON_IMAGE: agentdesk-python:${{ github.sha }}
+      SCOPER_IMAGE: agentdesk-scoper:${{ github.sha }}
       WEB_IMAGE: agentdesk-web:${{ github.sha }}
       IMAGE_SECRET_SENTINEL: agentdesk-ci-local-secret-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
@@ -170,9 +171,10 @@ jobs:
       - name: Build runtime images
         run: |
           docker build --tag "$PYTHON_IMAGE" .
+          docker build --file services/scoper/Dockerfile --tag "$SCOPER_IMAGE" .
           docker build --file apps/web/Dockerfile --tag "$WEB_IMAGE" .
       - name: Verify local secret is absent from image layers
-        run: python scripts/verify_image_secrets.py "$PYTHON_IMAGE" "$WEB_IMAGE"
+        run: python scripts/verify_image_secrets.py "$PYTHON_IMAGE" "$SCOPER_IMAGE" "$WEB_IMAGE"
       - name: Prepare vulnerability reports
         run: mkdir -p reports
       - name: Inspect Python image dependencies
@@ -192,6 +194,18 @@ jobs:
           image-ref: ${{ env.WEB_IMAGE }}
           format: json
           output: reports/web-vulnerabilities.json
+          scanners: vuln
+          vuln-type: os,library
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: "0"
+          version: v0.72.0
+          skip-setup-trivy: true
+      - name: Inspect scoper image dependencies
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ env.SCOPER_IMAGE }}
+          format: json
+          output: reports/scoper-vulnerabilities.json
           scanners: vuln
           vuln-type: os,library
           severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL

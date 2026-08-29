@@ -1,8 +1,9 @@
 # Isolated AgentDesk decision scoper
 
 This service runs Google ADK behind AgentDesk's A2A HTTP+JSON boundary and returns one validated
-`ScopeProposalArtifact`. It is independently runnable, but it is not wired into the Coordinator,
-Compose, or the hosted deployment yet; those changes belong to Stories 4 and 8.
+`ScopeProposalArtifact`. It is independently runnable, registered with the Coordinator, and wired
+into Compose behind server and browser feature flags. It is intentionally absent from paid hosted
+deployment; see the [rollout decision](../../docs/adaptive-intake-rollout.md).
 
 Fixture mode is the default. It uses a real ADK `Runner` with a deterministic `BaseAgent`, makes no
 network or model call, and does not inspect provider credentials. It is therefore the supported
@@ -38,8 +39,9 @@ are `SCOPER_TIMEOUT_SECONDS`, `SCOPER_RETRY_DELAY_SECONDS`, `SCOPER_BASE_URL`, a
 
 The cases in `evals/fixture.evalset.json` use ADK's official `EvalSet` schema and execute through an
 ADK `Runner`. Their deterministic evaluator validates the final structured contract and request
-binding without an LLM judge. Live quality benchmarking remains a separately approved Story 7
-activity.
+binding without an LLM judge. Live quality benchmarking and hosted deployment remain separately
+approved activities because the committed fixture benchmark did not qualify the feature for
+default-on rollout.
 
 See [Story 3's service evidence](../../docs/adaptive-intake-scoper.md) and the earlier
 [compatibility decision](../../docs/adaptive-intake-compatibility.md).

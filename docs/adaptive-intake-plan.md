@@ -1,8 +1,8 @@
 # Adaptive Decision Intake implementation plan
 
-- Status: Stories 1 through 7 complete; Story 8 is next
+- Status: Stories 1 through 8 complete; rollout remains disabled by evidence
 - Decision: [ADR 0003](./adr/0003-bounded-a2ui-adk-intake.md)
-- Last verified: 2026-08-27
+- Last verified: 2026-08-29
 
 ## Outcome and value hypothesis
 
@@ -310,6 +310,11 @@ Completed 2026-08-29. See the
 - Execute the benchmark and publish results. Do not enable live-by-default unless every gate passes.
 
 ### Story 8: feature-gated hosted rollout
+
+Completed 2026-08-29 for the approved local/CI boundary. See the
+[feature flags, dashboard contract, rollout gates, and rollback evidence](./adaptive-intake-rollout.md).
+The paid hosted service and default-on stage remain deliberately blocked by the failed quality gate
+and lack of recurring-cost authorization.
 
 - Add scoper health/dependency wiring to Compose first.
 - Add the private hosted service only after local/CI gates pass and its recurring cost is explicitly

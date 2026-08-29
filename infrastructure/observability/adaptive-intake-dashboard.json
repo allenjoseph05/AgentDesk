@@ -1,0 +1,115 @@
+{
+  "schemaVersion": "1.0",
+  "title": "AgentDesk adaptive intake rollout",
+  "defaultWindow": "24h",
+  "contentPolicy": {
+    "allowUserContent": false,
+    "allowedDimensions": [
+      "action_type",
+      "error_code",
+      "mode",
+      "outcome",
+      "status"
+    ],
+    "prohibitedFields": [
+      "question",
+      "prompt",
+      "request_payload",
+      "response_payload",
+      "artifact_payload",
+      "headers",
+      "credentials",
+      "reasoning"
+    ]
+  },
+  "panels": [
+    {
+      "id": "proposal-validity",
+      "title": "Scoping proposal validity",
+      "source": "postgres",
+      "query": "SELECT status, COALESCE(error_code, 'none') AS error_code, COUNT(*) AS tasks FROM agent_tasks WHERE skill = 'decision-scoping' AND started_at >= :window_start GROUP BY status, COALESCE(error_code, 'none')",
+      "rolloutGate": "No invalid_output increase and a successful terminal proposal rate of at least 99%."
+    },
+    {
+      "id": "intake-decisions",
+      "title": "Intake completion and skip",
+      "source": "postgres",
+      "query": "SELECT status, COUNT(*) AS proposals FROM intake_proposals WHERE created_at >= :window_start GROUP BY status",
+      "rolloutGate": "Completion and skip rates are reviewed; awaiting_response does not grow without bound."
+    },
+    {
+      "id": "fallback-rate",
+      "title": "Direct fallback after failed scoping",
+      "source": "postgres",
+      "query": "SELECT COUNT(DISTINCT failed.ag_ui_thread_id) AS fallback_threads FROM coordinator_runs AS failed JOIN coordinator_runs AS direct ON direct.ag_ui_thread_id = failed.ag_ui_thread_id AND direct.started_at > failed.finished_at WHERE failed.action_type = 'prepare_research' AND failed.status = 'failed' AND direct.action_type = 'start_research' AND failed.started_at >= :window_start",
+      "rolloutGate": "Fallback remains available and its rate is investigated before widening rollout."
+    },
+    {
+      "id": "scoper-latency",
+      "title": "Scoper latency",
+      "source": "safe_logs",
+      "selector": {
+        "event": "scoper.request",
+        "outcome": "completed"
+      },
+      "measure": "duration_ms",
+      "aggregation": [
+        "p50",
+        "p95",
+        "p99"
+      ],
+      "rolloutGate": "p95 remains within the approved one-call latency budget."
+    },
+    {
+      "id": "scoper-token-use",
+      "title": "Scoper token use",
+      "source": "safe_logs",
+      "selector": {
+        "event": "scoper.request",
+        "outcome": "completed"
+      },
+      "measure": [
+        "input_tokens",
+        "output_tokens"
+      ],
+      "aggregation": [
+        "sum",
+        "p95"
+      ],
+      "rolloutGate": "Fixture mode stays at zero; live totals remain within the separately approved budget."
+    },
+    {
+      "id": "downstream-quality",
+      "title": "Downstream decision quality",
+      "source": "published_evidence",
+      "path": "fixtures/intake/fixture-evaluation.json",
+      "measure": [
+        "ambiguous_fixture_quality",
+        "required_scoped_quality",
+        "decision"
+      ],
+      "rolloutGate": "Decision must be eligible and every quality gate must pass before default-on."
+    }
+  ],
+  "rolloutStages": [
+    {
+      "stage": "disabled",
+      "required": true
+    },
+    {
+      "stage": "opt_in",
+      "requiredEvidence": [
+        "proposal-validity",
+        "intake-decisions",
+        "fallback-rate",
+        "scoper-latency",
+        "scoper-token-use",
+        "downstream-quality"
+      ]
+    },
+    {
+      "stage": "default_on",
+      "blockedUntilDecision": "eligible"
+    }
+  ]
+}

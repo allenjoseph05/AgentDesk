@@ -23,6 +23,15 @@ class ScoperEvent:
     task_id: str | None
     attempt: int | None = None
     error_code: str | None = None
+    duration_ms: int | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+
+    def __post_init__(self) -> None:
+        for field_name in ("duration_ms", "input_tokens", "output_tokens"):
+            value = getattr(self, field_name)
+            if value is not None and value < 0:
+                raise ValueError(f"{field_name} cannot be negative.")
 
 
 class ScoperTelemetry:
@@ -37,6 +46,9 @@ class ScoperTelemetry:
             "task_id": _safe_id(event.task_id),
             "attempt": event.attempt,
             "error_code": event.error_code,
+            "duration_ms": event.duration_ms,
+            "input_tokens": event.input_tokens,
+            "output_tokens": event.output_tokens,
         }
         LOGGER.info(json.dumps(payload, separators=(",", ":"), sort_keys=True))
 

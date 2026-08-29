@@ -35,7 +35,7 @@ print_access_instructions() {
   if [[ -n "${public_url}" ]]; then
     echo "Then open: ${public_url}"
   fi
-  echo "Coordinator and specialist ports are not published by this Compose profile."
+  echo "Coordinator, scoper, and specialist ports are not published by this Compose profile."
 }
 
 require_command docker

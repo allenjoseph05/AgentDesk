@@ -60,13 +60,14 @@ improves decisions.
 | Existing protocol, persistence, cancellation, and recovery suites | Pass | Focused and full CI suites remain required. |
 | Accessible input, visible errors, skip, and fallback | Pass | Trusted catalog, static renderer fallback, and manual direct fallback are browser tested. |
 | One-call latency/token budget | Fail | Fixture mode uses zero calls; no approved live profile has latency or token evidence. |
-| No unresolved high/critical dependency or image finding | Pending | Existing audits remain green; the Story 8 scoper image does not exist yet. |
+| No unresolved high/critical dependency or image finding | CI-gated | Story 8 builds and scans the isolated scoper image; each CI run must remain free of high/critical findings. |
 
 Because every gate did not pass, live mode defaults to the direct `start_research` path. Adaptive
 intake requires the explicit browser build flag `VITE_AGENTDESK_ADAPTIVE_INTAKE_ENABLED=true`, while
-`adaptive-demo` enables it only for this deterministic evaluation. Story 8 may add local/CI Compose
-wiring and an opt-in hosted profile, but must not claim default-on production value without a
-representative live candidate and a new published benchmark result.
+`adaptive-demo` enables it only for this deterministic evaluation. Story 8 adds local/CI Compose
+wiring through an explicit key-free opt-in overlay, but does not add the paid hosted service or claim
+default-on production value without a representative live candidate and a new published benchmark
+result. See the [rollout evidence](./adaptive-intake-rollout.md).
 
 ## Reproduction
 

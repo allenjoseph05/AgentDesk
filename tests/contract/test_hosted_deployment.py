@@ -155,7 +155,7 @@ def test_codespaces_devcontainer_installs_docker_and_forwards_only_the_web_port(
 def test_codespaces_compose_uses_production_ingress_and_hides_python_ports() -> None:
     compose = CODESPACES_COMPOSE.read_text(encoding="utf-8")
 
-    assert compose.count("ports: !override []") == 4
+    assert compose.count("ports: !override []") == 5
     assert "dockerfile: apps/web/Dockerfile.production" in compose
     assert "VITE_AGENTDESK_RUNTIME_MODE: demo" in compose
     assert "AGENTDESK_COORDINATOR_URL: http://coordinator:8000" in compose
@@ -189,3 +189,5 @@ def test_deployment_runbook_makes_codespaces_default_and_render_optional() -> No
     assert "public port must be made public again" in deployment
     assert "Optional paid Render reference" in deployment
     assert "must never be deployed without separate explicit" in deployment
+    assert "agentdesk-scoper" not in _services()
+    assert "compose.adaptive.yaml" in deployment

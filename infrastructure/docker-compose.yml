@@ -127,6 +127,28 @@ services:
           "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8007/ready', timeout=2).read()",
         ]
 
+  scoper:
+    build:
+      context: ..
+      dockerfile: services/scoper/Dockerfile
+    init: true
+    restart: unless-stopped
+    environment:
+      SCOPER_BASE_URL: http://scoper:8011
+      SCOPER_FIXTURE_ID: ${SCOPER_FIXTURE_ID:-technology-database}
+      SCOPER_MODE: fixture
+    ports:
+      - "127.0.0.1:${AGENTDESK_SCOPER_PORT:-8011}:8011"
+    healthcheck:
+      <<: *specialist-healthcheck
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import json, urllib.request; data = json.load(urllib.request.urlopen('http://127.0.0.1:8011/ready', timeout=2)); assert data['status'] == 'ready' and data['mode'] == 'fixture'",
+        ]
+
   coordinator:
     <<: *python-service
     command:
@@ -141,6 +163,7 @@ services:
         "8000",
       ]
     environment:
+      AGENTDESK_ADAPTIVE_SCOPING_ENABLED: ${AGENTDESK_ADAPTIVE_SCOPING_ENABLED:-false}
       AGENTDESK_AUTH_MODE: ${AGENTDESK_AUTH_MODE:-local}
       AGENTDESK_BROWSER_TOKEN: ${AGENTDESK_BROWSER_TOKEN:-}
       AGENTDESK_SERVICE_TOKEN: ${AGENTDESK_SERVICE_TOKEN:-}
@@ -149,6 +172,7 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-agentdesk}:${POSTGRES_PASSWORD:-agentdesk}@postgres:5432/${POSTGRES_DB:-agentdesk}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       RESEARCH_AGENT_URL: http://researcher:8005
+      SCOPER_AGENT_URL: http://scoper:8011
       VERIFIER_AGENT_URL: http://verifier:8007
     ports:
       - "127.0.0.1:${AGENTDESK_COORDINATOR_PORT:-8000}:8000"
@@ -161,13 +185,15 @@ services:
         condition: service_healthy
       verifier:
         condition: service_healthy
+      scoper:
+        condition: service_healthy
     healthcheck:
       test:
         [
           "CMD",
           "python",
           "-c",
-          "import json, urllib.request; data = json.load(urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)); assert data['status'] == 'ready' and data['registered_agents'] == 3",
+          "import json, urllib.request; data = json.load(urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)); assert data['status'] == 'ready' and data['registered_agents'] == 4",
         ]
       interval: 5s
       timeout: 3s
@@ -182,6 +208,7 @@ services:
     restart: unless-stopped
     environment:
       AGENTDESK_COORDINATOR_URL: http://coordinator:8000
+      VITE_AGENTDESK_ADAPTIVE_INTAKE_ENABLED: ${VITE_AGENTDESK_ADAPTIVE_INTAKE_ENABLED:-false}
       VITE_AGENTDESK_RUNTIME_MODE: live
     ports:
       - "127.0.0.1:${AGENTDESK_WEB_PORT:-5173}:5173"

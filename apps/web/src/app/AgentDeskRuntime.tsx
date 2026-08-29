@@ -120,6 +120,13 @@ export function AgentDeskRuntimeProvider({
               (candidate.sessionId === sessionId || candidate.lastRunId === runId),
           );
           if (cancelled !== undefined) {
+            const current = stateStore.getSnapshot();
+            if (
+              current.status !== "cancelled" ||
+              (sessionId !== null && current.sessionId !== sessionId)
+            ) {
+              return;
+            }
             const detail = await getSessionHistory(cancelled.sessionId);
             stateStore.replaceSnapshot(detail.state);
             await refreshHistory();
@@ -205,7 +212,24 @@ export function AgentDeskRuntimeProvider({
         },
         onCancelled: () => {
           setError(null);
-          void restoreCancelledSession(stateStore.getSnapshot().sessionId, admittedRunId);
+          const active = stateStore.getSnapshot();
+          stateStore.replaceSnapshot({
+            ...active,
+            status: "cancelled",
+            activeStep: null,
+            agents: active.agents.map((specialist) =>
+              specialist.status === "completed" || specialist.status === "failed"
+                ? specialist
+                : {
+                    ...specialist,
+                    status: "cancelled" as const,
+                    message: "Specialist task was cancelled.",
+                  },
+            ),
+            availableActions: [],
+            lastUpdatedAt: new Date().toISOString(),
+          });
+          void restoreCancelledSession(active.sessionId, admittedRunId);
           setMessage("Research run cancelled.");
           setPhase("idle");
         },
