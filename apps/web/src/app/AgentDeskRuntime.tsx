@@ -109,19 +109,26 @@ export function AgentDeskRuntimeProvider({
   }, [agent.threadId]);
 
   const restoreCancelledSession = useCallback(
-    async (sessionId: string | null) => {
-      if (sessionId === null) return;
-      for (let attempt = 0; attempt < 20; attempt += 1) {
+    async (sessionId: string | null, runId: string | null) => {
+      if (sessionId === null && runId === null) return;
+      for (let attempt = 0; attempt < 40; attempt += 1) {
         try {
-          const detail = await getSessionHistory(sessionId);
-          if (detail.session.threadId === agent.threadId) {
+          const sessions = await listSessionHistory(agent.threadId);
+          const cancelled = sessions.find(
+            (candidate) =>
+              candidate.status === "cancelled" &&
+              (candidate.sessionId === sessionId || candidate.lastRunId === runId),
+          );
+          if (cancelled !== undefined) {
+            const detail = await getSessionHistory(cancelled.sessionId);
             stateStore.replaceSnapshot(detail.state);
             await refreshHistory();
             return;
           }
         } catch {
-          await new Promise((resolve) => setTimeout(resolve, 50));
+          // Cancellation persistence and the history read may race briefly.
         }
+        await new Promise((resolve) => setTimeout(resolve, 100));
       }
     },
     [agent.threadId, refreshHistory, stateStore],
@@ -197,7 +204,8 @@ export function AgentDeskRuntimeProvider({
           void refreshHistory();
         },
         onCancelled: () => {
-          void restoreCancelledSession(stateStore.getSnapshot().sessionId ?? admittedRunId);
+          setError(null);
+          void restoreCancelledSession(stateStore.getSnapshot().sessionId, admittedRunId);
           setMessage("Research run cancelled.");
           setPhase("idle");
         },
