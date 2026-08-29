@@ -11,7 +11,7 @@
     "payload": {
       "schema_version": "1.0",
       "proposal_id": "proposal-technology-database",
-      "question": "Which database should we choose for the new product?",
+      "question": "Should the product use PostgreSQL or MongoDB?",
       "summary": "Clarify the workload and operational priorities before comparing databases.",
       "fields": [
         {
@@ -22,7 +22,7 @@
           "destination": "constraint",
           "kind": "single_select",
           "choices": [
-            "Transactional integrity",
+            "Preserve transactional integrity",
             "Flexible document ingestion",
             "Mixed transactional and analytical"
           ]
@@ -34,12 +34,12 @@
           "required": false,
           "destination": "criterion",
           "kind": "multi_select",
-          "choices": ["Data integrity", "Developer velocity", "Operational simplicity"]
+          "choices": ["Schema flexibility", "Developer velocity", "Operational simplicity"]
         }
       ],
       "suggested_options": ["PostgreSQL", "MongoDB"],
-      "suggested_criteria": ["Data model fit"],
-      "suggested_constraints": [],
+      "suggested_criteria": ["Data integrity", "Schema flexibility"],
+      "suggested_constraints": ["Preserve transactional integrity"],
       "default_depth": "normal"
     }
   },
@@ -49,15 +49,15 @@
     "proposal_id": "proposal-technology-database",
     "proposal_version": "1.0",
     "answers": {
-      "workload_profile": "Transactional integrity",
-      "operating_priorities": ["Data integrity", "Operational simplicity"]
+      "workload_profile": "Preserve transactional integrity",
+      "operating_priorities": ["Schema flexibility"]
     }
   },
   "expected_request": {
-    "question": "Which database should we choose for the new product?",
+    "question": "Should the product use PostgreSQL or MongoDB?",
     "options": ["PostgreSQL", "MongoDB"],
-    "constraints": ["Transactional integrity"],
-    "criteria": ["Data model fit", "Data integrity", "Operational simplicity"],
+    "constraints": ["Preserve transactional integrity"],
+    "criteria": ["Data integrity", "Schema flexibility"],
     "desired_depth": "normal"
   }
 }

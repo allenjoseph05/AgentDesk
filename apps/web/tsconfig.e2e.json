@@ -3,5 +3,12 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["e2e", "demo-e2e", "playwright.config.ts", "playwright.demo.config.ts"]
+  "include": [
+    "e2e",
+    "demo-e2e",
+    "intake-e2e",
+    "playwright.config.ts",
+    "playwright.demo.config.ts",
+    "playwright.intake.config.ts"
+  ]
 }

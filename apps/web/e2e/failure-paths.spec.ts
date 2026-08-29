@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 
 import { expect, test, type Page, type Route, type TestInfo } from "@playwright/test";
 
+import { installEmptyHistoryRoute } from "./history-route";
+
 const fixtureRoot = new URL("../../../fixtures/agui/", import.meta.url);
 const loadFixture = (name: string) =>
   JSON.parse(readFileSync(new URL(name, fixtureRoot), "utf8"));
@@ -20,6 +22,10 @@ interface BrowserHarness {
   browserLog: string[];
   requests: AgUiRequest[];
 }
+
+test.beforeEach(async ({ page }) => {
+  await installEmptyHistoryRoute(page);
+});
 
 function encode(events: Record<string, unknown>[]): string {
   return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");

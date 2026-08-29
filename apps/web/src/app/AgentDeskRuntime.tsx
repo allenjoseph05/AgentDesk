@@ -20,9 +20,15 @@ import {
   createSkipIntakeAction,
   createStartResearchAction,
   createSubmitIntakeAction,
+  type StartResearchParameters,
 } from "../agui/actions";
 import { createCoordinatorAgent, runAgentDeskAction } from "../agui/client";
 import { userSafeAgUiError } from "../agui/client-config";
+import {
+  getSessionHistory,
+  listSessionHistory,
+  type SessionHistoryItem,
+} from "../agui/history";
 import { useAgentDeskStateStore } from "../agui/store-react";
 import { type TimelineItem, upsertTimelineItem } from "../agui/timeline";
 import {
@@ -31,7 +37,11 @@ import {
   parseA2uiSurfaceEvent,
   type TrustedIntakeSurface,
 } from "../a2ui/contracts";
-import { agentDeskRuntimeMode, DEMO_RESEARCH_PARAMETERS } from "./runtime-mode";
+import {
+  adaptiveIntakeEnabled,
+  agentDeskRuntimeMode,
+  DEMO_RESEARCH_PARAMETERS,
+} from "./runtime-mode";
 
 export type RuntimePhase = "idle" | "connecting" | "running" | "error";
 
@@ -41,16 +51,22 @@ interface AgentDeskRuntimeValue {
   challengeRecommendation(sessionId: string, challenge: string | null): Promise<boolean>;
   error: string | null;
   focusOnCriterion(sessionId: string, criterion: string): Promise<boolean>;
+  history: SessionHistoryItem[];
   intakeSurface: TrustedIntakeSurface | null;
   message: string;
   phase: RuntimePhase;
   researchDeeper(sessionId: string, focusAreas: string[]): Promise<boolean>;
+  rehydrateSession(sessionId: string): Promise<boolean>;
   retryFailedAgent(
     sessionId: string,
     agentId: string,
     remoteTaskId: string | null,
   ): Promise<boolean>;
   startResearch(question: string): Promise<boolean>;
+  startDirectResearch(
+    question: string,
+    parameters: StartResearchParameters,
+  ): Promise<boolean>;
   skipIntake(surface: TrustedIntakeSurface): Promise<boolean>;
   submitIntake(surface: TrustedIntakeSurface, answers: IntakeAnswers): Promise<boolean>;
   threadId: string;
@@ -82,6 +98,45 @@ export function AgentDeskRuntimeProvider({
   const [error, setError] = useState<string | null>(null);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [intakeSurface, setIntakeSurface] = useState<TrustedIntakeSurface | null>(null);
+  const [history, setHistory] = useState<SessionHistoryItem[]>([]);
+
+  const refreshHistory = useCallback(async () => {
+    try {
+      setHistory(await listSessionHistory(agent.threadId));
+    } catch {
+      // History is supplementary; a read failure must not block a live run.
+    }
+  }, [agent.threadId]);
+
+  const restoreCancelledSession = useCallback(
+    async (sessionId: string | null, runId: string | null) => {
+      if (sessionId === null && runId === null) return;
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        try {
+          const sessions = await listSessionHistory(agent.threadId);
+          const cancelled = sessions.find(
+            (candidate) =>
+              candidate.status === "cancelled" &&
+              (candidate.sessionId === sessionId || candidate.lastRunId === runId),
+          );
+          if (cancelled !== undefined) {
+            const detail = await getSessionHistory(cancelled.sessionId);
+            stateStore.replaceSnapshot(detail.state);
+            await refreshHistory();
+            return;
+          }
+        } catch {
+          // Cancellation persistence and the history read may race briefly.
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    },
+    [agent.threadId, refreshHistory, stateStore],
+  );
+
+  useEffect(() => {
+    void refreshHistory();
+  }, [refreshHistory]);
 
   useEffect(
     () =>
@@ -115,6 +170,7 @@ export function AgentDeskRuntimeProvider({
     setActiveAction(action.type);
     setPhase("connecting");
     setMessage("Connecting to the Coordinator...");
+    let admittedRunId: string | null = null;
     try {
       await runAgentDeskAction(agent, action, userMessage, {
         onA2uiSurface: (value) => {
@@ -139,9 +195,17 @@ export function AgentDeskRuntimeProvider({
           if (state.status !== "awaiting_input") setIntakeSurface(null);
         },
         onMessage: setMessage,
+        onRunIdentity: ({ runId }) => {
+          admittedRunId = runId;
+        },
         onTimelineItem: (item) => setTimeline((items) => upsertTimelineItem(items, item)),
-        onFinished: () => setPhase((current) => (current === "error" ? current : "idle")),
+        onFinished: () => {
+          setPhase((current) => (current === "error" ? current : "idle"));
+          void refreshHistory();
+        },
         onCancelled: () => {
+          setError(null);
+          void restoreCancelledSession(stateStore.getSnapshot().sessionId, admittedRunId);
           setMessage("Research run cancelled.");
           setPhase("idle");
         },
@@ -159,7 +223,7 @@ export function AgentDeskRuntimeProvider({
       submissionGate.finish(action.actionId);
       setActiveAction(null);
     }
-  }, [agent, stateStore, submissionGate]);
+  }, [agent, refreshHistory, restoreCancelledSession, stateStore, submissionGate]);
 
   const startResearch = useCallback(
     (question: string) =>
@@ -167,7 +231,9 @@ export function AgentDeskRuntimeProvider({
         () =>
           agentDeskRuntimeMode === "demo"
             ? createStartResearchAction(question, DEMO_RESEARCH_PARAMETERS)
-            : createPrepareResearchAction(question),
+            : adaptiveIntakeEnabled
+              ? createPrepareResearchAction(question)
+              : createStartResearchAction(question),
         question,
       ),
     [executeAction],
@@ -189,6 +255,15 @@ export function AgentDeskRuntimeProvider({
       );
     },
     [executeAction, stateStore],
+  );
+
+  const startDirectResearch = useCallback(
+    (question: string, parameters: StartResearchParameters) =>
+      executeAction(
+        () => createStartResearchAction(question, parameters),
+        question,
+      ),
+    [executeAction],
   );
 
   const skipIntake = useCallback(
@@ -247,6 +322,31 @@ export function AgentDeskRuntimeProvider({
     agentRef.current?.abortRun();
   }, []);
 
+  const rehydrateSession = useCallback(
+    async (sessionId: string): Promise<boolean> => {
+      setError(null);
+      setPhase("connecting");
+      setMessage("Loading saved research...");
+      try {
+        const detail = await getSessionHistory(sessionId);
+        if (detail.session.threadId !== agent.threadId || !stateStore.replaceSnapshot(detail.state)) {
+          throw new Error("The saved session does not belong to this browser thread.");
+        }
+        setIntakeSurface(null);
+        setTimeline([]);
+        setMessage("Saved research restored without rerunning specialists.");
+        setPhase("idle");
+        return true;
+      } catch (historyError) {
+        setError(userSafeAgUiError(historyError));
+        setMessage("Saved research could not be restored.");
+        setPhase("error");
+        return false;
+      }
+    },
+    [agent.threadId, stateStore],
+  );
+
   const value = useMemo<AgentDeskRuntimeValue>(
     () => ({
       activeAction,
@@ -254,13 +354,16 @@ export function AgentDeskRuntimeProvider({
       challengeRecommendation,
       error,
       focusOnCriterion,
+      history,
       intakeSurface,
       message,
       phase,
       researchDeeper,
+      rehydrateSession,
       retryFailedAgent,
       skipIntake,
       startResearch,
+      startDirectResearch,
       submitIntake,
       threadId: agent.threadId,
       timeline,
@@ -272,13 +375,16 @@ export function AgentDeskRuntimeProvider({
       challengeRecommendation,
       error,
       focusOnCriterion,
+      history,
       intakeSurface,
       message,
       phase,
       researchDeeper,
+      rehydrateSession,
       retryFailedAgent,
       skipIntake,
       startResearch,
+      startDirectResearch,
       submitIntake,
       timeline,
     ],

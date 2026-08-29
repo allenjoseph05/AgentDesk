@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unicodedata
 from collections import defaultdict
+from collections.abc import Mapping
 from pathlib import Path
 from statistics import fmean
 from typing import Literal
@@ -83,15 +84,27 @@ def load_intake_benchmark() -> IntakeBenchmarkSuite:
 def score_intake_case(case: IntakeBenchmarkCase) -> dict[str, float]:
     """Score one preserved direct capture without invoking a model or workflow."""
 
+    return score_intake_capture(
+        case.direct_capture,
+        case.expected,
+        final_usefulness=case.direct_final_usefulness,
+    )
+
+
+def score_intake_capture(
+    capture: BenchmarkCapture,
+    expected: BenchmarkCapture,
+    *,
+    final_usefulness: float = 0,
+) -> dict[str, float]:
+    """Score one explicit capture against the predeclared target values."""
+
     dimensions = {
-        "option_completeness": _recall(case.direct_capture.options, case.expected.options),
-        "constraint_capture": _recall(
-            case.direct_capture.constraints,
-            case.expected.constraints,
-        ),
-        "criterion_relevance": _recall(case.direct_capture.criteria, case.expected.criteria),
-        "downstream_request_validity": float(_is_valid_request(case.direct_capture)),
-        "final_recommendation_usefulness": float(case.direct_final_usefulness),
+        "option_completeness": _recall(capture.options, expected.options),
+        "constraint_capture": _recall(capture.constraints, expected.constraints),
+        "criterion_relevance": _recall(capture.criteria, expected.criteria),
+        "downstream_request_validity": float(_is_valid_request(capture)),
+        "final_recommendation_usefulness": float(final_usefulness),
     }
     dimensions["quality_score"] = fmean(dimensions.values())
     return {name: round(value, 4) for name, value in dimensions.items()}
@@ -147,6 +160,102 @@ def generate_intake_baseline(suite: IntakeBenchmarkSuite) -> dict[str, object]:
             ],
         },
     }
+
+
+def generate_fixture_evaluation(
+    suite: IntakeBenchmarkSuite,
+    scoped_captures: Mapping[str, BenchmarkCapture],
+) -> dict[str, object]:
+    """Evaluate the full suite without inventing outputs for unsupported fixture cases."""
+
+    direct = generate_intake_baseline(suite)
+    case_results: list[dict[str, object]] = []
+    grouped: dict[str, list[dict[str, float]]] = defaultdict(list)
+    supported_ambiguous = 0
+    for case in suite.cases:
+        if case.cohort == "complete_control":
+            capture = case.direct_capture
+            status = "deterministic_bypass"
+        elif case.case_id in scoped_captures:
+            capture = scoped_captures[case.case_id]
+            status = "fixture_scoped"
+            supported_ambiguous += 1
+        else:
+            capture = BenchmarkCapture()
+            status = "fixture_unavailable"
+        scores = score_intake_capture(capture, case.expected)
+        grouped[case.cohort].append(scores)
+        case_results.append(
+            {
+                "case_id": case.case_id,
+                "cohort": case.cohort,
+                "domain": case.domain,
+                "status": status,
+                "capture": capture.model_dump(mode="json"),
+                "scores": scores,
+            }
+        )
+
+    cohort_results = _aggregate_scores(grouped)
+    direct_cohorts = direct["cohort_results"]
+    if not isinstance(direct_cohorts, dict):
+        raise TypeError("Generated direct baseline has invalid cohort results.")
+    direct_ambiguous = direct_cohorts["ambiguous"]
+    if not isinstance(direct_ambiguous, dict):
+        raise TypeError("Generated direct baseline has invalid ambiguous results.")
+    direct_quality = float(direct_ambiguous["quality_score"])
+    scoped_quality = float(cohort_results["ambiguous"]["quality_score"])
+    required_quality = round(direct_quality * 1.15, 4)
+    return {
+        "benchmark_version": suite.benchmark_version,
+        "rubric_version": suite.rubric_version,
+        "profile": "deterministic-fixture-candidate",
+        "model_calls": 0,
+        "live_provider_credentials_required": False,
+        "coverage": {
+            "ambiguous_fixture_scoped": supported_ambiguous,
+            "ambiguous_total": sum(case.cohort == "ambiguous" for case in suite.cases),
+            "complete_control_bypassed": sum(
+                case.cohort == "complete_control" for case in suite.cases
+            ),
+        },
+        "case_results": case_results,
+        "cohort_results": cohort_results,
+        "go_no_go": {
+            "decision": "not_eligible",
+            "ambiguous_direct_quality": direct_quality,
+            "ambiguous_fixture_quality": scoped_quality,
+            "required_scoped_quality": required_quality,
+            "relative_improvement": round(
+                (scoped_quality - direct_quality) / direct_quality,
+                4,
+            ),
+            "reasons": [
+                "The deterministic scoper covers only three of thirty ambiguous benchmark cases.",
+                "Unsupported fixture cases are scored as unavailable rather than inferred from "
+                "targets.",
+                "Final recommendation usefulness has not been independently scored across the "
+                "suite.",
+                "The predefined fifteen-percent scoped quality gate did not pass.",
+            ],
+        },
+    }
+
+
+def _aggregate_scores(
+    grouped: Mapping[str, list[dict[str, float]]],
+) -> dict[str, dict[str, float | int]]:
+    aggregates: dict[str, dict[str, float | int]] = {}
+    for cohort, cohort_scores in grouped.items():
+        dimensions = cohort_scores[0]
+        aggregates[cohort] = {
+            "case_count": len(cohort_scores),
+            **{
+                dimension: round(fmean(score[dimension] for score in cohort_scores), 4)
+                for dimension in dimensions
+            },
+        }
+    return aggregates
 
 
 def _normalized(value: str) -> str:

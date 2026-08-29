@@ -119,6 +119,42 @@ jobs:
           npm test --prefix spikes/a2ui-web
           npm audit --audit-level=low --prefix spikes/a2ui-web
 
+  adaptive-intake-e2e:
+    name: Adaptive intake fixture E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            requirements.lock
+            services/scoper/requirements.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --workspaces --include-workspace-root
+      - run: python scripts/setup.py
+      - name: Create isolated scoper environment
+        run: python scripts/setup_adaptive_intake_e2e.py
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run key-free adaptive intake stack
+        run: npm run test:e2e:intake
+      - name: Upload adaptive intake failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adaptive-intake-playwright-${{ github.run_id }}
+          path: |
+            .tmp/intake-playwright-report
+            .tmp/intake-test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
   container-images:
     name: Container images
     runs-on: ubuntu-latest

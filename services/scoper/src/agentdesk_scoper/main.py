@@ -37,6 +37,7 @@ def create_runtime_agent(settings: ScoperSettings) -> BaseAgent:
     return FixtureScoperAgent(
         name="decision_scoper",
         description="Deterministic decision-scoping agent.",
+        delay_seconds=settings.fixture_delay_seconds,
         proposal_template=template,
     )
 

@@ -2,12 +2,18 @@ import { readFileSync } from "node:fs";
 
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
+import { installEmptyHistoryRoute } from "./history-route";
+
 const fixtureRoot = new URL("../../../fixtures/agui/", import.meta.url);
 const goldenFixture = JSON.parse(
   readFileSync(new URL("postgresql-vs-mongodb.golden.json", fixtureRoot), "utf8"),
 );
 const QUESTION = goldenFixture.action.payload.question;
 const CHALLENGE = "What if schema flexibility matters more than relational integrity?";
+
+test.beforeEach(async ({ page }) => {
+  await installEmptyHistoryRoute(page);
+});
 
 interface AgUiRequest {
   forwardedProps: { agentdesk: Record<string, unknown> };

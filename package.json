@@ -40,6 +40,7 @@
     "test:agui": "npm run test:agui:python && npm run test:agui --workspace @agentdesk/web",
     "test:e2e": "npm run test:e2e --workspace @agentdesk/web",
     "test:e2e:demo": "npm run test:e2e:demo --workspace @agentdesk/web",
+    "test:e2e:intake": "npm run test:e2e:intake --workspace @agentdesk/web",
     "test:web": "npm test --workspace @agentdesk/web",
     "test": "npm run test:python && npm run test:web",
     "build": "npm run build --workspace @agentdesk/web"

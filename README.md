@@ -82,6 +82,17 @@ With the demo stack healthy, its real browser path can be checked independently:
 npm run test:e2e:demo
 ```
 
+The separate adaptive fixture evaluation adds the isolated Google ADK scoper and trusted A2UI
+intake without keys or billing:
+
+```powershell
+python scripts/setup_adaptive_intake_e2e.py
+npm run test:e2e:intake
+```
+
+Its committed benchmark result is intentionally `not_eligible`, so normal live builds keep adaptive
+intake disabled unless `VITE_AGENTDESK_ADAPTIVE_INTAKE_ENABLED=true` is explicitly selected.
+
 ### Zero-cost hosted demo
 
 The default hosted path runs the complete deterministic Compose stack on demand in GitHub

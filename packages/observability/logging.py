@@ -52,7 +52,13 @@ def correlation_scope(ids: CorrelationIds) -> Iterator[None]:
     try:
         yield
     finally:
-        _correlation_ids.reset(token)
+        try:
+            _correlation_ids.reset(token)
+        except ValueError:
+            # Starlette may close a disconnected streaming response in a fresh
+            # context. That context cannot reset a token created by the request
+            # task, and it is discarded immediately after generator cleanup.
+            pass
 
 
 def log_event(

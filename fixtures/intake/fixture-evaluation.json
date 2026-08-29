@@ -1,0 +1,962 @@
+{
+  "benchmark_version": "1.0",
+  "case_results": [
+    {
+      "capture": {
+        "constraints": [
+          "Preserve transactional integrity"
+        ],
+        "criteria": [
+          "Data integrity",
+          "Schema flexibility"
+        ],
+        "desired_depth": "normal",
+        "options": [
+          "PostgreSQL",
+          "MongoDB"
+        ]
+      },
+      "case_id": "amb-tech-01",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.4
+      },
+      "status": "fixture_scoped"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-tech-02",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-tech-03",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-tech-04",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-tech-05",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-tech-06",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-tech-07",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-tech-08",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-tech-09",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-tech-10",
+      "cohort": "ambiguous",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [
+          "Up to 3500 USD"
+        ],
+        "criteria": [
+          "Supportability",
+          "GPU performance",
+          "Display accuracy"
+        ],
+        "desired_depth": "normal",
+        "options": [
+          "MacBook Pro 16",
+          "Dell Precision 5690"
+        ]
+      },
+      "case_id": "amb-proc-01",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.6
+      },
+      "status": "fixture_scoped"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-proc-02",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-proc-03",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-proc-04",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-proc-05",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-proc-06",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-proc-07",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-proc-08",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-proc-09",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-proc-10",
+      "cohort": "ambiguous",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [
+          "Group of 12 travellers",
+          "Arrive before 17:00 on Thursday",
+          "Checked baggage required"
+        ],
+        "criteria": [
+          "Cost per traveller",
+          "Reliability",
+          "Carbon impact"
+        ],
+        "desired_depth": "fast",
+        "options": [
+          "Train",
+          "Flight"
+        ]
+      },
+      "case_id": "amb-travel-01",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.5,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.5
+      },
+      "status": "fixture_scoped"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-travel-02",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-travel-03",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-travel-04",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-travel-05",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-travel-06",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-travel-07",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-travel-08",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-travel-09",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [],
+        "criteria": [],
+        "desired_depth": "normal",
+        "options": []
+      },
+      "case_id": "amb-travel-10",
+      "cohort": "ambiguous",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 0.0,
+        "criterion_relevance": 0.0,
+        "downstream_request_validity": 0.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 0.0,
+        "quality_score": 0.0
+      },
+      "status": "fixture_unavailable"
+    },
+    {
+      "capture": {
+        "constraints": [
+          "Regulated transactional workload"
+        ],
+        "criteria": [
+          "Data integrity",
+          "Operational effort"
+        ],
+        "desired_depth": "normal",
+        "options": [
+          "PostgreSQL",
+          "MongoDB"
+        ]
+      },
+      "case_id": "control-tech-01",
+      "cohort": "complete_control",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      },
+      "status": "deterministic_bypass"
+    },
+    {
+      "capture": {
+        "constraints": [
+          "EU hosting",
+          "Five-person operations team"
+        ],
+        "criteria": [
+          "Total operating cost",
+          "Managed-service fit"
+        ],
+        "desired_depth": "deep",
+        "options": [
+          "AWS",
+          "Azure"
+        ]
+      },
+      "case_id": "control-tech-02",
+      "cohort": "complete_control",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      },
+      "status": "deterministic_bypass"
+    },
+    {
+      "capture": {
+        "constraints": [
+          "5000 events per second",
+          "At-least-once delivery"
+        ],
+        "criteria": [
+          "Operability",
+          "Event replay"
+        ],
+        "desired_depth": "deep",
+        "options": [
+          "Kafka",
+          "RabbitMQ"
+        ]
+      },
+      "case_id": "control-tech-03",
+      "cohort": "complete_control",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      },
+      "status": "deterministic_bypass"
+    },
+    {
+      "capture": {
+        "constraints": [
+          "Externally governed partner API"
+        ],
+        "criteria": [
+          "Client compatibility",
+          "Governance effort"
+        ],
+        "desired_depth": "fast",
+        "options": [
+          "REST",
+          "GraphQL"
+        ]
+      },
+      "case_id": "control-tech-04",
+      "cohort": "complete_control",
+      "domain": "technology",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      },
+      "status": "deterministic_bypass"
+    },
+    {
+      "capture": {
+        "constraints": [
+          "Maximum 3500 USD per unit"
+        ],
+        "criteria": [
+          "GPU performance",
+          "Display accuracy"
+        ],
+        "desired_depth": "normal",
+        "options": [
+          "MacBook Pro 16",
+          "Dell Precision 5690"
+        ]
+      },
+      "case_id": "control-proc-01",
+      "cohort": "complete_control",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      },
+      "status": "deterministic_bypass"
+    },
+    {
+      "capture": {
+        "constraints": [
+          "Fifty users",
+          "EU data controls"
+        ],
+        "criteria": [
+          "Workflow fit",
+          "Administration cost"
+        ],
+        "desired_depth": "deep",
+        "options": [
+          "HubSpot",
+          "Salesforce"
+        ]
+      },
+      "case_id": "control-proc-02",
+      "cohort": "complete_control",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      },
+      "status": "deterministic_bypass"
+    },
+    {
+      "capture": {
+        "constraints": [
+          "Shared desk environment"
+        ],
+        "criteria": [
+          "Ergonomic adjustability",
+          "Warranty"
+        ],
+        "desired_depth": "fast",
+        "options": [
+          "Herman Miller Aeron",
+          "Steelcase Gesture"
+        ]
+      },
+      "case_id": "control-proc-03",
+      "cohort": "complete_control",
+      "domain": "procurement",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      },
+      "status": "deterministic_bypass"
+    },
+    {
+      "capture": {
+        "constraints": [
+          "Twelve travellers",
+          "Arrive before Thursday 17:00"
+        ],
+        "criteria": [
+          "Reliability",
+          "Carbon impact",
+          "Total cost"
+        ],
+        "desired_depth": "fast",
+        "options": [
+          "Train",
+          "Flight"
+        ]
+      },
+      "case_id": "control-travel-01",
+      "cohort": "complete_control",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      },
+      "status": "deterministic_bypass"
+    },
+    {
+      "capture": {
+        "constraints": [
+          "September dates",
+          "Forty European employees"
+        ],
+        "criteria": [
+          "Flight accessibility",
+          "Venue cost"
+        ],
+        "desired_depth": "normal",
+        "options": [
+          "Lisbon",
+          "Prague"
+        ]
+      },
+      "case_id": "control-travel-02",
+      "cohort": "complete_control",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      },
+      "status": "deterministic_bypass"
+    },
+    {
+      "capture": {
+        "constraints": [
+          "Eight visitors",
+          "Four-day itinerary"
+        ],
+        "criteria": [
+          "Schedule flexibility",
+          "Total group cost"
+        ],
+        "desired_depth": "normal",
+        "options": [
+          "Rental cars",
+          "Regional rail"
+        ]
+      },
+      "case_id": "control-travel-03",
+      "cohort": "complete_control",
+      "domain": "travel",
+      "scores": {
+        "constraint_capture": 1.0,
+        "criterion_relevance": 1.0,
+        "downstream_request_validity": 1.0,
+        "final_recommendation_usefulness": 0.0,
+        "option_completeness": 1.0,
+        "quality_score": 0.8
+      },
+      "status": "deterministic_bypass"
+    }
+  ],
+  "cohort_results": {
+    "ambiguous": {
+      "case_count": 30,
+      "constraint_capture": 0.0,
+      "criterion_relevance": 0.05,
+      "downstream_request_validity": 0.1,
+      "final_recommendation_usefulness": 0.0,
+      "option_completeness": 0.1,
+      "quality_score": 0.05
+    },
+    "complete_control": {
+      "case_count": 10,
+      "constraint_capture": 1.0,
+      "criterion_relevance": 1.0,
+      "downstream_request_validity": 1.0,
+      "final_recommendation_usefulness": 0.0,
+      "option_completeness": 1.0,
+      "quality_score": 0.8
+    }
+  },
+  "coverage": {
+    "ambiguous_fixture_scoped": 3,
+    "ambiguous_total": 30,
+    "complete_control_bypassed": 10
+  },
+  "go_no_go": {
+    "ambiguous_direct_quality": 0.2,
+    "ambiguous_fixture_quality": 0.05,
+    "decision": "not_eligible",
+    "reasons": [
+      "The deterministic scoper covers only three of thirty ambiguous benchmark cases.",
+      "Unsupported fixture cases are scored as unavailable rather than inferred from targets.",
+      "Final recommendation usefulness has not been independently scored across the suite.",
+      "The predefined fifteen-percent scoped quality gate did not pass."
+    ],
+    "relative_improvement": -0.75,
+    "required_scoped_quality": 0.23
+  },
+  "live_provider_credentials_required": false,
+  "model_calls": 0,
+  "profile": "deterministic-fixture-candidate",
+  "rubric_version": "1.0"
+}
